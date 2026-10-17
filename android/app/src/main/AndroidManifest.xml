@@ -43,6 +43,18 @@
         </provider>
     </application>
 
+    <!-- Let the register open the device SMS composer without a paid provider. -->
+    <queries>
+        <intent>
+            <action android:name="android.intent.action.SENDTO" />
+            <data android:scheme="sms" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="sms" />
+        </intent>
+    </queries>
+
     <!-- Permissions -->
 
     <uses-feature android:name="android.hardware.usb.host" android:required="false" />

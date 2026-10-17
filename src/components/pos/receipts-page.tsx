@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
-import { Printer, Share2 } from "lucide-react";
+import { Printer } from "lucide-react";
 import { ReceiptView } from "@/components/pos/receipt";
+import { SendReceipt } from "@/components/pos/send-sms";
 import { PageHeader } from "@/components/pos/shell";
 import { can } from "@/lib/pos/access";
 import { Numpad } from "@/components/pos/numpad";
 import { formatILS, formatDay, moneyFromPad, pushMoneyKey, roundCash, roundMoney } from "@/lib/pos/money";
-import { confirmReceipt, deliverPrint, shareReceipt, shareStatus } from "@/lib/pos/receipt-io";
+import { confirmReceipt, deliverPrint } from "@/lib/pos/receipt-io";
 import { currentUser, usePos } from "@/lib/pos/store";
 import { foldTenders, isCredit, methodSummary, previewTender, quoteRefund, refundedQty, refundMethodsFor, type TenderInput } from "@/lib/pos/tender";
 import { type PaymentMethod, type Sale } from "@/lib/pos/types";
@@ -153,7 +154,6 @@ export function ReceiptsPage() {
   const [query, setQuery] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [confirmVoid, setConfirmVoid] = useState(false);
-  const [shared, setShared] = useState("");
 
   const visible = useMemo(() => {
     const q = query.trim();
@@ -167,11 +167,6 @@ export function ReceiptsPage() {
     if (!window.matchMedia("(min-width: 1024px)").matches) return;
     if (!selectedId && sales[0]) setSelectedId(sales[0].id);
   }, [sales, selectedId]);
-
-  async function share() {
-    if (!selected) return;
-    setShared(shareStatus(await shareReceipt(selected)));
-  }
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
@@ -199,7 +194,6 @@ export function ReceiptsPage() {
                       setSelectedId(sale.id);
                       setConfirmVoid(false);
                       setRefunding(false);
-                      setShared("");
                     }}
                     className={`flex w-full items-center gap-3 rounded-2xl px-3 py-3 text-start ring-1 ring-line ${selectedId === sale.id ? "bg-pine-soft" : "bg-surface"}`}
                   >
@@ -226,20 +220,15 @@ export function ReceiptsPage() {
                 חזרה לרשימה
               </button>
               <ReceiptView sale={selected} />
-              <div className="mt-3 grid grid-cols-2 gap-2">
-                <button
-                  type="button"
-                  onClick={() => void deliverPrint(selected)}
-                  className="flex h-12 items-center justify-center gap-2 rounded-2xl bg-surface text-sm font-medium ring-1 ring-line"
-                >
-                  <Printer className="size-4" />
-                  הדפסה
-                </button>
-                <button type="button" onClick={() => void share()} className="flex h-12 items-center justify-center gap-2 rounded-2xl bg-surface text-sm font-medium ring-1 ring-line">
-                  <Share2 className="size-4" />
-                  {shared || "שליחת קבלה"}
-                </button>
-              </div>
+              <button
+                type="button"
+                onClick={() => void deliverPrint(selected)}
+                className="mt-3 flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-surface text-sm font-medium ring-1 ring-line"
+              >
+                <Printer className="size-4" />
+                הדפסה
+              </button>
+              <SendReceipt sale={selected} />
               {selected.voided || isCredit(selected) ? null : mayRefund ? (
                 refunding ? (
                   <RefundPanel

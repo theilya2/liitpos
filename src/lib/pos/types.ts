@@ -140,6 +140,8 @@ export type Sale = {
   cardBrand?: string;
   channel?: "register" | "kiosk";
   kioskStatus?: "new" | "done" | null;
+  /** Unguessable id for the public receipt page. Missing on sales from before SMS links. */
+  publicToken?: string;
 };
 
 export type Settings = BusinessSnapshot & {

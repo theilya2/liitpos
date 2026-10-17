@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { ArrowLeftRight, Banknote, CreditCard, IdCard, Minus, Pause, Plus, Printer, Search, Share2, Smartphone, Ticket, Trash2, Wallet, X } from "lucide-react";
+import { ArrowLeftRight, Banknote, CreditCard, IdCard, Minus, Pause, Plus, Printer, Search, Smartphone, Ticket, Trash2, Wallet, X } from "lucide-react";
 import { Numpad } from "@/components/pos/numpad";
 import { ReceiptView } from "@/components/pos/receipt";
-import { confirmReceipt, deliverPrint, pulseDrawer, shareReceipt, shareStatus } from "@/lib/pos/receipt-io";
+import { SendReceipt } from "@/components/pos/send-sms";
+import { confirmReceipt, deliverPrint, pulseDrawer } from "@/lib/pos/receipt-io";
 import { computeTotals, formatILS, formatWhen, moneyFromPad, pushMoneyKey, roundCash, roundMoney } from "@/lib/pos/money";
 import { foldTenders, previewTender, remainingExact, type TenderInput } from "@/lib/pos/tender";
 import { currentUser, isWeekLocked, usePos } from "@/lib/pos/store";
@@ -526,8 +527,6 @@ function PaySheet({ onClose, onDone }: { onClose: () => void; onDone: (sale: Sal
 }
 
 function DoneSheet({ sale, onClose }: { sale: Sale; onClose: () => void }) {
-  const [shared, setShared] = useState("");
-
   useEffect(() => {
     void confirmReceipt(sale);
   }, [sale]);
@@ -535,24 +534,15 @@ function DoneSheet({ sale, onClose }: { sale: Sale; onClose: () => void }) {
   return (
     <Overlay title={`קבלה ${sale.number}`} onClose={onClose}>
       <ReceiptView sale={sale} />
-      <div className="mt-4 grid grid-cols-2 gap-2">
-        <button
-          type="button"
-          onClick={() => void deliverPrint(sale)}
-          className="flex h-12 items-center justify-center gap-2 rounded-2xl bg-paper text-sm font-medium"
-        >
-          <Printer className="size-4" />
-          הדפסה
-        </button>
-        <button
-          type="button"
-          onClick={() => void shareReceipt(sale).then((result) => setShared(shareStatus(result)))}
-          className="flex h-12 items-center justify-center gap-2 rounded-2xl bg-paper text-sm font-medium"
-        >
-          <Share2 className="size-4" />
-          {shared || "שליחת קבלה"}
-        </button>
-      </div>
+      <button
+        type="button"
+        onClick={() => void deliverPrint(sale)}
+        className="mt-4 flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-paper text-sm font-medium"
+      >
+        <Printer className="size-4" />
+        הדפסה
+      </button>
+      <SendReceipt sale={sale} />
       <button type="button" onClick={onClose} className="mt-2 h-14 w-full rounded-2xl bg-pine text-lg font-semibold text-pine-ink">
         מכירה חדשה
       </button>

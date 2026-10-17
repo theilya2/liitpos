@@ -125,6 +125,27 @@ public class MainActivity extends BridgeActivity {
         }
 
         @JavascriptInterface
+        public void sendSms(String number, String body) {
+            runOnUiThread(() -> {
+                String to = number == null ? "" : number;
+                String text = body == null ? "" : body;
+                Intent intent = new Intent(Intent.ACTION_SENDTO, Uri.parse("sms:" + to));
+                intent.putExtra("sms_body", text);
+                intent.putExtra(Intent.EXTRA_TEXT, text);
+                try {
+                    startActivity(intent);
+                } catch (Exception error) {
+                    try {
+                        Intent view = new Intent(Intent.ACTION_VIEW, Uri.parse("sms:" + to + "?body=" + Uri.encode(text)));
+                        startActivity(view);
+                    } catch (Exception ignored) {
+                        // No SMS app on this device. The register keeps the summary on screen.
+                    }
+                }
+            });
+        }
+
+        @JavascriptInterface
         public void printReceipt() {
             runOnUiThread(() -> {
                 PrintManager manager = (PrintManager) getSystemService(PRINT_SERVICE);
