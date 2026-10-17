@@ -41,6 +41,7 @@ jobs:
           done
           exit "$missing"
 
+      # v3 asks sdkmanager for the removed "tools" package and fails the job.
       - name: Install Android SDK
         uses: android-actions/setup-android@v4
         with:
