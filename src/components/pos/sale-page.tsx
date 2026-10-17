@@ -42,7 +42,7 @@ function Overlay({
         role="dialog"
         aria-modal="true"
         aria-labelledby="overlay-title"
-        className="flex max-h-[92dvh] w-full max-w-lg flex-col overflow-hidden rounded-t-3xl bg-surface text-ink shadow-none sm:rounded-3xl"
+        className="flex max-h-full min-h-0 w-full max-w-lg flex-col overflow-hidden rounded-t-3xl bg-surface text-ink shadow-none sm:max-w-xl sm:rounded-3xl"
       >
         <div className="flex items-center justify-between gap-3 border-b border-line px-4 py-3">
           <h2 id="overlay-title" className="text-lg font-semibold">
@@ -52,7 +52,7 @@ function Overlay({
             <X className="size-5" />
           </button>
         </div>
-        <div className="min-h-0 flex-1 overflow-y-auto p-4">{children}</div>
+        <div className="scroll-pane min-h-0 flex-1 p-4">{children}</div>
       </div>
     </div>
   );
@@ -671,7 +671,7 @@ function ShelfTile({ product, qty, onAdd }: { product: Product; qty: number; onA
       onClick={onAdd}
       className="flex min-w-0 flex-col overflow-hidden rounded-2xl bg-surface text-start ring-1 ring-line transition-transform duration-150 active:scale-95 disabled:opacity-50"
     >
-      <span className="relative block aspect-square max-h-36 w-full overflow-hidden bg-pine-soft">
+      <span className="relative block aspect-[5/4] max-h-40 w-full overflow-hidden bg-pine-soft">
         {product.image ? (
           <img src={product.image} alt="" className="h-full w-full object-cover" />
         ) : (
@@ -681,9 +681,9 @@ function ShelfTile({ product, qty, onAdd }: { product: Product; qty: number; onA
           <span className="absolute end-1.5 top-1.5 rounded-full bg-pine px-2 text-xs font-semibold text-pine-ink tabular-nums">{qty}</span>
         ) : null}
       </span>
-      <span className="flex items-start justify-between gap-1 px-2 py-1.5">
-        <span className="line-clamp-2 text-xs font-medium leading-tight">{product.name}</span>
-        <span className="shrink-0 text-xs font-semibold tabular-nums">{formatILS(product.price)}</span>
+      <span className="flex min-w-0 flex-col gap-0.5 px-2 py-2">
+        <span className="line-clamp-2 text-sm font-medium leading-snug">{product.name}</span>
+        <span className="text-sm font-semibold tabular-nums text-copper">{formatILS(product.price)}</span>
       </span>
     </button>
   );
@@ -836,8 +836,10 @@ export function SalePage() {
   }
 
   return (
-    <div className="grid min-h-0 flex-1 grid-cols-2 grid-rows-2 gap-2 p-2">
-      <section aria-label="מדף עליון" className="flex min-h-0 min-w-0 flex-col overflow-hidden rounded-2xl bg-paper ring-1 ring-line">
+    <>
+    <div className="register-frame">
+    <div className="register">
+      <section aria-label="מדף עליון" className="register-panel register-upper bg-paper ring-1 ring-line">
         <div className="flex shrink-0 items-center gap-2 px-2 pt-2">
           {logo ? (
             <img src={logo} alt="" className="h-9 w-9 shrink-0 rounded-xl object-cover" />
@@ -872,7 +874,7 @@ export function SalePage() {
         />
       </section>
 
-      <section aria-label="חשבון נוכחי" className="flex min-h-0 min-w-0 flex-col overflow-hidden rounded-2xl bg-surface ring-1 ring-line">
+      <section aria-label="חשבון נוכחי" className="register-panel register-ticket bg-surface ring-1 ring-line">
         <header className="shrink-0 px-2 pt-2">
           <h1 className="truncate text-base font-semibold">{businessName}</h1>
           <p className="truncate text-xs text-muted">
@@ -887,16 +889,16 @@ export function SalePage() {
             onClick={() => {
               if (!holdCart()) setNote(held.length >= 5 ? "אפשר להקפיא עד 5 חשבונות." : "אין מה להקפיא.");
             }}
-            className="flex h-12 items-center justify-center gap-1 rounded-xl bg-paper px-1 text-xs font-medium ring-1 ring-line disabled:opacity-40"
+            className="flex min-h-12 items-center justify-center gap-1 rounded-xl bg-paper px-1 py-1 text-center text-xs font-medium leading-tight ring-1 ring-line disabled:opacity-40"
           >
             <Pause className="size-4 shrink-0" />
             הקפאה {held.length}/5
           </button>
-          <button type="button" onClick={() => void drawer()} className="flex h-12 items-center justify-center gap-1 rounded-xl bg-paper px-1 text-xs font-medium ring-1 ring-line">
+          <button type="button" onClick={() => void drawer()} className="flex min-h-12 items-center justify-center gap-1 rounded-xl bg-paper px-1 py-1 text-center text-xs font-medium leading-tight ring-1 ring-line">
             <Wallet className="size-4 shrink-0" />
             מגירה
           </button>
-          <button type="button" onClick={lastReceipt} className="flex h-12 items-center justify-center gap-1 rounded-xl bg-paper px-1 text-xs font-medium ring-1 ring-line">
+          <button type="button" onClick={lastReceipt} className="flex min-h-12 items-center justify-center gap-1 rounded-xl bg-paper px-1 py-1 text-center text-xs font-medium leading-tight ring-1 ring-line">
             <Printer className="size-4 shrink-0" />
             קבלה
           </button>
@@ -930,7 +932,7 @@ export function SalePage() {
             ))}
           </div>
         ) : null}
-        <ul className="min-h-0 flex-1 overflow-y-auto px-2 py-1">
+        <ul className="scroll-pane min-h-0 flex-1 px-2 py-1">
           {cart.length === 0 ? (
             <li className="py-4 text-center text-xs text-muted">החשבון ריק. בוחרים מהמדף, או מוסיפים מוצר כללי בסכום.</li>
           ) : (
@@ -943,10 +945,11 @@ export function SalePage() {
                   onKeyDown={(event) => {
                     if (event.key === "Enter") setSelectedKey(line.key);
                   }}
-                  className={`mb-1 flex w-full items-center gap-1 rounded-xl px-1.5 py-1 text-start ${selectedKey === line.key ? "bg-pine-soft" : "bg-paper"}`}
+                  className={`mb-1 flex w-full flex-wrap items-center gap-2 rounded-xl px-1.5 py-1 text-start ${selectedKey === line.key ? "bg-pine-soft" : "bg-paper"}`}
                 >
-                  <span className="min-w-0 flex-1 truncate text-xs font-medium">{line.name}</span>
-                  <span className="flex items-center gap-2">
+                  <span className="min-w-0 flex-1 basis-24 truncate text-sm font-medium">{line.name}</span>
+                  <span className="text-sm font-semibold tabular-nums">{formatILS(roundMoney(line.unitPrice * line.qty))}</span>
+                  <span className="ms-auto flex items-center gap-2">
                     <button
                       type="button"
                       aria-label="הפחתה"
@@ -971,7 +974,6 @@ export function SalePage() {
                       <Plus className="size-3.5" />
                     </button>
                   </span>
-                  <span className="w-14 text-end text-xs font-semibold tabular-nums">{formatILS(roundMoney(line.unitPrice * line.qty))}</span>
                 </div>
               </li>
             ))
@@ -1000,7 +1002,7 @@ export function SalePage() {
         </div>
       </section>
 
-      <section aria-label="מדף תחתון" className="flex min-h-0 min-w-0 flex-col overflow-hidden rounded-2xl bg-paper ring-1 ring-line">
+      <section aria-label="מדף תחתון" className="register-panel register-lower bg-paper ring-1 ring-line">
         <h2 className="shrink-0 px-2 pt-2 text-sm font-semibold">מדף תחתון</h2>
         <ShelfGrid
           products={lower}
@@ -1012,48 +1014,51 @@ export function SalePage() {
         />
       </section>
 
-      <section aria-label="סכום עצמאי ותשלום" className="flex min-h-0 min-w-0 flex-col gap-2 overflow-hidden rounded-2xl bg-surface p-2 ring-1 ring-line">
-        <p className="shrink-0 text-center text-xl font-semibold leading-none tabular-nums" dir="ltr">
-          {pad === "" ? "0.00" : pad}
-        </p>
-        <div className="min-h-0 flex-1">
-          <Numpad fill onKey={(key) => setPad((current) => pushMoneyKey(current, key))} />
+      <section aria-label="סכום עצמאי ותשלום" className="register-panel register-keypad bg-surface ring-1 ring-line">
+        <div className="keypad-fit">
+          <div className="keypad-stack">
+            <p className="shrink-0 text-center text-xl font-semibold leading-none tabular-nums" dir="ltr">
+              {pad === "" ? "0.00" : pad}
+            </p>
+            <Numpad fill onKey={(key) => setPad((current) => pushMoneyKey(current, key))} />
+            <div className="grid shrink-0 grid-cols-2 gap-2">
+              <button type="button" onClick={addAmount} className="min-h-12 rounded-xl bg-pine px-2 text-sm font-semibold text-pine-ink">
+                הוסף
+              </button>
+              <button
+                type="button"
+                onClick={deleteLine}
+                disabled={!cart.length}
+                className="flex min-h-12 items-center justify-center gap-1 rounded-xl bg-copper-soft px-2 text-sm font-semibold leading-tight text-copper disabled:opacity-40"
+              >
+                <Trash2 className="size-4 shrink-0" />
+                מחק שורה
+              </button>
+            </div>
+            <button
+              type="button"
+              onClick={() => setPayOpen(true)}
+              disabled={!cart.length || totals.total <= 0}
+              className="min-h-14 shrink-0 rounded-xl bg-pine text-sm font-semibold text-pine-ink disabled:opacity-40"
+            >
+              תשלום
+            </button>
+          </div>
         </div>
-        <div className="grid shrink-0 grid-cols-2 gap-2">
-          <button type="button" onClick={addAmount} className="h-12 rounded-xl bg-pine text-sm font-semibold text-pine-ink">
-            הוסף
-          </button>
-          <button
-            type="button"
-            onClick={deleteLine}
-            disabled={!cart.length}
-            className="flex h-12 items-center justify-center gap-1 rounded-xl bg-copper-soft text-sm font-semibold text-copper disabled:opacity-40"
-          >
-            <Trash2 className="size-4" />
-            מחק שורה
-          </button>
-        </div>
-        <button
-          type="button"
-          onClick={() => setPayOpen(true)}
-          disabled={!cart.length || totals.total <= 0}
-          className="h-14 shrink-0 rounded-xl bg-pine text-sm font-semibold text-pine-ink disabled:opacity-40"
-        >
-          תשלום
-        </button>
       </section>
-
-      {payOpen ? (
-        <PaySheet
-          onClose={() => setPayOpen(false)}
-          onDone={(sale) => {
-            setPayOpen(false);
-            setDone(sale);
-          }}
-        />
-      ) : null}
-      {done ? <DoneSheet sale={done} onClose={() => setDone(null)} /> : null}
     </div>
+    </div>
+    {payOpen ? (
+      <PaySheet
+        onClose={() => setPayOpen(false)}
+        onDone={(sale) => {
+          setPayOpen(false);
+          setDone(sale);
+        }}
+      />
+    ) : null}
+    {done ? <DoneSheet sale={done} onClose={() => setDone(null)} /> : null}
+    </>
   );
 }
 
@@ -1069,11 +1074,11 @@ function ShelfGrid({
   onAdd: (product: Product) => void;
 }) {
   return (
-    <div className="min-h-0 flex-1 overflow-y-auto p-2">
+    <div className="scroll-pane min-h-0 flex-1 p-2">
       {products.length === 0 ? (
         <p className="py-6 text-center text-xs text-muted">{empty}</p>
       ) : (
-        <div className="grid grid-cols-2 gap-2">
+        <div className="shelf-grid">
           {products.map((product) => (
             <ShelfTile key={product.id} product={product} qty={qtyByProduct.get(product.id) ?? 0} onAdd={() => onAdd(product)} />
           ))}

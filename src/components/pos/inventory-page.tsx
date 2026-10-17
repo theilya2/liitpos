@@ -39,7 +39,7 @@ export function InventoryPage() {
   }
 
   return (
-    <div className="min-h-0 flex-1 overflow-y-auto">
+    <div className="scroll-pane page-sheet min-h-0 flex-1">
       <PageHeader title="מלאי" subtitle="כמות במדף, שווי ופעולות קבלה, ספירה ופחת." />
       <div className="space-y-3 px-3 pb-6">
         <section className="grid grid-cols-3 gap-2">

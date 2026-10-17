@@ -52,7 +52,7 @@ function LoginForm({ onSuccess }: { onSuccess: () => void }) {
   const [busy, setBusy] = useState(false);
 
   return (
-    <main className="mx-auto flex min-h-full w-full max-w-md flex-col justify-center px-4 py-8">
+    <main className="mx-auto flex min-h-full w-full max-w-md flex-col px-4 py-8">
       <h1 className="text-2xl font-semibold">לוח בקרה</h1>
       <p className="mt-2 text-sm text-muted">כניסה לבעלים בלבד. אין הרשמה, ואין קישור לכאן מתוך הקופה.</p>
       <form

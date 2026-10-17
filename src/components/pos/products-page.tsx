@@ -105,7 +105,7 @@ export function ProductsPage() {
   }
 
   return (
-    <div className="relative flex min-h-0 flex-1 flex-col">
+    <div className="page-sheet relative flex min-h-0 flex-1 flex-col">
       <PageHeader title="מוצרים" subtitle="המדף של הקופה. מחירים לצרכן, כולל מע״מ." />
       <div className="shrink-0 space-y-3 px-3 pb-3">
         <input
@@ -157,7 +157,7 @@ export function ProductsPage() {
           </button>
         </form>
       </div>
-      <div className="min-h-0 flex-1 overflow-y-auto px-3 pb-24">
+      <div className="scroll-pane min-h-0 flex-1 px-3 pb-24">
         <ul className="space-y-2">
           {visible.map((product) => (
             <li key={product.id}>
