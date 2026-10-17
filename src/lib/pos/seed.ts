@@ -24,6 +24,10 @@ export const defaultSettings: Settings = {
   androidTerminal: { ip: "", port: 8088, https: false },
   pinpad: { ip: "", port: 8890, https: false },
   logo: null,
+  autoPrint: true,
+  paperWidth: 80,
+  printerName: "Default",
+  openDrawer: true,
 };
 
 type SeedProduct = Omit<Product, "active" | "image" | "trackStock" | "stock" | "lowStock" | "shelf" | "kiosk" | "extras"> & {

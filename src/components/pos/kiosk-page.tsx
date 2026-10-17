@@ -2,6 +2,7 @@ import { useMemo, useState, type ReactNode } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { Minus, Plus, X } from "lucide-react";
 import { computeTotals, formatILS, roundCash, roundMoney } from "@/lib/pos/money";
+import { confirmReceipt } from "@/lib/pos/receipt-io";
 import { usePos } from "@/lib/pos/store";
 import { chargeTerminal, deviceLabel, paymentPlan, terminalOrigin } from "@/lib/pos/terminal";
 import type { CartLine, Extra, Product, TenderMethod, TerminalKind } from "@/lib/pos/types";
@@ -212,7 +213,6 @@ function KioskPay({
   checkout: ReturnType<typeof usePos.getState>["checkout"];
 }) {
   const settings = usePos((state) => state.settings);
-  const openDrawer = usePos((state) => state.openDrawer);
   const [method, setMethod] = useState<TenderMethod | null>(null);
   const [payments, setPayments] = useState(1);
   const [terminal, setTerminal] = useState<TerminalKind>("android");
@@ -260,6 +260,7 @@ function KioskPay({
       setMessage("החיוב אושר אבל ההזמנה לא נשמרה. פנו לקופה.");
       return;
     }
+    void confirmReceipt(sale);
     onPaid(sale.number);
   }
 
@@ -288,7 +289,7 @@ function KioskPay({
               setMessage("אי אפשר לסגור את ההזמנה. בדקו מלאי או נעילת שבוע.");
               return;
             }
-            openDrawer();
+            void confirmReceipt(sale);
             onPaid(sale.number);
           }}
           className="mt-4 h-14 w-full rounded-2xl bg-pine text-lg font-semibold text-pine-ink"

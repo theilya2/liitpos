@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
 import { Printer, Share2 } from "lucide-react";
-import { ReceiptView, receiptPlainText } from "@/components/pos/receipt";
+import { ReceiptView } from "@/components/pos/receipt";
 import { PageHeader } from "@/components/pos/shell";
 import { can } from "@/lib/pos/access";
 import { Numpad } from "@/components/pos/numpad";
 import { formatILS, formatDay, moneyFromPad, pushMoneyKey, roundCash, roundMoney } from "@/lib/pos/money";
+import { confirmReceipt, deliverPrint, shareReceipt, shareStatus } from "@/lib/pos/receipt-io";
 import { currentUser, usePos } from "@/lib/pos/store";
 import { foldTenders, isCredit, methodSummary, previewTender, quoteRefund, refundedQty, refundMethodsFor, type TenderInput } from "@/lib/pos/tender";
 import { type PaymentMethod, type Sale } from "@/lib/pos/types";
@@ -145,7 +146,6 @@ function METHOD_LABEL_SAFE(method: PaymentMethod): string {
 export function ReceiptsPage() {
   const sales = usePos((state) => state.sales);
   const voidSale = usePos((state) => state.voidSale);
-  const queuePrint = usePos((state) => state.queuePrint);
   const user = usePos(currentUser);
   const mayVoid = !!user && can(user.role, "void");
   const mayRefund = !!user && can(user.role, "refund");
@@ -170,18 +170,7 @@ export function ReceiptsPage() {
 
   async function share() {
     if (!selected) return;
-    const text = receiptPlainText(selected);
-    try {
-      if (navigator.share) {
-        await navigator.share({ title: `קבלה ${selected.number}`, text });
-        setShared("נשלח");
-        return;
-      }
-      await navigator.clipboard.writeText(text);
-      setShared("הועתק");
-    } catch {
-      setShared("בוטל");
-    }
+    setShared(shareStatus(await shareReceipt(selected)));
   }
 
   return (
@@ -240,10 +229,7 @@ export function ReceiptsPage() {
               <div className="mt-3 grid grid-cols-2 gap-2">
                 <button
                   type="button"
-                  onClick={() => {
-                    queuePrint(selected);
-                    requestAnimationFrame(() => window.print());
-                  }}
+                  onClick={() => void deliverPrint(selected)}
                   className="flex h-12 items-center justify-center gap-2 rounded-2xl bg-surface text-sm font-medium ring-1 ring-line"
                 >
                   <Printer className="size-4" />
@@ -251,7 +237,7 @@ export function ReceiptsPage() {
                 </button>
                 <button type="button" onClick={() => void share()} className="flex h-12 items-center justify-center gap-2 rounded-2xl bg-surface text-sm font-medium ring-1 ring-line">
                   <Share2 className="size-4" />
-                  {shared || "שיתוף"}
+                  {shared || "שליחת קבלה"}
                 </button>
               </div>
               {selected.voided || isCredit(selected) ? null : mayRefund ? (
@@ -261,10 +247,7 @@ export function ReceiptsPage() {
                     sales={sales}
                     onClose={(note) => {
                       setRefunding(false);
-                      if (note) {
-                        queuePrint(note);
-                        requestAnimationFrame(() => window.print());
-                      }
+                      if (note) void confirmReceipt(note);
                     }}
                   />
                 ) : (

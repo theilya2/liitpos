@@ -151,6 +151,14 @@ export type Settings = BusinessSnapshot & {
   pinpad: TerminalEndpoint;
   /** JPEG data URL uploaded from the control panel. Null until the owner adds one. */
   logo: string | null;
+  /** Print a receipt as soon as a payment is confirmed. Older registers default this to on. */
+  autoPrint: boolean;
+  /** Thermal roll width in millimetres. */
+  paperWidth: 58 | 80;
+  /** USB product name to print to. "Default" is the usual thermal printer. */
+  printerName: string;
+  /** Kick the cash drawer when a payment includes cash. */
+  openDrawer: boolean;
 };
 
 export type ClubMember = {

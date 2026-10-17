@@ -1,5 +1,6 @@
 import { mergeRemoteCatalog } from "@/lib/pos/merge";
 import { cloneSettings, codeForStore, demoExtras, demoKiosk, demoPhoto, demoShelf, emptyBranch } from "@/lib/pos/seed";
+import { normalizePrintSettings } from "@/lib/pos/printer";
 import { cleanEndpoint } from "@/lib/pos/terminal";
 import type { Branch, ClubMember, DrawerOpen, Extra, Product, Sale, Settings, StaffUser, StockMove, ZReport } from "@/lib/pos/types";
 
@@ -163,6 +164,7 @@ function asSettings(doc: unknown): Settings | null {
     androidTerminal: cleanEndpoint(doc.androidTerminal, base.androidTerminal),
     pinpad: cleanEndpoint(doc.pinpad, base.pinpad),
     logo: asLogo(doc.logo),
+    ...normalizePrintSettings(doc),
   };
 }
 

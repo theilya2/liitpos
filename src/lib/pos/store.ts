@@ -22,6 +22,7 @@ import {
   mainBranch,
 } from "@/lib/pos/seed";
 import { type Branch, type CartLine, type Category, type ClubMember, type Discount, type DrawerOpen, type HeldOrder, type PaymentMethod, type Product, type Role, type Sale, type Settings, type StaffUser, type StockMove, type StockReason, type TerminalKind, type ZReport } from "@/lib/pos/types";
+import { withPrintSettings } from "@/lib/pos/printer";
 import { cleanEndpoint } from "@/lib/pos/terminal";
 
 type BranchFields = Omit<Branch, "id">;
@@ -80,7 +81,7 @@ type PosState = BranchFields & {
   lock: () => void;
   switchStore: (id: string) => void;
   setGateStore: (id: string | null) => void;
-  addStore: (settings: Omit<Settings, "androidTerminal" | "pinpad" | "logo">) => string;
+  addStore: (settings: Omit<Settings, "androidTerminal" | "pinpad" | "logo" | "autoPrint" | "paperWidth" | "printerName" | "openDrawer">) => string;
   saveStaff: (user: StaffUser) => string | null;
   applyRemote: (docs: CloudDoc[]) => void;
   replaceOutbox: (docs: CloudDoc[]) => void;
@@ -237,7 +238,7 @@ function stampCode(branch: Branch, used: Set<string>): Branch {
     }
     used.add(code);
   }
-  return { ...branch, settings: { ...settings, code } };
+  return { ...branch, settings: withPrintSettings({ ...settings, code }) };
 }
 
 function activate(state: PosState, id: string): Partial<PosState> | null {
@@ -671,7 +672,7 @@ export const usePos = create<PosState>()(
           } else if (!next.logo || !next.logo.startsWith("data:image/")) {
             next.logo = null;
           }
-          commit({ settings: next });
+          commit({ settings: withPrintSettings(next) });
         },
 
         adjustStock: (productId, qty, reason, note) => {
