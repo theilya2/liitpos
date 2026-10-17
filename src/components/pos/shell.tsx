@@ -22,7 +22,7 @@ const NAV: { to: "/" | "/receipts" | "/inventory" | "/reports" | "/manage"; labe
 function WeekLock() {
   const lock = usePos((state) => state.lock);
   return (
-    <main className="flex h-dvh flex-col bg-paper text-ink">
+    <main className="app-screen flex flex-col bg-paper text-ink">
       <div className="mx-auto flex w-full max-w-md flex-1 flex-col justify-center px-5">
         <span className="flex h-14 w-14 items-center justify-center rounded-2xl bg-copper text-lg font-bold text-pine-ink">₪</span>
         <h1 className="mt-4 text-2xl font-semibold">הקופה נעולה</h1>
@@ -39,7 +39,7 @@ function WeekLock() {
 
 function BootScreen() {
   return (
-    <main className="flex h-dvh flex-col items-center justify-center gap-3 bg-paper text-ink">
+    <main className="app-screen flex flex-col items-center justify-center gap-3 bg-paper text-ink">
       <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-pine text-2xl font-bold text-pine-ink">₪</div>
       <h1 className="text-2xl font-semibold">קופהקל</h1>
       <p className="text-muted">פותחים את המגירה…</p>
@@ -111,7 +111,7 @@ export function PosFrame({ children }: { children: ReactNode }) {
       <>
         <AppUpdateBanner />
         <CloudSync />
-        <div className="h-dvh overflow-y-auto bg-paper text-ink">{children}</div>
+        <div className="app-screen overflow-y-auto bg-paper text-ink">{children}</div>
       </>
     );
   }
@@ -121,7 +121,7 @@ export function PosFrame({ children }: { children: ReactNode }) {
       <>
         <AppUpdateBanner />
         <CloudSync />
-        {isWeekLocked(lastGoodSync, appliedReleaseAt, now) ? <WeekLock /> : <div className="h-dvh overflow-hidden bg-paper text-ink">{children}</div>}
+        {isWeekLocked(lastGoodSync, appliedReleaseAt, now) ? <WeekLock /> : <div className="app-screen overflow-hidden bg-paper text-ink">{children}</div>}
       </>
     );
   }
@@ -152,7 +152,7 @@ export function PosFrame({ children }: { children: ReactNode }) {
     <>
       <AppUpdateBanner />
       <CloudSync />
-      <div className="pos-frame flex h-dvh overflow-hidden bg-paper text-ink">
+      <div className="pos-frame app-screen flex overflow-hidden bg-paper text-ink">
         <nav className="no-print hidden w-24 shrink-0 flex-col gap-1 border-e border-line bg-surface p-2 lg:flex">
           <div className="mb-2 flex flex-col items-center px-1 pt-2 text-center">
             <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-pine text-lg font-bold text-pine-ink">₪</span>

@@ -10,6 +10,7 @@ export const Route = createRootRoute({
   head: () => ({
     meta: [
       { charSet: "utf-8" },
+      // viewport-fit=cover lets the Android WebView report safe-area insets.
       { name: "viewport", content: "width=device-width, initial-scale=1, viewport-fit=cover" },
       { title: APP_NAME },
       { name: "description", content: "קופה רושמת בעברית לחנויות, קיוסקים ובתי קפה בישראל" },

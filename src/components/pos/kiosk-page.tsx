@@ -38,7 +38,7 @@ export function KioskPage() {
   }
 
   return (
-    <main className="flex h-dvh flex-col bg-paper text-ink">
+    <main className="flex h-full min-h-0 flex-col bg-paper text-ink">
       <header className="flex shrink-0 items-center gap-3 border-b border-line bg-surface px-4 py-3">
         {settings.logo ? (
           <img src={settings.logo} alt="" className="h-12 w-12 rounded-2xl object-cover" />

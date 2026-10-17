@@ -118,7 +118,7 @@ The register that is already installed is a complete copy. With no internet it k
 
 1. Edit the project as usual and push to `main`.
 2. GitHub Actions (`.github/workflows/android-release.yml`) builds a signed APK and publishes a GitHub Release. The version number is `1000` plus the workflow run number (`1.0.1001`, then `1.0.1002`, and so on). You can also push a tag such as `v1.0.1001`. The number after the last dot is the version Android compares. The tag the workflow itself creates does not start a second build.
-3. A phone that is online asks the website (`/api/pos/update`) and, if the repository is public, GitHub. If the number is higher than the installed one, a bar offers **התקנה**. The phone downloads the APK and Android asks you to confirm. Allow “install unknown apps” for Liitpos if Android asks.
+3. A phone that is online asks the website (`/api/pos/update`) and, if the repository is public, GitHub. If the number is higher than the installed one, a bar at the bottom of the screen (above the gesture area) offers **התקנה**. **אחר כך** hides that version until a newer one exists. The phone downloads the APK and Android asks you to confirm. Allow “install unknown apps” for Liitpos if Android asks.
 4. A phone that is offline keeps the version already installed and asks again after it is back online.
 
 You can also download `liitpos-release.apk` from the GitHub Release page and install it by hand.

@@ -66,7 +66,7 @@ export function LockScreen() {
   }
 
   return (
-    <main className="flex h-dvh flex-col bg-paper text-ink">
+    <main className="app-screen flex flex-col bg-paper text-ink">
       <div className="mx-auto flex w-full max-w-md flex-1 flex-col px-4 py-6">
         <div className="flex items-center gap-3">
           {logo ? (

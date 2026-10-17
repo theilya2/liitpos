@@ -70,8 +70,85 @@
   }
 }
 
+:root {
+  --inset-top: max(env(safe-area-inset-top, 0px), var(--safe-area-inset-top, 0px));
+  --inset-right: max(env(safe-area-inset-right, 0px), var(--safe-area-inset-right, 0px));
+  --inset-bottom: max(env(safe-area-inset-bottom, 0px), var(--safe-area-inset-bottom, 0px));
+  --inset-left: max(env(safe-area-inset-left, 0px), var(--safe-area-inset-left, 0px));
+  --update-bar-offset: 0px;
+}
+
+/* Full-screen shells. Padding is inside the height, so the status bar
+   does not cover the first row and the install bar does not cover the last. */
+.app-screen {
+  box-sizing: border-box;
+  height: calc(100dvh - var(--update-bar-offset));
+  padding-top: var(--inset-top);
+  padding-left: var(--inset-left);
+  padding-right: var(--inset-right);
+}
+
 .safe-bottom {
-  padding-bottom: env(safe-area-inset-bottom);
+  padding-bottom: var(--inset-bottom);
+}
+
+html[data-update-bar="1"] .safe-bottom {
+  padding-bottom: 0;
+}
+
+.update-bar {
+  position: fixed;
+  z-index: 30;
+  inset-inline: 0;
+  bottom: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  background: var(--color-pine);
+  color: var(--color-pine-ink);
+  padding-top: 0.75rem;
+  padding-bottom: calc(0.75rem + var(--inset-bottom));
+  padding-left: calc(0.75rem + var(--inset-left));
+  padding-right: calc(0.75rem + var(--inset-right));
+}
+
+.update-bar-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.update-install,
+.update-dismiss {
+  min-height: 48px;
+  padding: 0.75rem 1.25rem;
+  border-radius: 0.875rem;
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.update-install {
+  flex: 1;
+  background: var(--color-paper);
+  color: var(--color-ink);
+}
+
+.update-dismiss {
+  background: transparent;
+  color: var(--color-pine-ink);
+  border: 1px solid rgba(244, 255, 249, 0.45);
+}
+
+/* Dialogs are fixed to the viewport, so they need the same insets.
+   The cap keeps a tall sheet inside that padded area. */
+.fixed.inset-0 {
+  padding-top: var(--inset-top);
+  padding-bottom: var(--inset-bottom);
+  padding-left: var(--inset-left);
+  padding-right: var(--inset-right);
+}
+
+.fixed.inset-0 > * {
+  max-height: 100%;
 }
 
 .print-root {
@@ -96,5 +173,9 @@
     display: block !important;
     background: #fff;
     color: #1c1915;
+  }
+
+  .update-bar {
+    display: none !important;
   }
 }

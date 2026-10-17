@@ -17,6 +17,17 @@ const config: CapacitorConfig = {
     androidScheme: "https",
     hostname: "localhost",
   },
+  plugins: {
+    SystemBars: {
+      // Edge-to-edge WebView. viewport-fit=cover is already in the document,
+      // and this hint applies the same insets before that meta tag is read.
+      // css also publishes --safe-area-inset-* for older WebViews.
+      insetsHandling: "css",
+      initialViewportFitValueHint: "cover",
+      // Cream UI: dark status and gesture icons. The bars stay visible.
+      style: "LIGHT",
+    },
+  },
 };
 
 export default config;
