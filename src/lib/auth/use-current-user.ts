@@ -1,5 +1,6 @@
 import { useMemo } from "react";
 import { authClient, authEnabled } from "./client";
+import { userFromSession } from "./session-user";
 
 /** Normalized user shape used across the app, auth on or off. */
 export type AppUser = {
@@ -65,10 +66,11 @@ export function useCurrentUserState(): CurrentUserState {
 
 function useSessionUserState(): CurrentUserState {
   const { data, isPending } = authClient.useSession();
-  const id = data?.user.id;
-  const displayName = data?.user.name ?? null;
-  const primaryEmail = data?.user.email ?? null;
-  const profileImageUrl = data?.user.image ?? null;
+  const sessionUser = userFromSession(data);
+  const id = sessionUser?.id;
+  const displayName = sessionUser?.name ?? null;
+  const primaryEmail = sessionUser?.email ?? null;
+  const profileImageUrl = sessionUser?.image ?? null;
   const user = useMemo<AppUser | null>(
     () => (id ? { id, displayName, primaryEmail, profileImageUrl, isDevFallback: false } : null),
     [id, displayName, primaryEmail, profileImageUrl],
