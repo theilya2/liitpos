@@ -1,9 +1,5 @@
 import { useEffect, useState } from "react";
-import { Link } from "@tanstack/react-router";
-import { GROK_PROVIDERS, signIn } from "@/lib/auth/client";
-import { UserButton } from "@/lib/auth/gates";
-import { useCurrentUserState } from "@/lib/auth/use-current-user";
-import { CloudBar } from "@/components/pos/cloud-bar";
+import { DevicePairing } from "@/components/pos/device-pairing";
 import {
   deleteCloudBusiness,
   deleteCloudUser,
@@ -49,46 +45,98 @@ function messageOf(error: unknown) {
   return "הפעולה לא נשמרה. אם אין רשת, נסו שוב כשהחיבור חוזר.";
 }
 
-function SignInCard() {
+function LoginForm({ onSuccess }: { onSuccess: () => void }) {
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
+
   return (
     <main className="mx-auto flex min-h-dvh w-full max-w-md flex-col justify-center px-4 py-8">
       <h1 className="text-2xl font-semibold">לוח בקרה</h1>
-      <p className="mt-2 text-sm text-muted">החשבון הזה מנהל את העסקים והמשתמשים בענן. הקופה עצמה ממשיכה לעבוד גם בלי כניסה.</p>
-      <div className="mt-6 space-y-2">
-        {GROK_PROVIDERS.map((provider) => (
-          <button
-            key={provider.providerId}
-            type="button"
-            onClick={() => signIn(provider.providerId, { callbackURL: "/admin" })}
-            className="h-12 w-full rounded-2xl bg-pine font-semibold text-pine-ink"
-          >
-            המשך עם {provider.label}
-          </button>
-        ))}
-      </div>
-      <Link to="/" className="mt-6 text-center text-sm font-medium text-pine">
-        חזרה לקופה
-      </Link>
+      <p className="mt-2 text-sm text-muted">כניסה לבעלים בלבד. אין הרשמה, ואין קישור לכאן מתוך הקופה.</p>
+      <form
+        className="mt-6 space-y-3"
+        onSubmit={(event) => {
+          event.preventDefault();
+          setBusy(true);
+          setError("");
+          void fetch("/api/admin/login", {
+            method: "POST",
+            credentials: "same-origin",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ username, password }),
+          })
+            .then(async (response) => {
+              if (!response.ok) {
+                const body = (await response.json().catch(() => null)) as { error?: string } | null;
+                setError(body?.error || "הכניסה נדחתה.");
+                return;
+              }
+              setPassword("");
+              onSuccess();
+            })
+            .catch(() => setError("הכניסה נדחתה."))
+            .finally(() => setBusy(false));
+        }}
+      >
+        <label className="block text-sm">
+          <span className="mb-1 block text-muted">שם משתמש</span>
+          <input
+            name="username"
+            autoComplete="username"
+            value={username}
+            onChange={(event) => setUsername(event.target.value)}
+            className="h-12 w-full rounded-xl bg-paper px-3 ring-1 ring-line"
+          />
+        </label>
+        <label className="block text-sm">
+          <span className="mb-1 block text-muted">סיסמה</span>
+          <input
+            name="password"
+            type="password"
+            autoComplete="current-password"
+            value={password}
+            onChange={(event) => setPassword(event.target.value)}
+            className="h-12 w-full rounded-xl bg-paper px-3 ring-1 ring-line"
+          />
+        </label>
+        {error ? <p className="text-sm text-copper">{error}</p> : null}
+        <button type="submit" disabled={busy} className="h-12 w-full rounded-2xl bg-pine font-semibold text-pine-ink disabled:opacity-50">
+          כניסה
+        </button>
+      </form>
     </main>
   );
 }
 
 export function AdminPage() {
-  const { user, isPending } = useCurrentUserState();
-  const [mounted, setMounted] = useState(false);
-  useEffect(() => setMounted(true), []);
-  if (!mounted || isPending) {
+  const [gate, setGate] = useState<"loading" | "in" | "out">("loading");
+  useEffect(() => {
+    let live = true;
+    void fetch("/api/admin/session", { credentials: "same-origin" })
+      .then((response) => {
+        if (live) setGate(response.ok ? "in" : "out");
+      })
+      .catch(() => {
+        if (live) setGate("out");
+      });
+    return () => {
+      live = false;
+    };
+  }, []);
+  if (gate === "loading") {
     return (
       <main className="flex min-h-dvh items-center justify-center">
         <p className="text-sm text-muted">טוענים את החשבון…</p>
       </main>
     );
   }
-  if (!user) return <SignInCard />;
-  return <Panel name={user.displayName || user.primaryEmail || "החשבון"} />;
+  if (gate === "out") return <LoginForm onSuccess={() => setGate("in")} />;
+  return <Panel onLogout={() => setGate("out")} />;
 }
 
-function Panel({ name }: { name: string }) {
+function Panel({ onLogout }: { onLogout: () => void }) {
   const [businesses, setBusinesses] = useState<PanelBusiness[]>([]);
   const [users, setUsers] = useState<PanelUser[]>([]);
   const [devices, setDevices] = useState<PanelDevice[]>([]);
@@ -147,21 +195,24 @@ function Panel({ name }: { name: string }) {
 
   return (
     <main className="mx-auto flex min-h-dvh w-full max-w-3xl flex-col">
-      <CloudBar />
       <header className="flex items-start justify-between gap-3 px-4 py-4">
         <div>
           <p className="text-xs font-semibold text-pine">קופהקל</p>
           <h1 className="text-2xl font-semibold">לוח בקרה</h1>
-          <p className="text-sm text-muted">{name}</p>
+          <p className="text-sm text-muted">בעלים</p>
         </div>
-        <div className="flex items-center gap-2">
-          <Link to="/" className="flex h-11 items-center rounded-xl bg-paper px-3 text-sm ring-1 ring-line">
-            לקופה
-          </Link>
-          <UserButton />
-        </div>
+        <button
+          type="button"
+          className="flex h-11 items-center rounded-xl bg-paper px-3 text-sm ring-1 ring-line"
+          onClick={() => {
+            void fetch("/api/admin/logout", { method: "POST", credentials: "same-origin" }).finally(onLogout);
+          }}
+        >
+          יציאה
+        </button>
       </header>
       <div className="space-y-3 px-4 pb-10">
+        <DevicePairing />
         <section className="rounded-2xl bg-surface p-4 ring-1 ring-line">
           <h2 className="text-base font-semibold">נעילת שבוע</h2>
           <p className="mt-1 text-sm text-muted">קופה שלא דיברה עם הענן שבעה ימים ננעלת למכירה. השחרור נכנס לתוקף כשהיא מתחברת שוב. המכירות שנשמרו במכשיר לא נמחקות.</p>

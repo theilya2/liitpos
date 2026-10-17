@@ -1,6 +1,4 @@
 import { useState } from "react";
-import { Link } from "@tanstack/react-router";
-import { CloudBar } from "@/components/pos/cloud-bar";
 import { CloudLinkCard } from "@/components/pos/cloud-link";
 import { canSeeStore } from "@/lib/pos/access";
 import { isWeekLocked, usePos } from "@/lib/pos/store";
@@ -69,7 +67,6 @@ export function LockScreen() {
 
   return (
     <main className="flex h-dvh flex-col bg-paper text-ink">
-      <CloudBar />
       <div className="mx-auto flex w-full max-w-md flex-1 flex-col px-4 py-6">
         <div className="flex items-center gap-3">
           {logo ? (
@@ -84,7 +81,7 @@ export function LockScreen() {
         </div>
         {weekLocked ? (
           <p className="mt-4 rounded-2xl bg-copper-soft px-3 py-3 text-sm text-copper">
-            הקופה נעולה כי עבר שבוע בלי חיבור לענן. אחרי כניסה אי אפשר למכור עד שתשחררו את הנעילה בלוח הבקרה והקופה תתחבר שוב.
+            הקופה נעולה כי עבר שבוע בלי חיבור לענן. אחרי כניסה אי אפשר למכור עד שהבעלים משחרר את הנעילה והקופה מתחברת שוב.
           </p>
         ) : null}
         {business ? (
@@ -146,9 +143,6 @@ export function LockScreen() {
             <p className="mt-auto pt-4 text-center text-xs text-muted">הדגמה: מכולת 100001 · קיוסק 200002</p>
           </>
         )}
-        <Link to="/admin" className="mt-3 text-center text-sm font-medium text-pine">
-          לוח בקרה בענן
-        </Link>
         <div className="mt-4">
           <CloudLinkCard />
         </div>

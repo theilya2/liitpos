@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { isNativeApp, readCloudUrl, readSessionToken, startCloudLink, writeCloudUrl } from "@/lib/pos/native";
+import { isNativeApp, readCloudUrl, readSessionToken, writeCloudUrl } from "@/lib/pos/native";
 import { syncNow } from "@/lib/pos/sync";
 
 export function CloudLinkCard() {
@@ -23,7 +23,7 @@ export function CloudLinkCard() {
     <section className="space-y-3 rounded-2xl bg-surface p-4 ring-1 ring-line">
       <h2 className="text-base font-semibold">ענן</h2>
       <p className="text-sm text-muted">
-        הקופה עובדת בלי רשת. כשיש כתובת וחשבון, המכירות ממתינות ואז עולות לבד. הכתובת היא האתר שכבר רץ באוויר, למשל הכתובת של Vercel.
+        הקופה עובדת בלי רשת. חיבור לענן מגיע בקישור שהבעלים פותח באפליקציה. כאן אפשר רק לשמור כתובת ולנסות סנכרון.
       </p>
       <label className="block text-sm">
         <span className="mb-1 block text-muted">כתובת השרת</span>
@@ -31,7 +31,7 @@ export function CloudLinkCard() {
           dir="ltr"
           value={url}
           onChange={(event) => setUrl(event.target.value)}
-          placeholder="https://example.vercel.app"
+          placeholder="https://liitpos.vercel.app"
           className="h-12 w-full rounded-xl bg-paper px-3 text-left ring-1 ring-line"
         />
       </label>
@@ -47,28 +47,11 @@ export function CloudLinkCard() {
         >
           שמירת כתובת
         </button>
-        <button
-          type="button"
-          className="h-11 rounded-xl bg-paper px-4 text-sm font-semibold ring-1 ring-line"
-          onClick={() => {
-            if (!readCloudUrl()) {
-              setNote("קודם שומרים את כתובת השרת.");
-              return;
-            }
-            startCloudLink();
-          }}
-        >
-          {linked ? "חיבור מחדש" : "חיבור חשבון"}
-        </button>
-        <button
-          type="button"
-          className="h-11 rounded-xl bg-paper px-4 text-sm font-semibold ring-1 ring-line"
-          onClick={() => void syncNow()}
-        >
+        <button type="button" className="h-11 rounded-xl bg-paper px-4 text-sm font-semibold ring-1 ring-line" onClick={() => void syncNow()}>
           סנכרון עכשיו
         </button>
       </div>
-      <p className="text-xs text-muted">{linked ? "החשבון מחובר במכשיר הזה." : "עדיין בלי חשבון. המכירות נשארות במכשיר."}</p>
+      <p className="text-xs text-muted">{linked ? "המכשיר מחובר לענן." : "עדיין בלי חיבור. המכירות נשארות במכשיר."}</p>
       {note ? <p className="text-sm">{note}</p> : null}
     </section>
   );

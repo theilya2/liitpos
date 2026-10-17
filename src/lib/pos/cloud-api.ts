@@ -1,4 +1,3 @@
-import { pullDocs, pushDocs } from "@/lib/pos/cloud.functions";
 import type { CloudDoc } from "@/lib/pos/docs";
 import { isNativeApp, readCloudUrl, readSessionToken } from "@/lib/pos/native";
 
@@ -11,11 +10,18 @@ function unauthorized(): Error {
   return error;
 }
 
-async function nativePost<T>(body: unknown): Promise<T> {
+function syncEndpoint(): string {
   const cloud = readCloudUrl();
+  if (cloud) return `${cloud}/api/pos/sync`;
+  if (isNativeApp()) return "";
+  return "/api/pos/sync";
+}
+
+async function devicePost<T>(body: unknown): Promise<T> {
   const token = readSessionToken();
-  if (!cloud || !token) throw unauthorized();
-  const response = await fetch(`${cloud}/api/pos/sync`, {
+  const endpoint = syncEndpoint();
+  if (!token || !endpoint) throw unauthorized();
+  const response = await fetch(endpoint, {
     method: "POST",
     headers: {
       "content-type": "application/json",
@@ -29,11 +35,9 @@ async function nativePost<T>(body: unknown): Promise<T> {
 }
 
 export async function pullCloud(since: string | null): Promise<PullResult> {
-  if (isNativeApp()) return nativePost<PullResult>({ op: "pull", since });
-  return pullDocs({ data: { since } });
+  return devicePost<PullResult>({ op: "pull", since });
 }
 
 export async function pushCloud(docs: CloudDoc[]): Promise<PushResult> {
-  if (isNativeApp()) return nativePost<PushResult>({ op: "push", docs });
-  return pushDocs({ data: { docs } });
+  return devicePost<PushResult>({ op: "push", docs });
 }

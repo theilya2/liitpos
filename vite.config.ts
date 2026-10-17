@@ -52,14 +52,9 @@ function pgliteBootstrapPlugin(): Plugin {
 }
 
 /**
- * Live-preview OAuth popup — handled HERE so the agent never has to create a
- * `/auth/popup` route (and cannot break it by scaffolding a React page that
- * paints the full app shell in the popup).
- *
- * `signIn` (client.ts) opens `/auth/popup?providerId=…` in a top-level window.
- * This middleware runs before TanStack Start, calls `handleAuthPopupRequest`,
- * and returns the 302 / completion HTML. Deployed apps do not use the popup
- * (full-page OAuth redirect), so `apply: "serve"` is enough.
+ * Live-preview popup path. Public sign-in is disabled, so this answers
+ * `/auth/popup` with a refusal instead of starting a broker login.
+ * A React route at `src/routes/auth/popup.tsx` must not take this path.
  */
 function authPopupPlugin(): Plugin {
   return {
