@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { CloudLinkCard } from "@/components/pos/cloud-link";
 import { PageHeader } from "@/components/pos/shell";
 import { ClubPanel } from "@/components/pos/club-panel";
+import { PrinterSettings } from "@/components/pos/printer-settings";
 import { compressImage } from "@/lib/pos/image";
 import { usePos } from "@/lib/pos/store";
 import { deviceLabel, isSafeIpv4, pingTerminal } from "@/lib/pos/terminal";
@@ -71,6 +72,7 @@ export function SettingsPage() {
             />
           </label>
         </section>
+        <PrinterSettings />
         <ClubPanel />
         <section className="space-y-3 rounded-2xl bg-surface p-4 ring-1 ring-line">
           <h2 className="text-base font-semibold">מספרים</h2>

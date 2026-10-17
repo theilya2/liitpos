@@ -1,5 +1,6 @@
 package com.liitpos.app;
 
+import android.content.ClipData;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.PackageInfo;
@@ -8,6 +9,7 @@ import android.os.Build;
 import android.print.PrintAttributes;
 import android.print.PrintManager;
 import android.provider.Settings;
+import android.util.Base64;
 import android.webkit.JavascriptInterface;
 import android.webkit.WebView;
 import androidx.core.content.FileProvider;
@@ -23,11 +25,24 @@ import org.json.JSONObject;
 
 public class MainActivity extends BridgeActivity {
     private static final String PREFS = "liitpos";
+    private UsbPrinters usbPrinters;
 
     @Override
     public void onCreate(android.os.Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        usbPrinters = new UsbPrinters(this, (event, detail) -> {
+            WebView webView = getBridge().getWebView();
+            String script = "window.dispatchEvent(new CustomEvent(" + JSONObject.quote(event) + ",{detail:" + detail + "}))";
+            webView.post(() -> webView.evaluateJavascript(script, null));
+        });
+        usbPrinters.register();
         captureLink(getIntent());
+    }
+
+    @Override
+    public void onDestroy() {
+        if (usbPrinters != null) usbPrinters.unregister();
+        super.onDestroy();
     }
 
     @Override
@@ -110,6 +125,27 @@ public class MainActivity extends BridgeActivity {
         }
 
         @JavascriptInterface
+        public void sendSms(String number, String body) {
+            runOnUiThread(() -> {
+                String to = number == null ? "" : number;
+                String text = body == null ? "" : body;
+                Intent intent = new Intent(Intent.ACTION_SENDTO, Uri.parse("sms:" + to));
+                intent.putExtra("sms_body", text);
+                intent.putExtra(Intent.EXTRA_TEXT, text);
+                try {
+                    startActivity(intent);
+                } catch (Exception error) {
+                    try {
+                        Intent view = new Intent(Intent.ACTION_VIEW, Uri.parse("sms:" + to + "?body=" + Uri.encode(text)));
+                        startActivity(view);
+                    } catch (Exception ignored) {
+                        // No SMS app on this device. The register keeps the summary on screen.
+                    }
+                }
+            });
+        }
+
+        @JavascriptInterface
         public void printReceipt() {
             runOnUiThread(() -> {
                 PrintManager manager = (PrintManager) getSystemService(PRINT_SERVICE);
@@ -119,6 +155,31 @@ public class MainActivity extends BridgeActivity {
                         getBridge().getWebView().createPrintDocumentAdapter("Liitpos"),
                         new PrintAttributes.Builder().build());
             });
+        }
+
+        @JavascriptInterface
+        public String listUsbPrinters() {
+            return usbPrinters == null ? "[]" : usbPrinters.listJson();
+        }
+
+        @JavascriptInterface
+        public void printReceiptUsb(String json) {
+            if (usbPrinters != null) usbPrinters.printAsync(json);
+        }
+
+        @JavascriptInterface
+        public void requestUsbPermission(String deviceName) {
+            if (usbPrinters != null) usbPrinters.requestPermission(deviceName);
+        }
+
+        @JavascriptInterface
+        public void pulseDrawerUsb(String json) {
+            if (usbPrinters != null) usbPrinters.pulseAsync(json);
+        }
+
+        @JavascriptInterface
+        public void shareCachedFile(String name, String base64, String mime, String text, String title) {
+            runOnUiThread(() -> shareReceiptFile(name, base64, mime, text, title));
         }
 
         @JavascriptInterface
@@ -171,6 +232,29 @@ public class MainActivity extends BridgeActivity {
                     android.util.Log.e("Liitpos", "update install failed", error);
                 }
             }).start();
+        }
+    }
+
+    private void shareReceiptFile(String name, String base64, String mime, String text, String title) {
+        try {
+            String safe = name == null ? "receipt.pdf" : name.replaceAll("[^A-Za-z0-9._-]", "");
+            if (safe.isEmpty()) safe = "receipt.pdf";
+            byte[] bytes = Base64.decode(base64 == null ? "" : base64, Base64.DEFAULT);
+            File out = new File(getCacheDir(), safe);
+            try (FileOutputStream fos = new FileOutputStream(out)) {
+                fos.write(bytes);
+            }
+            Uri uri = FileProvider.getUriForFile(this, getPackageName() + ".fileprovider", out);
+            Intent send = new Intent(Intent.ACTION_SEND);
+            send.setType(mime == null || mime.isEmpty() ? "application/pdf" : mime);
+            send.putExtra(Intent.EXTRA_STREAM, uri);
+            send.putExtra(Intent.EXTRA_TEXT, text == null ? "" : text);
+            send.putExtra(Intent.EXTRA_SUBJECT, title == null ? "קבלה" : title);
+            send.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+            send.setClipData(ClipData.newRawUri("", uri));
+            startActivity(Intent.createChooser(send, title == null ? "שליחת קבלה" : title));
+        } catch (Exception error) {
+            android.util.Log.e("Liitpos", "share failed", error);
         }
     }
 

@@ -248,6 +248,16 @@
   margin-inline: auto;
 }
 
+/* Customer receipt links skip the register chrome but keep the same insets and scroll. */
+.public-sheet {
+  box-sizing: border-box;
+  height: 100dvh;
+  padding-top: var(--inset-top);
+  padding-bottom: var(--inset-bottom);
+  padding-left: var(--inset-left);
+  padding-right: var(--inset-right);
+}
+
 @media (max-height: 520px) {
   .app-nav-bottom {
     padding-top: 0.25rem;

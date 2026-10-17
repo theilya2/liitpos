@@ -1,5 +1,7 @@
 import { mergeRemoteCatalog } from "@/lib/pos/merge";
 import { cloneSettings, codeForStore, demoExtras, demoKiosk, demoPhoto, demoShelf, emptyBranch } from "@/lib/pos/seed";
+import { normalizePrintSettings } from "@/lib/pos/printer";
+import { saleCloudId } from "@/lib/pos/receipt-link";
 import { cleanEndpoint } from "@/lib/pos/terminal";
 import type { Branch, ClubMember, DrawerOpen, Extra, Product, Sale, Settings, StaffUser, StockMove, ZReport } from "@/lib/pos/types";
 
@@ -72,7 +74,7 @@ export function deviceDoc(deviceId: string, businessId: string, doc: Json, updat
 }
 
 function saleDoc(businessId: string, sale: Sale, updatedAt: string): CloudDoc {
-  return { id: `sale:${businessId}:${sale.id}`, kind: "sale", businessId, updatedAt, deleted: false, doc: sale as unknown as Json };
+  return { id: saleCloudId(businessId, sale.id), kind: "sale", businessId, updatedAt, deleted: false, doc: sale as unknown as Json };
 }
 
 function moveDoc(businessId: string, move: StockMove, updatedAt: string): CloudDoc {
@@ -102,6 +104,10 @@ export function snapshotDocs(stores: Branch[], staff: StaffUser[], updatedAt: st
   return docs;
 }
 
+function saleSyncMark(sale: Sale): string {
+  return `${sale.voided}:${sale.zId ?? ""}:${sale.kioskStatus ?? ""}:${sale.publicToken ?? ""}`;
+}
+
 export function changesToDocs(
   before: { sales: Sale[]; stockMoves: StockMove[]; zReports: ZReport[]; drawerOpens: DrawerOpen[] },
   after: Branch,
@@ -114,9 +120,9 @@ export function changesToDocs(
     docs.push(catalogDoc(after, now));
   }
   if (partial.sales) {
-    const prev = new Map(before.sales.map((sale) => [sale.id, `${sale.voided}:${sale.zId ?? ""}:${sale.kioskStatus ?? ""}`]));
+    const prev = new Map(before.sales.map((sale) => [sale.id, saleSyncMark(sale)]));
     for (const sale of after.sales) {
-      const mark = `${sale.voided}:${sale.zId ?? ""}:${sale.kioskStatus ?? ""}`;
+      const mark = saleSyncMark(sale);
       if (prev.get(sale.id) !== mark) docs.push(saleDoc(after.id, sale, now));
     }
   }
@@ -163,6 +169,7 @@ function asSettings(doc: unknown): Settings | null {
     androidTerminal: cleanEndpoint(doc.androidTerminal, base.androidTerminal),
     pinpad: cleanEndpoint(doc.pinpad, base.pinpad),
     logo: asLogo(doc.logo),
+    ...normalizePrintSettings(doc),
   };
 }
 

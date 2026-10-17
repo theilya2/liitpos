@@ -1,10 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
-import { Printer, Share2 } from "lucide-react";
-import { ReceiptView, receiptPlainText } from "@/components/pos/receipt";
+import { Printer } from "lucide-react";
+import { ReceiptView } from "@/components/pos/receipt";
+import { SendReceipt } from "@/components/pos/send-sms";
 import { PageHeader } from "@/components/pos/shell";
 import { can } from "@/lib/pos/access";
 import { Numpad } from "@/components/pos/numpad";
 import { formatILS, formatDay, moneyFromPad, pushMoneyKey, roundCash, roundMoney } from "@/lib/pos/money";
+import { confirmReceipt, deliverPrint } from "@/lib/pos/receipt-io";
 import { currentUser, usePos } from "@/lib/pos/store";
 import { foldTenders, isCredit, methodSummary, previewTender, quoteRefund, refundedQty, refundMethodsFor, type TenderInput } from "@/lib/pos/tender";
 import { type PaymentMethod, type Sale } from "@/lib/pos/types";
@@ -145,7 +147,6 @@ function METHOD_LABEL_SAFE(method: PaymentMethod): string {
 export function ReceiptsPage() {
   const sales = usePos((state) => state.sales);
   const voidSale = usePos((state) => state.voidSale);
-  const queuePrint = usePos((state) => state.queuePrint);
   const user = usePos(currentUser);
   const mayVoid = !!user && can(user.role, "void");
   const mayRefund = !!user && can(user.role, "refund");
@@ -153,7 +154,6 @@ export function ReceiptsPage() {
   const [query, setQuery] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [confirmVoid, setConfirmVoid] = useState(false);
-  const [shared, setShared] = useState("");
 
   const visible = useMemo(() => {
     const q = query.trim();
@@ -167,22 +167,6 @@ export function ReceiptsPage() {
     if (!window.matchMedia("(min-width: 1024px)").matches) return;
     if (!selectedId && sales[0]) setSelectedId(sales[0].id);
   }, [sales, selectedId]);
-
-  async function share() {
-    if (!selected) return;
-    const text = receiptPlainText(selected);
-    try {
-      if (navigator.share) {
-        await navigator.share({ title: `קבלה ${selected.number}`, text });
-        setShared("נשלח");
-        return;
-      }
-      await navigator.clipboard.writeText(text);
-      setShared("הועתק");
-    } catch {
-      setShared("בוטל");
-    }
-  }
 
   return (
     <div className="mx-auto flex min-h-0 w-full max-w-[96rem] flex-1 flex-col">
@@ -210,7 +194,6 @@ export function ReceiptsPage() {
                       setSelectedId(sale.id);
                       setConfirmVoid(false);
                       setRefunding(false);
-                      setShared("");
                     }}
                     className={`flex w-full items-center gap-3 rounded-2xl px-3 py-3 text-start ring-1 ring-line ${selectedId === sale.id ? "bg-pine-soft" : "bg-surface"}`}
                   >
@@ -233,27 +216,20 @@ export function ReceiptsPage() {
         <div className={`scroll-pane min-h-0 w-full border-line px-3 pb-4 lg:w-[min(36rem,42%)] lg:border-s ${selected ? "" : "hidden lg:block"}`}>
           {selected ? (
             <div>
-              <button type="button" onClick={() => setSelectedId(null)} className="mb-3 h-12 rounded-xl bg-surface px-4 text-sm lg:hidden">
+              <button type="button" onClick={() => setSelectedId(null)} className="mb-3 min-h-12 rounded-xl bg-surface px-4 text-sm lg:hidden">
                 חזרה לרשימה
               </button>
+              <div className="mx-auto w-full max-w-sm">
               <ReceiptView sale={selected} />
-              <div className="mt-3 grid grid-cols-2 gap-2">
-                <button
-                  type="button"
-                  onClick={() => {
-                    queuePrint(selected);
-                    requestAnimationFrame(() => window.print());
-                  }}
-                  className="flex h-12 items-center justify-center gap-2 rounded-2xl bg-surface text-sm font-medium ring-1 ring-line"
-                >
-                  <Printer className="size-4" />
-                  הדפסה
-                </button>
-                <button type="button" onClick={() => void share()} className="flex h-12 items-center justify-center gap-2 rounded-2xl bg-surface text-sm font-medium ring-1 ring-line">
-                  <Share2 className="size-4" />
-                  {shared || "שיתוף"}
-                </button>
-              </div>
+              <button
+                type="button"
+                onClick={() => void deliverPrint(selected)}
+                className="mt-3 flex min-h-12 w-full items-center justify-center gap-2 rounded-2xl bg-surface px-3 py-2 text-sm font-medium ring-1 ring-line"
+              >
+                <Printer className="size-4 shrink-0" />
+                הדפסה
+              </button>
+              <SendReceipt sale={selected} />
               {selected.voided || isCredit(selected) ? null : mayRefund ? (
                 refunding ? (
                   <RefundPanel
@@ -261,14 +237,11 @@ export function ReceiptsPage() {
                     sales={sales}
                     onClose={(note) => {
                       setRefunding(false);
-                      if (note) {
-                        queuePrint(note);
-                        requestAnimationFrame(() => window.print());
-                      }
+                      if (note) void confirmReceipt(note);
                     }}
                   />
                 ) : (
-                  <button type="button" onClick={() => setRefunding(true)} className="mt-3 h-12 w-full rounded-2xl bg-surface text-sm font-semibold ring-1 ring-line">
+                  <button type="button" onClick={() => setRefunding(true)} className="mt-3 min-h-12 w-full rounded-2xl bg-surface px-3 text-sm font-semibold ring-1 ring-line">
                     זיכוי חלקי
                   </button>
                 )
@@ -298,11 +271,12 @@ export function ReceiptsPage() {
                   </div>
                 </div>
               ) : (
-                <button type="button" onClick={() => setConfirmVoid(true)} className="mt-3 h-12 w-full rounded-2xl text-sm font-medium text-copper">
+                <button type="button" onClick={() => setConfirmVoid(true)} className="mt-3 min-h-12 w-full rounded-2xl px-3 text-sm font-medium text-copper">
                   ביטול קבלה
                 </button>
               )
               ) : null}
+              </div>
             </div>
           ) : (
             <p className="py-10 text-center text-sm text-muted">בחרו קבלה כדי לראות פירוט.</p>

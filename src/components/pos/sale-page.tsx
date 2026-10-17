@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { ArrowLeftRight, Banknote, CreditCard, IdCard, Minus, Pause, Plus, Printer, Search, Share2, Smartphone, Ticket, Trash2, Wallet, X } from "lucide-react";
+import { ArrowLeftRight, Banknote, CreditCard, IdCard, Minus, Pause, Plus, Printer, Search, Smartphone, Ticket, Trash2, Wallet, X } from "lucide-react";
 import { Numpad } from "@/components/pos/numpad";
-import { ReceiptView, receiptPlainText } from "@/components/pos/receipt";
-import { pulseCashDrawer } from "@/lib/pos/drawer";
+import { ReceiptView } from "@/components/pos/receipt";
+import { SendReceipt } from "@/components/pos/send-sms";
+import { confirmReceipt, deliverPrint, pulseDrawer } from "@/lib/pos/receipt-io";
 import { computeTotals, formatILS, formatWhen, moneyFromPad, pushMoneyKey, roundCash, roundMoney } from "@/lib/pos/money";
 import { foldTenders, previewTender, remainingExact, type TenderInput } from "@/lib/pos/tender";
 import { currentUser, isWeekLocked, usePos } from "@/lib/pos/store";
@@ -227,7 +228,6 @@ function PaySheet({ onClose, onDone }: { onClose: () => void; onDone: (sale: Sal
   const lastGoodSync = usePos((state) => state.lastGoodSync);
   const appliedReleaseAt = usePos((state) => state.appliedReleaseAt);
   const checkout = usePos((state) => state.checkout);
-  const openDrawer = usePos((state) => state.openDrawer);
   const totals = computeTotals(cart, discount, settings.vatRate);
   const [method, setMethod] = useState<PaymentMethod>("cash");
   const [pad, setPad] = useState("");
@@ -263,10 +263,6 @@ function PaySheet({ onClose, onDone }: { onClose: () => void; onDone: (sale: Sal
     if (!sale) {
       setMessage("היתרה עוד לא כוסתה.");
       return;
-    }
-    if (next.some((line) => line.method === "cash")) {
-      openDrawer();
-      void pulseCashDrawer();
     }
     onDone(sale);
   }
@@ -531,45 +527,23 @@ function PaySheet({ onClose, onDone }: { onClose: () => void; onDone: (sale: Sal
 }
 
 function DoneSheet({ sale, onClose }: { sale: Sale; onClose: () => void }) {
-  const queuePrint = usePos((state) => state.queuePrint);
-  const [shared, setShared] = useState("");
-
-  async function share() {
-    const text = receiptPlainText(sale);
-    try {
-      if (navigator.share) {
-        await navigator.share({ title: `קבלה ${sale.number}`, text });
-        setShared("נשלח");
-        return;
-      }
-      await navigator.clipboard.writeText(text);
-      setShared("הטקסט הועתק");
-    } catch {
-      setShared("השיתוף בוטל");
-    }
-  }
+  useEffect(() => {
+    void confirmReceipt(sale);
+  }, [sale]);
 
   return (
     <Overlay title={`קבלה ${sale.number}`} onClose={onClose}>
       <ReceiptView sale={sale} />
-      <div className="mt-4 grid grid-cols-2 gap-2">
-        <button
-          type="button"
-          onClick={() => {
-            queuePrint(sale);
-            requestAnimationFrame(() => window.print());
-          }}
-          className="flex h-12 items-center justify-center gap-2 rounded-2xl bg-paper text-sm font-medium"
-        >
-          <Printer className="size-4" />
-          הדפסה
-        </button>
-        <button type="button" onClick={() => void share()} className="flex h-12 items-center justify-center gap-2 rounded-2xl bg-paper text-sm font-medium">
-          <Share2 className="size-4" />
-          {shared || "שיתוף"}
-        </button>
-      </div>
-      <button type="button" onClick={onClose} className="mt-2 h-14 w-full rounded-2xl bg-pine text-lg font-semibold text-pine-ink">
+      <button
+        type="button"
+        onClick={() => void deliverPrint(sale)}
+        className="mt-4 flex min-h-12 w-full items-center justify-center gap-2 rounded-2xl bg-paper px-3 py-2 text-sm font-medium ring-1 ring-line"
+      >
+        <Printer className="size-4 shrink-0" />
+        הדפסה
+      </button>
+      <SendReceipt sale={sale} />
+      <button type="button" onClick={onClose} className="mt-2 min-h-14 w-full rounded-2xl bg-pine px-3 text-lg font-semibold text-pine-ink">
         מכירה חדשה
       </button>
     </Overlay>
@@ -698,7 +672,6 @@ export function SalePage() {
   const sales = usePos((state) => state.sales);
   const user = usePos(currentUser);
   const openDrawer = usePos((state) => state.openDrawer);
-  const queuePrint = usePos((state) => state.queuePrint);
   const lock = usePos((state) => state.lock);
   const addProductToCart = usePos((state) => state.addProductToCart);
   const addCustomItem = usePos((state) => state.addCustomItem);
@@ -784,7 +757,7 @@ export function SalePage() {
 
   const drawer = useCallback(async () => {
     openDrawer();
-    const result = await pulseCashDrawer();
+    const result = await pulseDrawer();
     setNote(result === "sent" ? "נשלח פולס למגירה." : "הפתיחה נרשמה. אין חיבור USB — פותחים את המגירה ידנית.");
   }, [openDrawer]);
 
@@ -794,9 +767,8 @@ export function SalePage() {
       setNote("אין קבלה להדפסה.");
       return;
     }
-    queuePrint(sale);
-    requestAnimationFrame(() => window.print());
-  }, [sales, queuePrint]);
+    void deliverPrint(sale);
+  }, [sales]);
 
   useEffect(() => {
     function onKey(event: KeyboardEvent) {

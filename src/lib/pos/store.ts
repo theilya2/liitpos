@@ -22,6 +22,8 @@ import {
   mainBranch,
 } from "@/lib/pos/seed";
 import { type Branch, type CartLine, type Category, type ClubMember, type Discount, type DrawerOpen, type HeldOrder, type PaymentMethod, type Product, type Role, type Sale, type Settings, type StaffUser, type StockMove, type StockReason, type TerminalKind, type ZReport } from "@/lib/pos/types";
+import { withPrintSettings } from "@/lib/pos/printer";
+import { isReceiptToken, newReceiptToken } from "@/lib/pos/receipt-link";
 import { cleanEndpoint } from "@/lib/pos/terminal";
 
 type BranchFields = Omit<Branch, "id">;
@@ -75,12 +77,13 @@ type PosState = BranchFields & {
   clearHistory: () => void;
   resetDemo: () => void;
   queuePrint: (sale: Sale) => void;
+  attachReceiptToken: (saleId: string) => string;
   queueZPrint: (report: ZReport) => void;
   login: (userId: string, pin: string) => boolean;
   lock: () => void;
   switchStore: (id: string) => void;
   setGateStore: (id: string | null) => void;
-  addStore: (settings: Omit<Settings, "androidTerminal" | "pinpad" | "logo">) => string;
+  addStore: (settings: Omit<Settings, "androidTerminal" | "pinpad" | "logo" | "autoPrint" | "paperWidth" | "printerName" | "openDrawer">) => string;
   saveStaff: (user: StaffUser) => string | null;
   applyRemote: (docs: CloudDoc[]) => void;
   replaceOutbox: (docs: CloudDoc[]) => void;
@@ -237,7 +240,7 @@ function stampCode(branch: Branch, used: Set<string>): Branch {
     }
     used.add(code);
   }
-  return { ...branch, settings: { ...settings, code } };
+  return { ...branch, settings: withPrintSettings({ ...settings, code }) };
 }
 
 function activate(state: PosState, id: string): Partial<PosState> | null {
@@ -438,6 +441,7 @@ export const usePos = create<PosState>()(
             cardBrand: card?.cardBrand ?? "",
             channel,
             kioskStatus: channel === "kiosk" ? "new" : null,
+            publicToken: newReceiptToken(),
             business: {
               businessName: state.settings.businessName,
               ownerName: state.settings.ownerName,
@@ -560,6 +564,7 @@ export const usePos = create<PosState>()(
             cardBrand: card?.cardBrand ?? "",
             channel: sale.channel,
             business: sale.business,
+            publicToken: newReceiptToken(),
           };
           const moves: StockMove[] = [];
           let products = state.products;
@@ -671,7 +676,7 @@ export const usePos = create<PosState>()(
           } else if (!next.logo || !next.logo.startsWith("data:image/")) {
             next.logo = null;
           }
-          commit({ settings: next });
+          commit({ settings: withPrintSettings(next) });
         },
 
         adjustStock: (productId, qty, reason, note) => {
@@ -783,6 +788,15 @@ export const usePos = create<PosState>()(
         },
 
         queuePrint: (sale) => set({ receiptToPrint: sale, zToPrint: null }),
+
+        attachReceiptToken: (saleId) => {
+          const sale = get().sales.find((item) => item.id === saleId);
+          if (!sale) return "";
+          if (isReceiptToken(sale.publicToken)) return sale.publicToken;
+          const publicToken = newReceiptToken();
+          commit({ sales: get().sales.map((item) => (item.id === saleId ? { ...item, publicToken } : item)) });
+          return publicToken;
+        },
         queueZPrint: (report) => set({ zToPrint: report, receiptToPrint: null }),
 
         login: (userId, pin) => {

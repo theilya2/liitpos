@@ -17,6 +17,12 @@ type NativeBridge = {
   getVersionName?: () => string;
   openExternal?: (url: string) => void;
   printReceipt?: () => void;
+  listUsbPrinters?: () => string;
+  printReceiptUsb?: (json: string) => void;
+  requestUsbPermission?: (deviceName: string) => void;
+  pulseDrawerUsb?: (json: string) => void;
+  shareCachedFile?: (name: string, base64: string, mime: string, text: string, title: string) => void;
+  sendSms?: (number: string, body: string) => void;
   downloadAndInstall?: (url: string, token: string) => void;
   checkUpdate?: (cloudUrl: string) => string;
 };
@@ -113,6 +119,34 @@ export function printNative() {
   const native = bridge();
   if (native?.printReceipt) native.printReceipt();
   else window.print();
+}
+
+export function hasUsbPrint(): boolean {
+  return typeof bridge()?.printReceiptUsb === "function";
+}
+
+export function listUsbPrintersRaw(): string {
+  return bridge()?.listUsbPrinters?.() ?? "[]";
+}
+
+export function printReceiptUsb(json: string) {
+  bridge()?.printReceiptUsb?.(json);
+}
+
+export function requestUsbPermission(deviceName: string) {
+  bridge()?.requestUsbPermission?.(deviceName);
+}
+
+export function pulseDrawerUsb(json: string) {
+  bridge()?.pulseDrawerUsb?.(json);
+}
+
+export function shareCachedFile(name: string, base64: string, mime: string, text: string, title: string) {
+  bridge()?.shareCachedFile?.(name, base64, mime, text, title);
+}
+
+export function sendSms(number: string, body: string) {
+  bridge()?.sendSms?.(number, body);
 }
 
 export function installUpdate(update: AppUpdate) {

@@ -104,6 +104,10 @@ export function PosFrame({ children }: { children: ReactNode }) {
     };
   }, []);
 
+  if (pathname.startsWith("/r/")) {
+    return <div className="public-sheet scroll-pane bg-paper text-ink">{children}</div>;
+  }
+
   if (!ready) {
     return (
       <div className="shell-safe">
