@@ -1,0 +1,100 @@
+@import "tailwindcss";
+@import "@fontsource/rubik/hebrew-400.css";
+@import "@fontsource/rubik/hebrew-500.css";
+@import "@fontsource/rubik/hebrew-600.css";
+@import "@fontsource/rubik/hebrew-700.css";
+@import "@fontsource/rubik/latin-400.css";
+@import "@fontsource/rubik/latin-500.css";
+@import "@fontsource/rubik/latin-600.css";
+@import "@fontsource/rubik/latin-700.css";
+
+@theme {
+  --font-sans: "Rubik", "Arial Hebrew", "Noto Sans Hebrew", sans-serif;
+
+  --color-paper: #f3eee6;
+  --color-surface: #fffdf8;
+  --color-ink: #1c1915;
+  --color-muted: #6e675e;
+  --color-line: #e4dcd0;
+  --color-pine: #0e6b56;
+  --color-pine-ink: #f4fff9;
+  --color-pine-soft: #e5f4ef;
+  --color-copper: #b4531a;
+  --color-copper-soft: #f8eadf;
+
+  --radius-tile: 1rem;
+}
+
+@layer base {
+  html {
+    direction: rtl;
+    color-scheme: light;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  body {
+    margin: 0;
+    background: var(--color-paper);
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+    text-wrap: pretty;
+  }
+
+  h1,
+  h2,
+  h3 {
+    text-wrap: balance;
+  }
+
+  button:not(:disabled),
+  [role="button"]:not(:disabled) {
+    cursor: pointer;
+  }
+
+  input,
+  textarea,
+  select {
+    font: inherit;
+    color: inherit;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--color-pine);
+    outline-offset: 2px;
+  }
+
+  ::selection {
+    background: var(--color-pine-soft);
+    color: var(--color-ink);
+  }
+}
+
+.safe-bottom {
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+.print-root {
+  display: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition: none !important;
+    animation: none !important;
+  }
+}
+
+@media print {
+  .pos-frame {
+    display: none !important;
+  }
+
+  .print-root {
+    display: block !important;
+    background: #fff;
+    color: #1c1915;
+  }
+}

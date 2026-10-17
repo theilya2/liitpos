@@ -1,0 +1,221 @@
+export const PAYMENT_METHODS = ["cash", "card", "club", "bit", "paybox", "transfer", "voucher"] as const;
+
+export type PaymentMethod = (typeof PAYMENT_METHODS)[number];
+
+export const TENDER_METHODS = ["cash", "card", "club"] as const;
+
+export type TenderMethod = (typeof TENDER_METHODS)[number];
+
+export const METHOD_LABEL: Record<PaymentMethod, string> = {
+  cash: "מזומן",
+  card: "אשראי",
+  club: "כרטיס מועדון",
+  bit: "ביט",
+  paybox: "פייבוקס",
+  transfer: "העברה",
+  voucher: "שובר",
+};
+
+export type TerminalKind = "android" | "pinpad";
+
+export type TerminalEndpoint = {
+  ip: string;
+  port: number;
+  https: boolean;
+};
+
+export type Discount = { kind: "percent" | "amount"; value: number } | null;
+
+export type Category = { id: string; name: string };
+
+export type Extra = {
+  id: string;
+  name: string;
+  price: number;
+};
+
+export type Shelf = "upper" | "lower" | "off";
+
+export type Product = {
+  id: string;
+  name: string;
+  price: number;
+  categoryId: string;
+  sku: string;
+  favorite: boolean;
+  active: boolean;
+  image: string | null;
+  trackStock: boolean;
+  stock: number;
+  lowStock: number;
+  /** Which equal shelf on the sale screen. `off` keeps it out of the register grid. */
+  shelf: Shelf;
+  /** Shown on the customer kiosk. */
+  kiosk: boolean;
+  extras: Extra[];
+};
+
+export type CartLine = {
+  key: string;
+  productId: string | null;
+  name: string;
+  unitPrice: number;
+  qty: number;
+};
+
+export type HeldOrder = {
+  id: string;
+  createdAt: string;
+  lines: CartLine[];
+  discount: Discount;
+};
+
+export type BusinessSnapshot = {
+  businessName: string;
+  ownerName: string;
+  taxId: string;
+  address: string;
+  phone: string;
+  receiptFooter: string;
+};
+
+export type SaleLine = {
+  productId: string | null;
+  name: string;
+  unitPrice: number;
+  qty: number;
+  lineTotal: number;
+};
+
+export type Sale = {
+  id: string;
+  number: number;
+  createdAt: string;
+  lines: SaleLine[];
+  discountAmount: number;
+  total: number;
+  vatRate: number;
+  vatAmount: number;
+  net: number;
+  method: PaymentMethod;
+  amountDue: number;
+  rounding: number;
+  tendered: number;
+  change: number;
+  voided: boolean;
+  zId: string | null;
+  cashierName: string;
+  business: BusinessSnapshot;
+  payments?: number;
+  terminal?: TerminalKind | null;
+  authCode?: string;
+  cardLast4?: string;
+  cardBrand?: string;
+  channel?: "register" | "kiosk";
+  kioskStatus?: "new" | "done" | null;
+};
+
+export type Settings = BusinessSnapshot & {
+  vatRate: number;
+  openingFloat: number;
+  /** 6-digit code typed at the register before the staff list. */
+  code: string;
+  androidTerminal: TerminalEndpoint;
+  pinpad: TerminalEndpoint;
+  /** JPEG data URL uploaded from the control panel. Null until the owner adds one. */
+  logo: string | null;
+};
+
+export type ClubMember = {
+  id: string;
+  firstName: string;
+  lastName: string;
+  phone: string;
+  note: string;
+  active: boolean;
+};
+
+export type StockReason = "sale" | "void" | "receive" | "count" | "waste";
+
+export type StockMove = {
+  id: string;
+  at: string;
+  productId: string;
+  productName: string;
+  qty: number;
+  stockAfter: number;
+  reason: StockReason;
+  note: string;
+  by: string;
+};
+
+export type DrawerOpen = {
+  id: string;
+  at: string;
+  by: string;
+};
+
+export type ZReport = {
+  id: string;
+  number: number;
+  closedAt: string;
+  closedBy: string;
+  storeName: string;
+  from: string;
+  to: string;
+  salesCount: number;
+  voidCount: number;
+  turnover: number;
+  vat: number;
+  net: number;
+  byMethod: { method: PaymentMethod; total: number }[];
+  openingFloat: number;
+  cashTaken: number;
+  cashExpected: number;
+  cashCounted: number;
+  variance: number;
+  leftInDrawer: number;
+  drawerOpens: number;
+};
+
+export type Branch = {
+  id: string;
+  categories: Category[];
+  products: Product[];
+  cart: CartLine[];
+  discount: Discount;
+  held: HeldOrder[];
+  sales: Sale[];
+  nextReceipt: number;
+  settings: Settings;
+  zReports: ZReport[];
+  nextZ: number;
+  stockMoves: StockMove[];
+  drawerOpens: DrawerOpen[];
+  members: ClubMember[];
+};
+
+export type Role = "cashier" | "shift" | "manager";
+
+export const ROLE_LABEL: Record<Role, string> = {
+  cashier: "קופאי",
+  shift: "אחראי משמרת",
+  manager: "מנהל",
+};
+
+export type StaffUser = {
+  id: string;
+  name: string;
+  pin: string;
+  role: Role;
+  active: boolean;
+  storeIds: string[];
+};
+
+export const STOCK_REASON_LABEL: Record<StockReason, string> = {
+  sale: "מכירה",
+  void: "ביטול",
+  receive: "קבלת סחורה",
+  count: "ספירה",
+  waste: "פחת",
+};
