@@ -13,6 +13,10 @@
  *    endpoint the template's dev-only `appEnvPlugin` serves.
  *  - **build**: what the wrapper hands `vite build` / `vite preview`.
  *
+ * This flag does not open a public account. Liitpos sign-in is the admin
+ * password only. The check still fails when dev and build would disagree
+ * about the flag, because that split has hidden other bugs.
+ *
  * The built bundle is not read: Vite inlines the flag and the minifier folds
  * `"false" !== "false"` away, so the built client JS carries no marker to
  * compare against unless the app is made to emit one.
@@ -22,12 +26,14 @@
  * 1 diverged, 2 could not observe). Callers comparing the flag should use
  * `compareAuthInvariant()` rather than re-deriving it.
  */
+import { readFileSync, readdirSync, statSync } from "node:fs";
+import { join } from "node:path";
 import { APP_ENV_ROUTE } from "./app-env-plugin.mjs";
 import { isMainModule, mergeAppEnv, projectRoot, readAppEnv } from "./with-app-env.mjs";
 
 const DEFAULT_DEV_URL = "http://127.0.0.1:8080";
 
-/** The predicate `src/lib/auth/{client,server}.ts` apply to the flag. */
+/** The predicate historically applied to `VITE_AUTH_ENABLED`. It does not enable public sign-in. */
 export function authEnabledFromEnvValue(value) {
   return value !== "false";
 }
@@ -87,6 +93,53 @@ export function authInvariantWarnings(result) {
 export function buildAuthEnabled(root = projectRoot(), processEnv = process.env) {
   const env = mergeAppEnv(readAppEnv(root), processEnv);
   return authEnabledFromEnvValue(env.VITE_AUTH_ENABLED);
+}
+
+const PUBLIC_SIGN_IN_MARKERS = ["auth.grok.me", "grok_preview", "genericOAuth", "GROK_PROVIDERS", "signUp.email"];
+
+function sourceFiles(dir, out = []) {
+  let entries = [];
+  try {
+    entries = readdirSync(dir);
+  } catch {
+    return out;
+  }
+  for (const name of entries) {
+    if (name === "node_modules" || name === "dist" || name === ".git") continue;
+    const path = join(dir, name);
+    let info;
+    try {
+      info = statSync(path);
+    } catch {
+      continue;
+    }
+    if (info.isDirectory()) sourceFiles(path, out);
+    else if (/\.(ts|tsx|mjs|js)$/.test(name)) out.push(path);
+  }
+  return out;
+}
+
+/**
+ * Files that would still offer broker sign-in or public registration.
+ * Missing files are fine. A hit is a path plus the marker.
+ */
+export function publicSignInFindings(root = projectRoot()) {
+  const hits = [];
+  for (const file of sourceFiles(join(root, "src"))) {
+    const text = readFileSync(file, "utf8");
+    for (const marker of PUBLIC_SIGN_IN_MARKERS) {
+      if (text.includes(marker)) hits.push(`${file.slice(root.length + 1)}: ${marker}`);
+    }
+  }
+  for (const rel of ["src/routes/login.tsx", "src/routes/api/auth/$.ts", "src/lib/auth/preview.ts", "src/lib/auth/providers.ts"]) {
+    try {
+      statSync(join(root, rel));
+      hits.push(`${rel}: still present`);
+    } catch {
+      /* removed */
+    }
+  }
+  return hits;
 }
 
 async function main(argv) {

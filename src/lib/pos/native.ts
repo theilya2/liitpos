@@ -115,12 +115,6 @@ export function printNative() {
   else window.print();
 }
 
-export function startCloudLink() {
-  const cloud = readCloudUrl();
-  if (!cloud) return;
-  openExternal(`${cloud}/login?next=${encodeURIComponent("/api/pos/link")}`);
-}
-
 export function installUpdate(update: AppUpdate) {
   bridge()?.downloadAndInstall?.(update.apkUrl, "");
 }

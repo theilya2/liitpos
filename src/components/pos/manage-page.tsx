@@ -121,10 +121,7 @@ export function ManagePage() {
               </li>
             ))}
           </ul>
-          <p className="mt-3 text-xs text-muted">הקודים עובדים גם בלי רשת. כשיש חיבור הם עולים ללוח הבקרה בענן.</p>
-          <Link to="/admin" className="mt-3 flex h-12 items-center justify-center rounded-2xl bg-pine font-semibold text-pine-ink">
-            לוח בקרה בענן
-          </Link>
+          <p className="mt-3 text-xs text-muted">הקודים עובדים גם בלי רשת. כשיש חיבור הם עולים לענן.</p>
         </section>
       </div>
       {draft ? (

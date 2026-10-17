@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { assertSameSiteRequest } from "@/lib/auth/isolation.server";
-import { requireUserId, UnauthorizedError } from "@/lib/auth/verify.server";
+import { requireDeviceOwner, UnauthorizedError } from "@/lib/auth/verify.server";
 import { bearerFrom, withCors } from "@/lib/pos/http.server";
 
 function json(request: Request, body: unknown, status = 200) {
@@ -21,7 +21,7 @@ export const Route = createFileRoute("/api/pos/sync")({
         try {
           const bearer = bearerFrom(request);
           if (!bearer) assertSameSiteRequest();
-          const userId = await requireUserId(bearer);
+          const userId = await requireDeviceOwner(bearer);
           const { acceptedCloudDocs, pullDocsForUser, pushDocsForUser } = await import("@/lib/pos/cloud.server");
           const body = (await request.json()) as { op?: unknown; since?: unknown; docs?: unknown };
           if (body.op === "pull") {

@@ -13,14 +13,14 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as AdminRouteImport } from './routes/admin'
 import { Route as InventoryRouteImport } from './routes/inventory'
 import { Route as KioskRouteImport } from './routes/kiosk'
-import { Route as LoginRouteImport } from './routes/login'
 import { Route as ManageRouteImport } from './routes/manage'
 import { Route as ProductsRouteImport } from './routes/products'
 import { Route as ReceiptsRouteImport } from './routes/receipts'
 import { Route as ReportsRouteImport } from './routes/reports'
 import { Route as SettingsRouteImport } from './routes/settings'
-import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
-import { Route as ApiPosLinkRouteImport } from './routes/api/pos/link'
+import { Route as ApiAdminLoginRouteImport } from './routes/api/admin/login'
+import { Route as ApiAdminLogoutRouteImport } from './routes/api/admin/logout'
+import { Route as ApiAdminSessionRouteImport } from './routes/api/admin/session'
 import { Route as ApiPosSyncRouteImport } from './routes/api/pos/sync'
 import { Route as ApiPosUpdateRouteImport } from './routes/api/pos/update'
 
@@ -42,11 +42,6 @@ const InventoryRoute = InventoryRouteImport.update({
 const KioskRoute = KioskRouteImport.update({
   id: '/kiosk',
   path: '/kiosk',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const LoginRoute = LoginRouteImport.update({
-  id: '/login',
-  path: '/login',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ManageRoute = ManageRouteImport.update({
@@ -74,14 +69,19 @@ const SettingsRoute = SettingsRouteImport.update({
   path: '/settings',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ApiAuthSplatRoute = ApiAuthSplatRouteImport.update({
-  id: '/api/auth/$',
-  path: '/api/auth/$',
+const ApiAdminLoginRoute = ApiAdminLoginRouteImport.update({
+  id: '/api/admin/login',
+  path: '/api/admin/login',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ApiPosLinkRoute = ApiPosLinkRouteImport.update({
-  id: '/api/pos/link',
-  path: '/api/pos/link',
+const ApiAdminLogoutRoute = ApiAdminLogoutRouteImport.update({
+  id: '/api/admin/logout',
+  path: '/api/admin/logout',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiAdminSessionRoute = ApiAdminSessionRouteImport.update({
+  id: '/api/admin/session',
+  path: '/api/admin/session',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiPosSyncRoute = ApiPosSyncRouteImport.update({
@@ -100,14 +100,14 @@ export interface FileRoutesByFullPath {
   '/admin': typeof AdminRoute
   '/inventory': typeof InventoryRoute
   '/kiosk': typeof KioskRoute
-  '/login': typeof LoginRoute
   '/manage': typeof ManageRoute
   '/products': typeof ProductsRoute
   '/receipts': typeof ReceiptsRoute
   '/reports': typeof ReportsRoute
   '/settings': typeof SettingsRoute
-  '/api/auth/$': typeof ApiAuthSplatRoute
-  '/api/pos/link': typeof ApiPosLinkRoute
+  '/api/admin/login': typeof ApiAdminLoginRoute
+  '/api/admin/logout': typeof ApiAdminLogoutRoute
+  '/api/admin/session': typeof ApiAdminSessionRoute
   '/api/pos/sync': typeof ApiPosSyncRoute
   '/api/pos/update': typeof ApiPosUpdateRoute
 }
@@ -116,14 +116,14 @@ export interface FileRoutesByTo {
   '/admin': typeof AdminRoute
   '/inventory': typeof InventoryRoute
   '/kiosk': typeof KioskRoute
-  '/login': typeof LoginRoute
   '/manage': typeof ManageRoute
   '/products': typeof ProductsRoute
   '/receipts': typeof ReceiptsRoute
   '/reports': typeof ReportsRoute
   '/settings': typeof SettingsRoute
-  '/api/auth/$': typeof ApiAuthSplatRoute
-  '/api/pos/link': typeof ApiPosLinkRoute
+  '/api/admin/login': typeof ApiAdminLoginRoute
+  '/api/admin/logout': typeof ApiAdminLogoutRoute
+  '/api/admin/session': typeof ApiAdminSessionRoute
   '/api/pos/sync': typeof ApiPosSyncRoute
   '/api/pos/update': typeof ApiPosUpdateRoute
 }
@@ -133,14 +133,14 @@ export interface FileRoutesById {
   '/admin': typeof AdminRoute
   '/inventory': typeof InventoryRoute
   '/kiosk': typeof KioskRoute
-  '/login': typeof LoginRoute
   '/manage': typeof ManageRoute
   '/products': typeof ProductsRoute
   '/receipts': typeof ReceiptsRoute
   '/reports': typeof ReportsRoute
   '/settings': typeof SettingsRoute
-  '/api/auth/$': typeof ApiAuthSplatRoute
-  '/api/pos/link': typeof ApiPosLinkRoute
+  '/api/admin/login': typeof ApiAdminLoginRoute
+  '/api/admin/logout': typeof ApiAdminLogoutRoute
+  '/api/admin/session': typeof ApiAdminSessionRoute
   '/api/pos/sync': typeof ApiPosSyncRoute
   '/api/pos/update': typeof ApiPosUpdateRoute
 }
@@ -151,14 +151,14 @@ export interface FileRouteTypes {
     | '/admin'
     | '/inventory'
     | '/kiosk'
-    | '/login'
     | '/manage'
     | '/products'
     | '/receipts'
     | '/reports'
     | '/settings'
-    | '/api/auth/$'
-    | '/api/pos/link'
+    | '/api/admin/login'
+    | '/api/admin/logout'
+    | '/api/admin/session'
     | '/api/pos/sync'
     | '/api/pos/update'
   fileRoutesByTo: FileRoutesByTo
@@ -167,14 +167,14 @@ export interface FileRouteTypes {
     | '/admin'
     | '/inventory'
     | '/kiosk'
-    | '/login'
     | '/manage'
     | '/products'
     | '/receipts'
     | '/reports'
     | '/settings'
-    | '/api/auth/$'
-    | '/api/pos/link'
+    | '/api/admin/login'
+    | '/api/admin/logout'
+    | '/api/admin/session'
     | '/api/pos/sync'
     | '/api/pos/update'
   id:
@@ -183,14 +183,14 @@ export interface FileRouteTypes {
     | '/admin'
     | '/inventory'
     | '/kiosk'
-    | '/login'
     | '/manage'
     | '/products'
     | '/receipts'
     | '/reports'
     | '/settings'
-    | '/api/auth/$'
-    | '/api/pos/link'
+    | '/api/admin/login'
+    | '/api/admin/logout'
+    | '/api/admin/session'
     | '/api/pos/sync'
     | '/api/pos/update'
   fileRoutesById: FileRoutesById
@@ -200,14 +200,14 @@ export interface RootRouteChildren {
   AdminRoute: typeof AdminRoute
   InventoryRoute: typeof InventoryRoute
   KioskRoute: typeof KioskRoute
-  LoginRoute: typeof LoginRoute
   ManageRoute: typeof ManageRoute
   ProductsRoute: typeof ProductsRoute
   ReceiptsRoute: typeof ReceiptsRoute
   ReportsRoute: typeof ReportsRoute
   SettingsRoute: typeof SettingsRoute
-  ApiAuthSplatRoute: typeof ApiAuthSplatRoute
-  ApiPosLinkRoute: typeof ApiPosLinkRoute
+  ApiAdminLoginRoute: typeof ApiAdminLoginRoute
+  ApiAdminLogoutRoute: typeof ApiAdminLogoutRoute
+  ApiAdminSessionRoute: typeof ApiAdminSessionRoute
   ApiPosSyncRoute: typeof ApiPosSyncRoute
   ApiPosUpdateRoute: typeof ApiPosUpdateRoute
 }
@@ -240,13 +240,6 @@ declare module '@tanstack/react-router' {
       path: '/kiosk'
       fullPath: '/kiosk'
       preLoaderRoute: typeof KioskRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/login': {
-      id: '/login'
-      path: '/login'
-      fullPath: '/login'
-      preLoaderRoute: typeof LoginRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/manage': {
@@ -284,18 +277,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SettingsRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/api/auth/$': {
-      id: '/api/auth/$'
-      path: '/api/auth/$'
-      fullPath: '/api/auth/$'
-      preLoaderRoute: typeof ApiAuthSplatRouteImport
+    '/api/admin/login': {
+      id: '/api/admin/login'
+      path: '/api/admin/login'
+      fullPath: '/api/admin/login'
+      preLoaderRoute: typeof ApiAdminLoginRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/api/pos/link': {
-      id: '/api/pos/link'
-      path: '/api/pos/link'
-      fullPath: '/api/pos/link'
-      preLoaderRoute: typeof ApiPosLinkRouteImport
+    '/api/admin/logout': {
+      id: '/api/admin/logout'
+      path: '/api/admin/logout'
+      fullPath: '/api/admin/logout'
+      preLoaderRoute: typeof ApiAdminLogoutRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/admin/session': {
+      id: '/api/admin/session'
+      path: '/api/admin/session'
+      fullPath: '/api/admin/session'
+      preLoaderRoute: typeof ApiAdminSessionRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/pos/sync': {
@@ -320,14 +320,14 @@ const rootRouteChildren: RootRouteChildren = {
   AdminRoute: AdminRoute,
   InventoryRoute: InventoryRoute,
   KioskRoute: KioskRoute,
-  LoginRoute: LoginRoute,
   ManageRoute: ManageRoute,
   ProductsRoute: ProductsRoute,
   ReceiptsRoute: ReceiptsRoute,
   ReportsRoute: ReportsRoute,
   SettingsRoute: SettingsRoute,
-  ApiAuthSplatRoute: ApiAuthSplatRoute,
-  ApiPosLinkRoute: ApiPosLinkRoute,
+  ApiAdminLoginRoute: ApiAdminLoginRoute,
+  ApiAdminLogoutRoute: ApiAdminLogoutRoute,
+  ApiAdminSessionRoute: ApiAdminSessionRoute,
   ApiPosSyncRoute: ApiPosSyncRoute,
   ApiPosUpdateRoute: ApiPosUpdateRoute,
 }

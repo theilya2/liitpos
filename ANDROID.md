@@ -66,17 +66,25 @@ npm run android:release
 
 Updating later uses the same steps. Android replaces the app when the new APK is signed with the **same key**, has the **same id** `com.liitpos.app`, and has a **higher version number**. Receipts and products already stored on the phone stay.
 
-## Connect the cloud
+## Connect a phone to the cloud
 
-The site address is not stored in the repo. On the phone:
+The register on the phone does not have an account button. Pairing is done from the back office, which is not linked from the register.
 
-1. Open Liitpos and stay on the lock screen, or sign in with a manager PIN and open settings.
-2. Under **ענן**, type the website address, for example `https://your-app.vercel.app`, and save it.
-3. Tap **חיבור חשבון**. The phone opens the website. Sign in there. The page sends you back into Liitpos.
+1. On Vercel, set `ADMIN_USERNAME` and `ADMIN_PASSWORD` (or `ADMIN_PASSWORD_HASH`). `BETTER_AUTH_URL` must be `https://liitpos.vercel.app` with no slash at the end. `DATABASE_URL` is already the Neon database. If the username is missing, or both the password and the hash are missing, the back office refuses every login.
+2. Open `https://liitpos.vercel.app/admin` in a browser and sign in with that username and password. There is no sign-up. Five wrong tries from the same network, or against the same username, lock login for 15 minutes.
+3. Under **חיבור טלפון**, type a name for the phone and create a link. A QR code and a `liitpos://link?token=…&cloud=https://liitpos.vercel.app` link appear once. Open that link on the phone that has Liitpos installed, or scan the QR with the phone. The app stores the token and the site address.
+4. Sales made offline upload on their own after that. Revoke the phone from the same screen to disconnect it. The register on that phone keeps working offline.
 
-Until that is done, the register keeps working and shows that sales are stored on the device. After it is linked, the app tries to sync about every 20 seconds, and again when the network comes back.
+`ADMIN_PASSWORD_HASH`, if you prefer not to store the password itself, is a `scrypt:` line. Generate it on your computer (do not commit it):
 
-Card terminals on the local network (the IP in settings) are separate from this cloud address. The app allows plain `http` to those devices.
+```bash
+node --input-type=module -e 'import { randomBytes, scryptSync } from "node:crypto"; const salt = randomBytes(16).toString("hex"); const key = scryptSync(process.argv[1], salt, 32).toString("hex"); console.log(`scrypt:${salt}:${key}`)' 'your-password'
+```
+
+You can set the hash instead of `ADMIN_PASSWORD`, or set both. Either match is accepted.
+
+Until a phone is paired, it keeps selling and stores everything on the device. Card terminals on the local network (the IP in settings) are separate from this cloud address. The app allows plain `http` to those devices.
+
 
 ## How offline and sync work
 
@@ -90,7 +98,7 @@ Everything the cashier does is written on the phone first (the same storage the 
 - receipt and Z printouts (the Android print dialog)
 - staff PIN login
 
-Those actions also sit in a queue. With no network, or before an account is linked, the queue waits. Nothing is thrown away because a request failed.
+Those actions also sit in a queue. With no network, or before the phone is paired, the queue waits. Nothing is thrown away because a request failed.
 
 When a sync succeeds, records combine like this:
 

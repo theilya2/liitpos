@@ -7,7 +7,7 @@ import { prepareNative } from "@/lib/pos/native";
 import { LockScreen } from "@/components/pos/lock-screen";
 import { ReceiptView } from "@/components/pos/receipt";
 import { ZReportView } from "@/components/pos/z-report";
-import { CloudBar, CloudSync } from "@/components/pos/cloud-bar";
+import { CloudSync } from "@/components/pos/cloud-bar";
 import { currentUser, ensureReady, isWeekLocked, usePos } from "@/lib/pos/store";
 import type { Role } from "@/lib/pos/types";
 
@@ -23,17 +23,13 @@ function WeekLock() {
   const lock = usePos((state) => state.lock);
   return (
     <main className="flex h-dvh flex-col bg-paper text-ink">
-      <CloudBar link />
       <div className="mx-auto flex w-full max-w-md flex-1 flex-col justify-center px-5">
         <span className="flex h-14 w-14 items-center justify-center rounded-2xl bg-copper text-lg font-bold text-pine-ink">₪</span>
         <h1 className="mt-4 text-2xl font-semibold">הקופה נעולה</h1>
         <p className="mt-2 text-sm text-pretty text-muted">
-          עבר שבוע בלי חיבור לענן. המכירות שנשמרו במכשיר לא נמחקו, אבל אי אפשר למכור עד שהבעלים משחרר את הנעילה בלוח הבקרה, והקופה מתחברת שוב לרשת.
+          עבר שבוע בלי חיבור לענן. המכירות שנשמרו במכשיר לא נמחקו, אבל אי אפשר למכור עד שהבעלים משחרר את הנעילה והקופה מתחברת שוב לרשת.
         </p>
-        <Link to="/admin" className="mt-6 flex h-12 items-center justify-center rounded-2xl bg-pine font-semibold text-pine-ink">
-          לוח בקרה
-        </Link>
-        <button type="button" onClick={lock} className="mt-3 h-12 rounded-2xl bg-surface text-sm ring-1 ring-line">
+        <button type="button" onClick={lock} className="mt-6 h-12 rounded-2xl bg-surface text-sm ring-1 ring-line">
           חזרה לכניסה
         </button>
       </div>
@@ -110,7 +106,7 @@ export function PosFrame({ children }: { children: ReactNode }) {
 
   if (!ready) return <BootScreen />;
 
-  if (pathname.startsWith("/admin") || pathname.startsWith("/login")) {
+  if (pathname.startsWith("/admin")) {
     return (
       <>
         <AppUpdateBanner />
@@ -170,7 +166,6 @@ export function PosFrame({ children }: { children: ReactNode }) {
           </button>
         </nav>
         <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-          <CloudBar link />
           <div className="flex min-h-0 flex-1 flex-col">
             {allowed ? (
               children
