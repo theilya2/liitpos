@@ -16,7 +16,7 @@ export function SettingsPage() {
   const [armed, setArmed] = useState<"none" | "history" | "demo">("none");
 
   return (
-    <div className="min-h-0 flex-1 overflow-y-auto">
+    <div className="scroll-pane page-sheet min-h-0 flex-1">
       <PageHeader title="הגדרות" subtitle="פרטי העסק מופיעים על כל קבלה חדשה." />
       <div className="space-y-3 px-3 pb-8">
         <CloudLinkCard />

@@ -20,7 +20,7 @@ export function ManagePage() {
   const [staffError, setStaffError] = useState("");
 
   return (
-    <div className="min-h-0 flex-1 overflow-y-auto">
+    <div className="scroll-pane page-sheet min-h-0 flex-1">
       <PageHeader title="ניהול" subtitle="חנויות, צוות, מדף והגדרות העסק. המסך הזה למנהל." />
       <div className="space-y-3 px-3 pb-8">
         <section className="rounded-2xl bg-surface p-4 ring-1 ring-line">

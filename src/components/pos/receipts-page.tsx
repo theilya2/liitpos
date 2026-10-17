@@ -169,7 +169,7 @@ export function ReceiptsPage() {
   }, [sales, selectedId]);
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col">
+    <div className="mx-auto flex min-h-0 w-full max-w-[96rem] flex-1 flex-col">
       <PageHeader title="קבלות" subtitle="היסטוריית המכירות שנשמרה במכשיר." />
       <div className="shrink-0 px-3 pb-3">
         <input
@@ -181,7 +181,7 @@ export function ReceiptsPage() {
         />
       </div>
       <div className="flex min-h-0 flex-1">
-        <div className={`min-h-0 flex-1 overflow-y-auto px-3 pb-4 ${selected ? "hidden lg:block" : ""}`}>
+        <div className={`scroll-pane min-h-0 flex-1 px-3 pb-4 ${selected ? "hidden lg:block" : ""}`}>
           {visible.length === 0 ? (
             <p className="py-10 text-center text-sm text-muted">אין קבלות להצגה.</p>
           ) : (
@@ -213,7 +213,7 @@ export function ReceiptsPage() {
             </ul>
           )}
         </div>
-        <div className={`min-h-0 w-full overflow-y-auto border-line px-3 pb-4 lg:w-96 lg:border-s ${selected ? "" : "hidden lg:block"}`}>
+        <div className={`scroll-pane min-h-0 w-full border-line px-3 pb-4 lg:w-[min(36rem,42%)] lg:border-s ${selected ? "" : "hidden lg:block"}`}>
           {selected ? (
             <div>
               <button type="button" onClick={() => setSelectedId(null)} className="mb-3 h-12 rounded-xl bg-surface px-4 text-sm lg:hidden">

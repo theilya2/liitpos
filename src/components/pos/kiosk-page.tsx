@@ -39,7 +39,7 @@ export function KioskPage() {
   }
 
   return (
-    <main className="flex h-full min-h-0 flex-col bg-paper text-ink">
+    <main className="kiosk-board flex min-h-0 flex-1 flex-col bg-paper text-ink">
       <header className="flex shrink-0 items-center gap-3 border-b border-line bg-surface px-4 py-3">
         {settings.logo ? (
           <img src={settings.logo} alt="" className="h-12 w-12 rounded-2xl object-cover" />
@@ -54,11 +54,11 @@ export function KioskPage() {
           יציאה
         </button>
       </header>
-      <div className="min-h-0 flex-1 overflow-y-auto p-3">
+      <div className="scroll-pane min-h-0 flex-1 p-3">
         {menu.length === 0 ? (
           <p className="py-16 text-center text-sm text-muted">התפריט עדיין ריק. בעל העסק מסמן מוצרים כ״מופיע בקיוסק״.</p>
         ) : (
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+          <div className="kiosk-grid">
             {menu.map((product) => (
               <button
                 key={product.id}
@@ -66,7 +66,7 @@ export function KioskPage() {
                 onClick={() => setPick({ product, extras: [], qty: 1 })}
                 className="overflow-hidden rounded-3xl bg-surface text-start ring-1 ring-line transition-transform duration-150 active:scale-95"
               >
-                <span className="block aspect-square overflow-hidden bg-pine-soft">
+                <span className="block aspect-[4/3] max-h-56 overflow-hidden bg-pine-soft">
                   {product.image ? <img src={product.image} alt="" className="h-full w-full object-cover" /> : <span className="flex h-full items-center justify-center text-3xl font-semibold text-pine">{product.name.slice(0, 1)}</span>}
                 </span>
                 <span className="block px-3 py-3">
@@ -184,7 +184,7 @@ function extraSum(extras: Extra[], ids: string[]) {
 function Sheet({ title, onClose, children }: { title: string; onClose: () => void; children: ReactNode }) {
   return (
     <div className="fixed inset-0 z-40 flex items-end justify-center bg-ink/40 sm:items-center">
-      <div role="dialog" aria-modal="true" className="max-h-[92dvh] w-full max-w-lg overflow-y-auto rounded-t-3xl bg-surface p-4 text-ink sm:rounded-3xl">
+      <div role="dialog" aria-modal="true" className="scroll-pane max-h-full min-h-0 w-full max-w-lg rounded-t-3xl bg-surface p-4 text-ink sm:max-w-xl sm:rounded-3xl">
         <div className="mb-3 flex items-center justify-between gap-3">
           <h2 className="text-lg font-semibold">{title}</h2>
           <button type="button" onClick={onClose} aria-label="סגירה" className="flex h-12 w-12 items-center justify-center rounded-full bg-paper">
