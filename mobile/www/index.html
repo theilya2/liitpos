@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>Liitpos</title>
+    <style>
+      :root {
+        color-scheme: light;
+        --pine: #0e6b56;
+        --cream: #f3eee6;
+        --ink: #f4fff9;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      html,
+      body {
+        margin: 0;
+        min-height: 100%;
+      }
+      body {
+        display: flex;
+        min-height: 100dvh;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 16px;
+        padding: 32px 24px calc(32px + env(safe-area-inset-bottom));
+        background: var(--pine);
+        color: var(--ink);
+        font-family: "Rubik", "Arial Hebrew", sans-serif;
+        text-align: center;
+      }
+      svg {
+        width: 96px;
+        height: 96px;
+      }
+      h1 {
+        margin: 0;
+        font-size: 32px;
+        font-weight: 650;
+        letter-spacing: -0.03em;
+      }
+      p {
+        max-width: 28rem;
+        margin: 0;
+        line-height: 1.5;
+      }
+      .en {
+        direction: ltr;
+        opacity: 0.85;
+        font-size: 14px;
+      }
+    </style>
+  </head>
+  <body>
+    <!--
+      Shown only when the shell is not pointed at the live site.
+      Normal installs set server.url in capacitor.config.ts and never stay here.
+    -->
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" role="img" aria-label="Liitpos">
+      <rect width="32" height="32" rx="7" fill="#F3EEE6" />
+      <g fill="#0E6B56">
+        <rect x="6" y="6" width="4" height="20" />
+        <rect x="6" y="6" width="12" height="4" />
+        <rect x="14" y="6" width="4" height="8" />
+        <rect x="22" y="6" width="4" height="20" />
+        <rect x="14" y="22" width="12" height="4" />
+        <rect x="14" y="18" width="4" height="8" />
+      </g>
+    </svg>
+    <h1>Liitpos</h1>
+    <p>הקופה נטענת מהאתר החי. אם המסך הזה נשאר, אין חיבור לרשת — נסו שוב כשיש אינטרנט.</p>
+    <p class="en">
+      Liitpos opens the live register. If this screen stays up, the phone is offline. Reopen the
+      app once you have a connection.
+    </p>
+  </body>
+</html>

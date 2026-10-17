@@ -1,0 +1,50 @@
+{
+  "appId": "com.liitpos.app",
+  "appName": "Liitpos",
+  "webDir": "mobile/www",
+  "server": {
+    "url": "https://liitpos.grok.me",
+    "cleartext": false,
+    "androidScheme": "https",
+    "allowNavigation": [
+      "*.grok.me",
+      "grok.com",
+      "*.grok.com",
+      "google.com",
+      "*.google.com",
+      "*.googleusercontent.com",
+      "*.gstatic.com",
+      "*.googleapis.com",
+      "youtube.com",
+      "*.youtube.com",
+      "x.com",
+      "*.x.com",
+      "twitter.com",
+      "*.twitter.com"
+    ],
+    "errorPath": "index.html"
+  },
+  "android": {
+    "allowMixedContent": false,
+    "backgroundColor": "#0E6B56"
+  },
+  "ios": {
+    "backgroundColor": "#F3EEE6",
+    "contentInset": "never"
+  },
+  "plugins": {
+    "SplashScreen": {
+      "launchAutoHide": true,
+      "launchShowDuration": 1200,
+      "backgroundColor": "#0E6B56",
+      "androidScaleType": "CENTER",
+      "showSpinner": false,
+      "splashFullScreen": false,
+      "splashImmersive": false
+    },
+    "StatusBar": {
+      "style": "LIGHT",
+      "overlaysWebView": true
+    }
+  }
+}

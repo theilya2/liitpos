@@ -10,3 +10,16 @@ dist
 *.log
 .node_modules.lock
 .project_id
+
+# Native shells (Capacitor). The projects themselves are committed.
+android/.gradle/
+android/build/
+android/app/build/
+android/local.properties
+android/keystore.properties
+android/captures/
+*.keystore
+*.jks
+ios/App/Pods/
+ios/DerivedData/
+ios/App/build/
