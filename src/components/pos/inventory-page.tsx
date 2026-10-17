@@ -135,7 +135,7 @@ export function InventoryPage() {
                   ["count", "ספירה"],
                 ] as const
               ).map(([id, label]) => (
-                <button key={id} type="button" onClick={() => setMode(id)} className={`h-11 rounded-xl text-sm ${mode === id ? "bg-pine text-pine-ink" : "bg-paper ring-1 ring-line"}`}>
+                <button key={id} type="button" onClick={() => setMode(id)} className={`h-12 rounded-xl text-sm ${mode === id ? "bg-pine text-pine-ink" : "bg-paper ring-1 ring-line"}`}>
                   {label}
                 </button>
               ))}

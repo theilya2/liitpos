@@ -1,11 +1,11 @@
 import type { Role, StaffUser } from "@/lib/pos/types";
 
-export type Area = "sale" | "receipts" | "inventory" | "reports" | "z" | "products" | "settings" | "manage" | "void" | "drawer";
+export type Area = "sale" | "receipts" | "inventory" | "reports" | "z" | "products" | "settings" | "manage" | "void" | "refund" | "drawer";
 
 const AREAS: Record<Role, Area[]> = {
   cashier: ["sale", "receipts", "drawer"],
-  shift: ["sale", "receipts", "drawer", "inventory", "reports", "z", "void"],
-  manager: ["sale", "receipts", "drawer", "inventory", "reports", "z", "void", "products", "settings", "manage"],
+  shift: ["sale", "receipts", "drawer", "inventory", "reports", "z", "void", "refund"],
+  manager: ["sale", "receipts", "drawer", "inventory", "reports", "z", "void", "refund", "products", "settings", "manage"],
 };
 
 export function can(role: Role, area: Area): boolean {

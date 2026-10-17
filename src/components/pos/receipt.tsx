@@ -1,15 +1,19 @@
 import { formatILS, formatWhen } from "@/lib/pos/money";
+import { tendersOf } from "@/lib/pos/tender";
 import { deviceLabel } from "@/lib/pos/terminal";
-import { METHOD_LABEL, type Sale } from "@/lib/pos/types";
+import { METHOD_LABEL, type Sale, type TenderLine } from "@/lib/pos/types";
 
-function payLabel(sale: Sale): string {
-  const parts = [METHOD_LABEL[sale.method] ?? "תשלום"];
-  if (sale.terminal) parts.push(deviceLabel(sale.terminal));
-  if ((sale.payments ?? 1) > 1) parts.push(`${sale.payments} תשלומים`);
+function tenderText(line: TenderLine): string {
+  const parts = [METHOD_LABEL[line.method] ?? "תשלום"];
+  if (line.terminal) parts.push(deviceLabel(line.terminal));
+  if ((line.payments ?? 1) > 1) parts.push(`${line.payments} תשלומים`);
+  if (line.voucherCode) parts.push(line.voucherCode);
   return parts.join(" · ");
 }
 
 export function receiptPlainText(sale: Sale): string {
+  const credit = sale.kind === "credit";
+  const tenders = tendersOf(sale);
   const lines = [
     sale.business.businessName,
     sale.business.ownerName,
@@ -17,7 +21,8 @@ export function receiptPlainText(sale: Sale): string {
     sale.business.address,
     sale.business.phone,
     "",
-    `קבלה ${sale.number}`,
+    credit ? `תעודת זיכוי ${sale.number}` : `קבלה ${sale.number}`,
+    credit && sale.creditOfNumber ? `עבור קבלה ${sale.creditOfNumber}` : "",
     sale.cashierName ? `קופאי ${sale.cashierName}` : "",
     sale.channel === "kiosk" ? "הזמנת קיוסק" : "",
     formatWhen(sale.createdAt),
@@ -26,13 +31,12 @@ export function receiptPlainText(sale: Sale): string {
     ...sale.lines.map((line) => `${line.name}  x${line.qty}  ${formatILS(line.lineTotal)}`),
     "",
     sale.discountAmount > 0 ? `הנחה  ${formatILS(sale.discountAmount)}` : "",
-    `לתשלום  ${formatILS(sale.total)}`,
+    `${credit ? "זיכוי" : "לתשלום"}  ${formatILS(sale.total)}`,
     `מתוכם מע״מ ${sale.vatRate}%  ${formatILS(sale.vatAmount)}`,
     sale.rounding !== 0 ? `עיגול מזומן  ${formatILS(sale.rounding)}` : "",
-    `שולם ב${payLabel(sale)}  ${formatILS(sale.tendered)}`,
+    ...tenders.map((line) => `${credit ? "הוחזר" : "שולם"} ב${tenderText(line)}  ${formatILS(line.amount)}${line.change > 0 ? `  עודף ${formatILS(line.change)}` : ""}`),
     sale.authCode ? `אישור  ${sale.authCode}` : "",
     sale.cardLast4 ? `כרטיס  ****${sale.cardLast4}${sale.cardBrand ? ` ${sale.cardBrand}` : ""}` : "",
-    sale.change > 0 ? `עודף  ${formatILS(sale.change)}` : "",
     "",
     sale.business.receiptFooter,
     "קבלה פנימית. אינה חשבונית מס.",
@@ -50,6 +54,8 @@ function Row({ label, value, strong }: { label: string; value: string; strong?: 
 }
 
 export function ReceiptView({ sale }: { sale: Sale }) {
+  const credit = sale.kind === "credit";
+  const tenders = tendersOf(sale);
   return (
     <article className="receipt-sheet mx-auto w-full max-w-sm bg-surface px-5 py-6 text-ink">
       <header className="text-center">
@@ -63,9 +69,10 @@ export function ReceiptView({ sale }: { sale: Sale }) {
       </header>
       <div className="my-4 border-t border-dashed border-line" />
       <div className="flex items-baseline justify-between text-sm">
-        <span className="font-semibold">קבלה {sale.number}</span>
+        <span className="font-semibold">{credit ? `תעודת זיכוי ${sale.number}` : `קבלה ${sale.number}`}</span>
         <span className="tabular-nums text-muted">{formatWhen(sale.createdAt)}</span>
       </div>
+      {credit && sale.creditOfNumber ? <p className="mt-1 text-sm text-muted">עבור קבלה {sale.creditOfNumber}</p> : null}
       {sale.cashierName ? <p className="mt-1 text-sm text-muted">קופאי {sale.cashierName}</p> : null}
       {sale.channel === "kiosk" ? <p className="mt-1 text-sm font-medium text-pine">הזמנת קיוסק</p> : null}
       {sale.voided ? <p className="mt-2 text-center text-sm font-semibold text-copper">קבלה מבוטלת</p> : null}
@@ -83,14 +90,19 @@ export function ReceiptView({ sale }: { sale: Sale }) {
       <div className="my-4 border-t border-dashed border-line" />
       <div className="space-y-1">
         {sale.discountAmount > 0 ? <Row label="הנחה" value={formatILS(sale.discountAmount)} /> : null}
-        <Row label="לתשלום" value={formatILS(sale.total)} strong />
+        <Row label={credit ? "זיכוי" : "לתשלום"} value={formatILS(sale.total)} strong />
         <Row label={`מתוכם מע״מ ${sale.vatRate}%`} value={formatILS(sale.vatAmount)} />
         <Row label="לפני מע״מ" value={formatILS(sale.net)} />
         {sale.rounding !== 0 ? <Row label="עיגול מזומן" value={formatILS(sale.rounding)} /> : null}
-        <Row label={payLabel(sale)} value={formatILS(sale.tendered)} />
+        {tenders.map((line, index) => (
+          <Row key={`${line.method}-${index}`} label={tenderText(line)} value={formatILS(line.amount)} />
+        ))}
         {sale.authCode ? <Row label="מספר אישור" value={sale.authCode} /> : null}
         {sale.cardLast4 ? <Row label="כרטיס" value={`****${sale.cardLast4}${sale.cardBrand ? ` ${sale.cardBrand}` : ""}`} /> : null}
-        {sale.change > 0 ? <Row label="עודף" value={formatILS(sale.change)} /> : null}
+        {tenders.some((line) => line.change > 0) ? <Row label="עודף" value={formatILS(sale.change)} /> : null}
+        {tenders.filter((line) => line.voucherCode).map((line) => (
+          <Row key={line.voucherCode} label="שובר זיכוי" value={line.voucherCode ?? ""} />
+        ))}
       </div>
       <p className="mt-5 text-center text-sm">{sale.business.receiptFooter}</p>
       <p className="mt-3 text-center text-xs text-muted">קבלה פנימית לניהול הקופה. אינה חשבונית מס ואינה מחליפה דיווח לרשות המסים.</p>

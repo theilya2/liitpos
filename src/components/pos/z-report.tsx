@@ -24,20 +24,27 @@ export function ZReportView({ report }: { report: ZReport }) {
       <div className="space-y-1">
         <Row label="עסקאות" value={String(report.salesCount)} />
         <Row label="ביטולים" value={String(report.voidCount)} />
-        <Row label="מחזור" value={formatILS(report.turnover)} strong />
+        {typeof report.creditCount === "number" ? <Row label="תעודות זיכוי" value={String(report.creditCount)} /> : null}
+        {typeof report.grossTurnover === "number" ? <Row label="מחזור מכירות" value={formatILS(report.grossTurnover)} /> : null}
+        {typeof report.creditTotal === "number" && report.creditTotal > 0 ? <Row label="זיכויים" value={formatILS(report.creditTotal)} /> : null}
+        <Row label={typeof report.creditCount === "number" ? "מחזור נטו" : "מחזור"} value={formatILS(report.turnover)} strong />
         <Row label="מע״מ" value={formatILS(report.vat)} />
         <Row label="לפני מע״מ" value={formatILS(report.net)} />
       </div>
       <div className="my-4 border-t border-dashed border-line" />
       <div className="space-y-1">
         {report.byMethod.map((row) => (
-          <Row key={row.method} label={METHOD_LABEL[row.method]} value={formatILS(row.total)} />
+          <div key={row.method} className="space-y-1">
+            <Row label={METHOD_LABEL[row.method]} value={formatILS(row.total)} />
+            {row.refunds ? <Row label={`${METHOD_LABEL[row.method]} · זיכוי`} value={formatILS(row.refunds)} /> : null}
+          </div>
         ))}
       </div>
       <div className="my-4 border-t border-dashed border-line" />
       <div className="space-y-1">
         <Row label="יתרת פתיחה" value={formatILS(report.openingFloat)} />
-        <Row label="מזומן שהתקבל" value={formatILS(report.cashTaken)} />
+        <Row label="מזומן נטו" value={formatILS(report.cashTaken)} />
+        {report.cashRefunds ? <Row label="החזר מזומן" value={formatILS(report.cashRefunds)} /> : null}
         <Row label="צפוי במגירה" value={formatILS(report.cashExpected)} />
         <Row label="נספר בפועל" value={formatILS(report.cashCounted)} />
         <Row label="הפרש" value={formatILS(report.variance)} strong />

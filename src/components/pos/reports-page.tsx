@@ -3,7 +3,8 @@ import { PageHeader } from "@/components/pos/shell";
 import { can } from "@/lib/pos/access";
 import { formatILS, formatWhen, roundMoney } from "@/lib/pos/money";
 import { currentUser, usePos } from "@/lib/pos/store";
-import { METHOD_LABEL, PAYMENT_METHODS, type PaymentMethod } from "@/lib/pos/types";
+import { isCredit, zFigures } from "@/lib/pos/tender";
+import { METHOD_LABEL, type PaymentMethod } from "@/lib/pos/types";
 
 type Range = "shift" | "today" | "week" | "all";
 
@@ -40,49 +41,29 @@ export function ReportsPage() {
   const [left, setLeft] = useState("");
   const [zError, setZError] = useState("");
 
-  const active = useMemo(
-    () =>
-      sales.filter((sale) => {
-        if (sale.voided) return false;
-        if (range === "shift") return !sale.zId;
-        return inRange(sale.createdAt, range);
-      }),
+  const pool = useMemo(
+    () => sales.filter((sale) => (range === "shift" ? !sale.zId : inRange(sale.createdAt, range))),
     [sales, range],
   );
-  const voidedCount = useMemo(
-    () =>
-      sales.filter((sale) => {
-        if (!sale.voided) return false;
-        if (range === "shift") return !sale.zId;
-        return inRange(sale.createdAt, range);
-      }).length,
-    [sales, range],
-  );
-
-  const turnover = roundMoney(active.reduce((sum, sale) => sum + sale.amountDue, 0));
-  const vat = roundMoney(active.reduce((sum, sale) => sum + sale.vatAmount, 0));
-  const net = roundMoney(active.reduce((sum, sale) => sum + sale.net, 0));
-  const rounding = roundMoney(active.reduce((sum, sale) => sum + sale.rounding, 0));
-  const byMethod = PAYMENT_METHODS.map((method) => ({
-    method,
-    total: roundMoney(active.filter((sale) => sale.method === method).reduce((sum, sale) => sum + sale.amountDue, 0)),
-  })).filter((row) => row.total > 0);
-  const kioskCount = active.filter((sale) => sale.channel === "kiosk").length;
-  const kioskTurnover = roundMoney(active.filter((sale) => sale.channel === "kiosk").reduce((sum, sale) => sum + sale.amountDue, 0));
-  const cash = byMethod.find((row) => row.method === "cash")?.total ?? 0;
-  const maxMethod = Math.max(...byMethod.map((row) => row.total), 1);
+  const figures = useMemo(() => zFigures(pool), [pool]);
+  const liveSales = pool.filter((sale) => !sale.voided && !isCredit(sale));
+  const kioskCount = liveSales.filter((sale) => sale.channel === "kiosk").length;
+  const kioskTurnover = roundMoney(liveSales.filter((sale) => sale.channel === "kiosk").reduce((sum, sale) => sum + sale.amountDue, 0));
+  const maxMethod = Math.max(...figures.byMethod.map((row) => Math.abs(row.total)), 1);
 
   const hours = useMemo(() => {
     const buckets = new Map<string, number>();
-    for (const sale of active) {
+    for (const sale of pool) {
+      if (sale.voided) continue;
       const date = new Date(sale.createdAt);
       const key = `${String(date.getHours()).padStart(2, "0")}:00`;
-      buckets.set(key, roundMoney((buckets.get(key) ?? 0) + sale.amountDue));
+      const signed = isCredit(sale) ? -sale.amountDue : sale.amountDue;
+      buckets.set(key, roundMoney((buckets.get(key) ?? 0) + signed));
     }
     return [...buckets.entries()]
       .sort(([a], [b]) => a.localeCompare(b))
-      .map(([hour, total]) => ({ hour, total }));
-  }, [active]);
+      .map(([hour, total]) => ({ hour, total: Math.max(0, total) }));
+  }, [pool]);
   const maxHour = Math.max(...hours.map((row) => row.total), 1);
   const shortages = products.filter((product) => product.active && product.trackStock && product.stock <= product.lowStock);
   const mayClose = !!user && can(user.role, "z");
@@ -115,17 +96,17 @@ export function ReportsPage() {
               key={item.id}
               type="button"
               onClick={() => setRange(item.id)}
-              className={`h-11 whitespace-nowrap rounded-full px-2 text-sm ${range === item.id ? "bg-pine font-semibold text-pine-ink" : "bg-surface ring-1 ring-line"}`}
+              className={`h-12 whitespace-nowrap rounded-full px-2 text-sm ${range === item.id ? "bg-pine font-semibold text-pine-ink" : "bg-surface ring-1 ring-line"}`}
             >
               {item.label}
             </button>
           ))}
         </div>
         <section className="grid grid-cols-2 gap-2">
-          <Stat label="עסקאות" value={String(active.length)} />
-          <Stat label="מחזור" value={formatILS(turnover)} accent />
-          <Stat label="לפני מע״מ" value={formatILS(net)} />
-          <Stat label="מע״מ" value={formatILS(vat)} />
+          <Stat label="עסקאות" value={String(figures.salesCount)} />
+          <Stat label="מחזור נטו" value={formatILS(figures.turnover)} accent />
+          <Stat label="לפני מע״מ" value={formatILS(figures.net)} />
+          <Stat label="זיכויים" value={String(figures.creditCount)} />
         </section>
         {kioskCount > 0 ? (
           <p className="text-sm text-muted">
@@ -136,8 +117,9 @@ export function ReportsPage() {
           <section className="rounded-2xl bg-surface p-4 ring-1 ring-line">
             <h2 className="text-base font-semibold">{range === "shift" ? "מגירה במשמרת" : "מגירת מזומן"}</h2>
             <Row label="יתרת פתיחה" value={formatILS(openingFloat)} />
-            <Row label="מזומן שהתקבל" value={formatILS(cash)} />
-            <Row label="צפוי במגירה" value={formatILS(roundMoney(openingFloat + cash))} strong />
+            <Row label="מזומן נטו" value={formatILS(figures.cashTaken)} />
+            {figures.cashRefunds > 0 ? <Row label="החזר מזומן" value={formatILS(figures.cashRefunds)} /> : null}
+            <Row label="צפוי במגירה" value={formatILS(roundMoney(openingFloat + figures.cashTaken))} strong />
             {range === "shift" ? <Row label="פתיחות מגירה" value={String(drawerOpens.length)} /> : null}
             <p className="mt-2 text-xs text-muted">הצפוי הוא יתרת הפתיחה ועוד מזומן מהמכירות. סופרים את המגירה לפני סגירת Z.</p>
           </section>
@@ -155,15 +137,16 @@ export function ReportsPage() {
               <input value={left} onChange={(event) => setLeft(event.target.value)} inputMode="decimal" dir="ltr" placeholder={counted || "כמו הספירה"} className="h-12 w-full rounded-xl bg-paper px-3 ring-1 ring-line tabular-nums" />
             </label>
             {zError ? <p className="mt-2 text-sm text-copper">{zError}</p> : null}
-            <button type="button" onClick={submitZ} disabled={active.length === 0} className="mt-3 h-12 w-full rounded-2xl bg-pine font-semibold text-pine-ink disabled:opacity-40">
+            <button type="button" onClick={submitZ} disabled={figures.salesCount + figures.creditCount === 0} className="mt-3 h-12 w-full rounded-2xl bg-pine font-semibold text-pine-ink disabled:opacity-40">
               סגירה והדפסת Z
             </button>
           </section>
         ) : null}
-        {rounding !== 0 ? (
-          <p className="text-sm text-muted">עיגול מזומן מצטבר בטווח: {formatILS(rounding)}</p>
+        {figures.rounding !== 0 ? (
+          <p className="text-sm text-muted">עיגול מזומן מצטבר בטווח: {formatILS(figures.rounding)}</p>
         ) : null}
-        {voidedCount > 0 ? <p className="text-sm text-muted">{voidedCount} קבלות מבוטלות לא נכללות.</p> : null}
+        {figures.voidCount > 0 ? <p className="text-sm text-muted">{figures.voidCount} קבלות מבוטלות לא נכללות.</p> : null}
+        {figures.creditTotal > 0 ? <p className="text-sm text-muted">זיכויים בטווח: {formatILS(figures.creditTotal)}. המחזור למעלה כבר אחרי הניכוי.</p> : null}
         <section className="rounded-2xl bg-surface p-4 ring-1 ring-line">
           <h2 className="text-base font-semibold">לפי שעה</h2>
           {hours.length === 0 ? (
@@ -181,14 +164,17 @@ export function ReportsPage() {
         </section>
         <section className="rounded-2xl bg-surface p-4 ring-1 ring-line">
           <h2 className="text-base font-semibold">לפי אמצעי תשלום</h2>
-          {byMethod.length === 0 ? (
+          {figures.byMethod.length === 0 ? (
             <p className="py-6 text-sm text-muted">אין תנועות.</p>
           ) : (
             <ul className="mt-3 space-y-3">
-              {byMethod.map((row) => (
+              {figures.byMethod.map((row) => (
                 <li key={row.method}>
                   <div className="mb-1 flex items-baseline justify-between text-sm">
-                    <span>{METHOD_LABEL[row.method as PaymentMethod]}</span>
+                    <span>
+                      {METHOD_LABEL[row.method as PaymentMethod]}
+                      {row.refunds > 0 ? ` · זיכוי ${formatILS(row.refunds)}` : ""}
+                    </span>
                     <span className="font-semibold tabular-nums">{formatILS(row.total)}</span>
                   </div>
                   <div className="h-2 overflow-hidden rounded-full bg-pine-soft">
@@ -232,7 +218,7 @@ export function ReportsPage() {
                       queueZPrint(report);
                       requestAnimationFrame(() => window.print());
                     }}
-                    className="h-10 shrink-0 rounded-xl bg-surface px-3 text-sm ring-1 ring-line"
+                    className="h-12 shrink-0 rounded-xl bg-surface px-3 text-sm ring-1 ring-line"
                   >
                     הדפסה
                   </button>

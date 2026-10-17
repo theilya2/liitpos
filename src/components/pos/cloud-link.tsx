@@ -38,7 +38,7 @@ export function CloudLinkCard() {
       <div className="flex flex-wrap gap-2">
         <button
           type="button"
-          className="h-11 rounded-xl bg-pine px-4 text-sm font-semibold text-pine-ink"
+          className="h-12 rounded-xl bg-pine px-4 text-sm font-semibold text-pine-ink"
           onClick={() => {
             const saved = writeCloudUrl(url);
             setUrl(saved);
@@ -47,7 +47,7 @@ export function CloudLinkCard() {
         >
           שמירת כתובת
         </button>
-        <button type="button" className="h-11 rounded-xl bg-paper px-4 text-sm font-semibold ring-1 ring-line" onClick={() => void syncNow()}>
+        <button type="button" className="h-12 rounded-xl bg-paper px-4 text-sm font-semibold ring-1 ring-line" onClick={() => void syncNow()}>
           סנכרון עכשיו
         </button>
       </div>

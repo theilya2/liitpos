@@ -26,6 +26,7 @@ type CatalogShape = {
   members: ClubMember[];
   nextReceipt: number;
   nextZ: number;
+  nextCredit?: number;
 };
 
 export type ReconcileResult = {
@@ -72,7 +73,7 @@ function memberList(doc: CloudDoc | null): ClubMember[] {
   return doc.doc.members.filter((item): item is ClubMember => isRecord(item) && typeof item.id === "string");
 }
 
-function nextNumber(doc: CloudDoc | null, key: "nextReceipt" | "nextZ", fallback: number): number {
+function nextNumber(doc: CloudDoc | null, key: "nextReceipt" | "nextZ" | "nextCredit", fallback: number): number {
   if (!doc || !isRecord(doc.doc)) return fallback;
   const value = Number(doc.doc[key]);
   return Number.isFinite(value) ? value : fallback;
@@ -119,6 +120,7 @@ export function mergeCatalogDocs(existing: CloudDoc | null, incoming: CloudDoc):
         members,
         nextReceipt: Math.max(nextNumber(existing, "nextReceipt", 1001), nextNumber(incoming, "nextReceipt", 1001)),
         nextZ: Math.max(nextNumber(existing, "nextZ", 1), nextNumber(incoming, "nextZ", 1)),
+        nextCredit: Math.max(nextNumber(existing, "nextCredit", 1), nextNumber(incoming, "nextCredit", 1)),
       },
     },
   };
@@ -229,5 +231,6 @@ export function mergeRemoteCatalog(
     members,
     nextReceipt: Math.max(local.nextReceipt, nextNumber(remote, "nextReceipt", local.nextReceipt)),
     nextZ: Math.max(local.nextZ, nextNumber(remote, "nextZ", local.nextZ)),
+    nextCredit: Math.max(local.nextCredit ?? 1, nextNumber(remote, "nextCredit", local.nextCredit ?? 1)),
   };
 }

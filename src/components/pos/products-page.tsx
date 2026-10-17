@@ -119,7 +119,7 @@ export function ProductsPage() {
           <button
             type="button"
             onClick={() => setCategoryId("all")}
-            className={`h-11 shrink-0 rounded-full px-4 text-sm ${categoryId === "all" ? "bg-pine font-semibold text-pine-ink" : "bg-surface ring-1 ring-line"}`}
+            className={`h-12 shrink-0 rounded-full px-4 text-sm ${categoryId === "all" ? "bg-pine font-semibold text-pine-ink" : "bg-surface ring-1 ring-line"}`}
           >
             הכל
           </button>
@@ -128,7 +128,7 @@ export function ProductsPage() {
               key={category.id}
               type="button"
               onClick={() => setCategoryId(category.id)}
-              className={`h-11 shrink-0 rounded-full px-4 text-sm ${categoryId === category.id ? "bg-pine font-semibold text-pine-ink" : "bg-surface ring-1 ring-line"}`}
+              className={`h-12 shrink-0 rounded-full px-4 text-sm ${categoryId === category.id ? "bg-pine font-semibold text-pine-ink" : "bg-surface ring-1 ring-line"}`}
             >
               {category.name}
             </button>
@@ -321,7 +321,7 @@ export function ProductsPage() {
                         const extras = draft.extras.map((item, itemIndex) => (itemIndex === index ? { ...item, name: event.target.value } : item));
                         setDraft({ ...draft, extras });
                       }}
-                      className="h-11 rounded-xl bg-surface px-2 text-sm ring-1 ring-line"
+                      className="h-12 rounded-xl bg-surface px-2 text-sm ring-1 ring-line"
                     />
                     <input
                       value={String(extra.price)}
@@ -334,12 +334,12 @@ export function ProductsPage() {
                         );
                         setDraft({ ...draft, extras });
                       }}
-                      className="h-11 rounded-xl bg-surface px-2 text-sm ring-1 ring-line tabular-nums"
+                      className="h-12 rounded-xl bg-surface px-2 text-sm ring-1 ring-line tabular-nums"
                     />
                     <button
                       type="button"
                       onClick={() => setDraft({ ...draft, extras: draft.extras.filter((_, itemIndex) => itemIndex !== index) })}
-                      className="h-11 rounded-xl px-2 text-sm text-copper"
+                      className="h-12 rounded-xl px-2 text-sm text-copper"
                     >
                       הסרה
                     </button>
@@ -353,7 +353,7 @@ export function ProductsPage() {
                       extras: [...draft.extras, { id: `x_${crypto.randomUUID()}`, name: "", price: 0 }].slice(0, 8),
                     })
                   }
-                  className="h-11 w-full rounded-xl bg-surface text-sm ring-1 ring-line"
+                  className="h-12 w-full rounded-xl bg-surface text-sm ring-1 ring-line"
                 >
                   תוספת
                 </button>
@@ -371,7 +371,7 @@ export function ProductsPage() {
                     <p className="text-sm font-medium">תמונה</p>
                     <p className="text-xs text-muted">לא חובה. נשמרת במכשיר, בגודל קטן.</p>
                     <div className="mt-2 flex gap-2">
-                      <label className="flex h-10 cursor-pointer items-center rounded-xl bg-surface px-3 text-sm ring-1 ring-line">
+                      <label className="flex h-12 cursor-pointer items-center rounded-xl bg-surface px-3 text-sm ring-1 ring-line">
                         בחירה
                         <input
                           type="file"
@@ -388,7 +388,7 @@ export function ProductsPage() {
                         />
                       </label>
                       {draft.image ? (
-                        <button type="button" onClick={() => setDraft({ ...draft, image: null })} className="h-10 rounded-xl px-3 text-sm text-copper">
+                        <button type="button" onClick={() => setDraft({ ...draft, image: null })} className="h-12 rounded-xl px-3 text-sm text-copper">
                           הסרה
                         </button>
                       ) : null}

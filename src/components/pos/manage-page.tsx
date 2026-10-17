@@ -38,7 +38,7 @@ export function ManagePage() {
                   {store.id === activeStoreId ? (
                     <span className="rounded-full bg-pine-soft px-3 py-1 text-sm font-medium text-pine">פעילה</span>
                   ) : (
-                    <button type="button" onClick={() => switchStore(store.id)} className="h-11 rounded-xl bg-pine px-3 text-sm font-semibold text-pine-ink">
+                    <button type="button" onClick={() => switchStore(store.id)} className="h-12 rounded-xl bg-pine px-3 text-sm font-semibold text-pine-ink">
                       מעבר
                     </button>
                   )}
@@ -96,7 +96,7 @@ export function ManagePage() {
                 setStaffError("");
                 setDraft({ id: `u_${crypto.randomUUID()}`, name: "", pin: "", role: "cashier", active: true, storeIds: [activeStoreId] });
               }}
-              className="h-11 rounded-xl bg-paper px-3 text-sm"
+              className="h-12 rounded-xl bg-paper px-3 text-sm"
             >
               משתמש חדש
             </button>
@@ -151,7 +151,7 @@ export function ManagePage() {
             </label>
             <div className="mt-3 grid grid-cols-3 gap-2">
               {ROLES.map((role) => (
-                <button key={role} type="button" onClick={() => setDraft({ ...draft, role })} className={`h-11 rounded-xl text-sm ${draft.role === role ? "bg-pine text-pine-ink" : "bg-paper ring-1 ring-line"}`}>
+                <button key={role} type="button" onClick={() => setDraft({ ...draft, role })} className={`h-12 rounded-xl text-sm ${draft.role === role ? "bg-pine text-pine-ink" : "bg-paper ring-1 ring-line"}`}>
                   {ROLE_LABEL[role]}
                 </button>
               ))}
@@ -171,7 +171,7 @@ export function ManagePage() {
                         : [...draft.storeIds, store.id];
                       setDraft({ ...draft, storeIds });
                     }}
-                    className={`flex h-11 w-full items-center justify-between rounded-xl px-3 text-sm ${checked ? "bg-pine-soft text-pine" : "bg-paper ring-1 ring-line"}`}
+                    className={`flex h-12 w-full items-center justify-between rounded-xl px-3 text-sm ${checked ? "bg-pine-soft text-pine" : "bg-paper ring-1 ring-line"}`}
                   >
                     {store.settings.businessName}
                     <span>{checked ? "משויך" : "לא"}</span>
@@ -179,7 +179,7 @@ export function ManagePage() {
                 );
               })}
             </div>
-            <button type="button" onClick={() => setDraft({ ...draft, active: !draft.active })} className="mt-3 h-11 w-full rounded-xl bg-paper text-sm">
+            <button type="button" onClick={() => setDraft({ ...draft, active: !draft.active })} className="mt-3 h-12 w-full rounded-xl bg-paper text-sm">
               {draft.active ? "פעיל" : "מושבת"}
             </button>
             {staffError ? <p className="mt-2 text-sm text-copper">{staffError}</p> : null}

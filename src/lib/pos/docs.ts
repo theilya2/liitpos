@@ -44,7 +44,7 @@ export function settingsDoc(businessId: string, settings: Settings, updatedAt: s
   return { id: `settings:${businessId}`, kind: "settings", businessId, updatedAt, deleted, doc: deleted ? {} : (settings as unknown as Json) };
 }
 
-export function catalogDoc(branch: Pick<Branch, "id" | "categories" | "products" | "nextReceipt" | "nextZ" | "members">, updatedAt: string): CloudDoc {
+export function catalogDoc(branch: Pick<Branch, "id" | "categories" | "products" | "nextReceipt" | "nextZ" | "nextCredit" | "members">, updatedAt: string): CloudDoc {
   return {
     id: `catalog:${branch.id}`,
     kind: "catalog",
@@ -57,6 +57,7 @@ export function catalogDoc(branch: Pick<Branch, "id" | "categories" | "products"
       members: branch.members ?? [],
       nextReceipt: branch.nextReceipt,
       nextZ: branch.nextZ,
+      nextCredit: branch.nextCredit ?? 1,
     } as unknown as Json,
   };
 }
@@ -109,7 +110,7 @@ export function changesToDocs(
   const now = new Date().toISOString();
   const docs: CloudDoc[] = [];
   if (partial.settings) docs.push(settingsDoc(after.id, after.settings, now));
-  if (partial.products || partial.categories || partial.members || partial.nextReceipt !== undefined || partial.nextZ !== undefined) {
+  if (partial.products || partial.categories || partial.members || partial.nextReceipt !== undefined || partial.nextZ !== undefined || partial.nextCredit !== undefined) {
     docs.push(catalogDoc(after, now));
   }
   if (partial.sales) {

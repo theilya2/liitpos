@@ -203,7 +203,7 @@ function Panel({ onLogout }: { onLogout: () => void }) {
         </div>
         <button
           type="button"
-          className="flex h-11 items-center rounded-xl bg-paper px-3 text-sm ring-1 ring-line"
+          className="flex h-12 items-center rounded-xl bg-paper px-3 text-sm ring-1 ring-line"
           onClick={() => {
             void fetch("/api/admin/logout", { method: "POST", credentials: "same-origin" }).finally(onLogout);
           }}
@@ -227,7 +227,7 @@ function Panel({ onLogout }: { onLogout: () => void }) {
                 await refresh();
               })
             }
-            className="mt-3 h-11 rounded-xl bg-pine px-4 text-sm font-semibold text-pine-ink disabled:opacity-50"
+            className="mt-3 h-12 rounded-xl bg-pine px-4 text-sm font-semibold text-pine-ink disabled:opacity-50"
           >
             שחרור נעילה
           </button>
@@ -255,7 +255,7 @@ function Panel({ onLogout }: { onLogout: () => void }) {
                 setError("");
                 setBusinessDraft(emptyBusiness());
               }}
-              className="h-11 rounded-xl bg-pine px-3 text-sm font-semibold text-pine-ink"
+              className="h-12 rounded-xl bg-pine px-3 text-sm font-semibold text-pine-ink"
             >
               עסק חדש
             </button>
@@ -317,7 +317,7 @@ function Panel({ onLogout }: { onLogout: () => void }) {
                     logo: selected.settings.logo,
                   })
                 }
-                className="h-11 rounded-xl bg-paper px-3 text-sm ring-1 ring-line"
+                className="h-12 rounded-xl bg-paper px-3 text-sm ring-1 ring-line"
               >
                 עריכה
               </button>
@@ -337,7 +337,7 @@ function Panel({ onLogout }: { onLogout: () => void }) {
                     storeIds: [selected.id],
                   });
                 }}
-                className="h-11 rounded-xl bg-paper px-3 text-sm ring-1 ring-line"
+                className="h-12 rounded-xl bg-paper px-3 text-sm ring-1 ring-line"
               >
                 משתמש חדש
               </button>
@@ -373,7 +373,7 @@ function Panel({ onLogout }: { onLogout: () => void }) {
               <div className="mt-4 rounded-2xl bg-copper-soft p-3">
                 <p className="text-sm">למחוק את {selected.settings.businessName}? המשתמשים שמשויכים רק אליו יימחקו. קבלות שכבר בענן נשארות בארכיון.</p>
                 <div className="mt-3 grid grid-cols-2 gap-2">
-                  <button type="button" onClick={() => setConfirmBusiness(false)} className="h-11 rounded-xl bg-surface text-sm">
+                  <button type="button" onClick={() => setConfirmBusiness(false)} className="h-12 rounded-xl bg-surface text-sm">
                     ביטול
                   </button>
                   <button
@@ -386,14 +386,14 @@ function Panel({ onLogout }: { onLogout: () => void }) {
                         await refresh();
                       })
                     }
-                    className="h-11 rounded-xl bg-copper text-sm font-semibold text-pine-ink"
+                    className="h-12 rounded-xl bg-copper text-sm font-semibold text-pine-ink"
                   >
                     מחיקה
                   </button>
                 </div>
               </div>
             ) : (
-              <button type="button" onClick={() => setConfirmBusiness(true)} className="mt-4 h-11 text-sm font-medium text-copper">
+              <button type="button" onClick={() => setConfirmBusiness(true)} className="mt-4 h-12 text-sm font-medium text-copper">
                 מחיקת העסק
               </button>
             )}
@@ -482,7 +482,7 @@ function Panel({ onLogout }: { onLogout: () => void }) {
               <div>
                 <p className="text-sm text-muted">לוגו לכניסה ולמסך המכירה</p>
                 <div className="mt-1 flex gap-2">
-                  <label className="flex h-11 cursor-pointer items-center rounded-xl bg-paper px-3 text-sm text-ink ring-1 ring-line">
+                  <label className="flex h-12 cursor-pointer items-center rounded-xl bg-paper px-3 text-sm text-ink ring-1 ring-line">
                     העלאה
                     <input
                       type="file"
@@ -497,7 +497,7 @@ function Panel({ onLogout }: { onLogout: () => void }) {
                     />
                   </label>
                   {businessDraft.logo ? (
-                    <button type="button" onClick={() => setBusinessDraft({ ...businessDraft, logo: null })} className="h-11 px-2 text-sm text-copper">
+                    <button type="button" onClick={() => setBusinessDraft({ ...businessDraft, logo: null })} className="h-12 px-2 text-sm text-copper">
                       הסרה
                     </button>
                   ) : null}
@@ -557,7 +557,7 @@ function Panel({ onLogout }: { onLogout: () => void }) {
                       storeIds: role === "manager" ? [] : userDraft.storeIds.length ? userDraft.storeIds : selectedId ? [selectedId] : [],
                     })
                   }
-                  className={`h-11 rounded-xl text-sm ${userDraft.role === role ? "bg-pine text-pine-ink" : "bg-paper ring-1 ring-line"}`}
+                  className={`h-12 rounded-xl text-sm ${userDraft.role === role ? "bg-pine text-pine-ink" : "bg-paper ring-1 ring-line"}`}
                 >
                   {ROLE_LABEL[role]}
                 </button>
@@ -571,7 +571,7 @@ function Panel({ onLogout }: { onLogout: () => void }) {
             {userDraft.role !== "manager" && selected ? (
               <p className="mt-2 text-sm">משויך ל{selected.settings.businessName}</p>
             ) : null}
-            <button type="button" onClick={() => setUserDraft({ ...userDraft, active: !userDraft.active })} className="mt-3 h-11 w-full rounded-xl bg-paper text-sm">
+            <button type="button" onClick={() => setUserDraft({ ...userDraft, active: !userDraft.active })} className="mt-3 h-12 w-full rounded-xl bg-paper text-sm">
               {userDraft.active ? "פעיל" : "מושבת"}
             </button>
             {users.some((user) => user.id === userDraft.id) ? (
@@ -589,13 +589,13 @@ function Panel({ onLogout }: { onLogout: () => void }) {
                       await refresh(selectedId ?? undefined);
                     })
                   }
-                  className="mt-3 h-11 w-full rounded-xl bg-copper text-sm font-semibold text-pine-ink"
+                  className="mt-3 h-12 w-full rounded-xl bg-copper text-sm font-semibold text-pine-ink"
                 >
                   מחיקה
                 </button>
               </div>
               ) : (
-              <button type="button" onClick={() => setConfirmUser(true)} className="mt-3 h-11 text-sm text-copper">
+              <button type="button" onClick={() => setConfirmUser(true)} className="mt-3 h-12 text-sm text-copper">
                 מחיקת משתמש
               </button>
               )
@@ -661,7 +661,7 @@ function DataBrowser({ businessId }: { businessId: string }) {
             key={item.id}
             type="button"
             onClick={() => setTab(item.id)}
-            className={`h-10 shrink-0 rounded-full px-3 text-sm ${tab === item.id ? "bg-pine font-semibold text-pine-ink" : "bg-paper ring-1 ring-line"}`}
+            className={`h-12 shrink-0 rounded-full px-3 text-sm ${tab === item.id ? "bg-pine font-semibold text-pine-ink" : "bg-paper ring-1 ring-line"}`}
           >
             {item.label}
           </button>
