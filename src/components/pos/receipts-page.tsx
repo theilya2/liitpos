@@ -216,16 +216,17 @@ export function ReceiptsPage() {
         <div className={`scroll-pane min-h-0 w-full border-line px-3 pb-4 lg:w-[min(36rem,42%)] lg:border-s ${selected ? "" : "hidden lg:block"}`}>
           {selected ? (
             <div>
-              <button type="button" onClick={() => setSelectedId(null)} className="mb-3 h-12 rounded-xl bg-surface px-4 text-sm lg:hidden">
+              <button type="button" onClick={() => setSelectedId(null)} className="mb-3 min-h-12 rounded-xl bg-surface px-4 text-sm lg:hidden">
                 חזרה לרשימה
               </button>
+              <div className="mx-auto w-full max-w-sm">
               <ReceiptView sale={selected} />
               <button
                 type="button"
                 onClick={() => void deliverPrint(selected)}
-                className="mt-3 flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-surface text-sm font-medium ring-1 ring-line"
+                className="mt-3 flex min-h-12 w-full items-center justify-center gap-2 rounded-2xl bg-surface px-3 py-2 text-sm font-medium ring-1 ring-line"
               >
-                <Printer className="size-4" />
+                <Printer className="size-4 shrink-0" />
                 הדפסה
               </button>
               <SendReceipt sale={selected} />
@@ -240,7 +241,7 @@ export function ReceiptsPage() {
                     }}
                   />
                 ) : (
-                  <button type="button" onClick={() => setRefunding(true)} className="mt-3 h-12 w-full rounded-2xl bg-surface text-sm font-semibold ring-1 ring-line">
+                  <button type="button" onClick={() => setRefunding(true)} className="mt-3 min-h-12 w-full rounded-2xl bg-surface px-3 text-sm font-semibold ring-1 ring-line">
                     זיכוי חלקי
                   </button>
                 )
@@ -270,11 +271,12 @@ export function ReceiptsPage() {
                   </div>
                 </div>
               ) : (
-                <button type="button" onClick={() => setConfirmVoid(true)} className="mt-3 h-12 w-full rounded-2xl text-sm font-medium text-copper">
+                <button type="button" onClick={() => setConfirmVoid(true)} className="mt-3 min-h-12 w-full rounded-2xl px-3 text-sm font-medium text-copper">
                   ביטול קבלה
                 </button>
               )
               ) : null}
+              </div>
             </div>
           ) : (
             <p className="py-10 text-center text-sm text-muted">בחרו קבלה כדי לראות פירוט.</p>

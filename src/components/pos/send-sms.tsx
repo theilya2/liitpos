@@ -102,25 +102,25 @@ export function SendReceipt({ sale }: { sale: Sale }) {
         />
       </label>
       {canSave && match ? (
-        <label className="flex items-center gap-2 text-sm">
-          <input type="checkbox" checked={savePhone} onChange={(event) => setSavePhone(event.target.checked)} className="size-5" />
+        <label className="flex min-h-12 items-center gap-2 text-sm text-pretty">
+          <input type="checkbox" checked={savePhone} onChange={(event) => setSavePhone(event.target.checked)} className="size-6 shrink-0" />
           לעדכן את הטלפון של {match.firstName} {match.lastName} במועדון
         </label>
       ) : null}
-      {offline ? <p className="text-sm text-muted">אין רשת. ההודעה תישלח בלי קישור, והקישור יעבוד אחרי הסנכרון.</p> : null}
-      {error ? <p className="text-sm text-copper">{error}</p> : null}
-      <button type="submit" disabled={busy} className="flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-pine text-sm font-semibold text-pine-ink disabled:opacity-50">
-        <MessageSquare className="size-4" />
+      {offline ? <p className="text-sm text-pretty text-muted">אין רשת. ההודעה תישלח בלי קישור, והקישור יעבוד אחרי הסנכרון.</p> : null}
+      {error ? <p className="text-sm text-pretty text-copper">{error}</p> : null}
+      <button type="submit" disabled={busy} className="flex min-h-12 w-full items-center justify-center gap-2 rounded-2xl bg-pine px-3 py-2 text-center text-sm font-semibold leading-tight text-pine-ink disabled:opacity-50">
+        <MessageSquare className="size-4 shrink-0" />
         {busy ? "פותחים הודעה…" : "שליחה ב-SMS"}
       </button>
-      {note ? <p className="text-sm text-muted">{note}</p> : null}
+      {note ? <p className="text-sm text-pretty text-muted">{note}</p> : null}
       <button
         type="button"
         onClick={() => void shareReceipt(sale).then((result) => setShared(shareStatus(result)))}
-        className="flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-paper text-sm ring-1 ring-line"
+        className="flex min-h-12 w-full items-center justify-center gap-2 rounded-2xl bg-paper px-3 py-2 text-center text-sm leading-tight ring-1 ring-line"
       >
-        <Share2 className="size-4" />
-        {shared || "שיתוף"}
+        <Share2 className="size-4 shrink-0" />
+        <span className="min-w-0 break-words">{shared || "שיתוף"}</span>
       </button>
     </form>
   );

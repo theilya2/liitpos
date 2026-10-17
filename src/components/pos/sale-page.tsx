@@ -537,13 +537,13 @@ function DoneSheet({ sale, onClose }: { sale: Sale; onClose: () => void }) {
       <button
         type="button"
         onClick={() => void deliverPrint(sale)}
-        className="mt-4 flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-paper text-sm font-medium"
+        className="mt-4 flex min-h-12 w-full items-center justify-center gap-2 rounded-2xl bg-paper px-3 py-2 text-sm font-medium ring-1 ring-line"
       >
-        <Printer className="size-4" />
+        <Printer className="size-4 shrink-0" />
         הדפסה
       </button>
       <SendReceipt sale={sale} />
-      <button type="button" onClick={onClose} className="mt-2 h-14 w-full rounded-2xl bg-pine text-lg font-semibold text-pine-ink">
+      <button type="button" onClick={onClose} className="mt-2 min-h-14 w-full rounded-2xl bg-pine px-3 text-lg font-semibold text-pine-ink">
         מכירה חדשה
       </button>
     </Overlay>

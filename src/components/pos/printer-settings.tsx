@@ -40,7 +40,7 @@ export function PrinterSettings() {
         role="switch"
         aria-checked={auto}
         onClick={() => updateSettings({ autoPrint: !auto })}
-        className={`h-12 w-full rounded-xl text-sm font-medium ${auto ? "bg-pine-soft text-pine" : "bg-paper ring-1 ring-line"}`}
+        className={`min-h-12 w-full rounded-xl px-3 py-2 text-sm font-medium text-pretty leading-snug ${auto ? "bg-pine-soft text-pine" : "bg-paper ring-1 ring-line"}`}
       >
         {auto ? "הדפסה אוטומטית פעילה" : "הדפסה אוטומטית כבויה"}
       </button>
@@ -50,7 +50,7 @@ export function PrinterSettings() {
             key={width}
             type="button"
             onClick={() => updateSettings({ paperWidth: width })}
-            className={`h-12 rounded-xl text-sm font-medium ${paper === width ? "bg-pine text-pine-ink" : "bg-paper ring-1 ring-line"}`}
+            className={`min-h-12 rounded-xl px-2 text-sm font-medium ${paper === width ? "bg-pine text-pine-ink" : "bg-paper ring-1 ring-line"}`}
           >
             {width} מ״מ
           </button>
@@ -61,7 +61,7 @@ export function PrinterSettings() {
         role="switch"
         aria-checked={drawer}
         onClick={() => updateSettings({ openDrawer: !drawer })}
-        className={`h-12 w-full rounded-xl text-sm font-medium ${drawer ? "bg-pine-soft text-pine" : "bg-paper ring-1 ring-line"}`}
+        className={`min-h-12 w-full rounded-xl px-3 py-2 text-sm font-medium text-pretty leading-snug ${drawer ? "bg-pine-soft text-pine" : "bg-paper ring-1 ring-line"}`}
       >
         {drawer ? "פתיחת מגירה בתשלום מזומן" : "בלי פתיחת מגירה אוטומטית"}
       </button>
@@ -74,7 +74,7 @@ export function PrinterSettings() {
           className="h-12 w-full rounded-xl bg-paper px-3 ring-1 ring-line"
         />
       </label>
-      <button type="button" onClick={() => updateSettings({ printerName: DEFAULT_PRINTER_NAME })} className="h-12 w-full rounded-xl bg-paper text-sm ring-1 ring-line">
+      <button type="button" onClick={() => updateSettings({ printerName: DEFAULT_PRINTER_NAME })} className="min-h-12 w-full rounded-xl bg-paper px-3 py-2 text-sm leading-snug ring-1 ring-line">
         בחירה בשם {DEFAULT_PRINTER_NAME}
       </button>
       {native ? (
@@ -113,7 +113,7 @@ export function PrinterSettings() {
                             setNote(granted ? "ההרשאה נשמרה." : "ההרשאה לא אושרה. אפשר לנסות שוב מכאן.");
                           });
                         }}
-                        className="mt-2 h-12 w-full rounded-xl bg-surface text-sm font-medium ring-1 ring-line"
+                        className="mt-2 min-h-12 w-full rounded-xl bg-surface px-3 text-sm font-medium ring-1 ring-line"
                       >
                         אישור חיבור
                       </button>
@@ -138,7 +138,7 @@ export function PrinterSettings() {
             setBusy(false);
           });
         }}
-        className="h-12 w-full rounded-xl bg-pine text-sm font-semibold text-pine-ink disabled:opacity-50"
+        className="min-h-12 w-full rounded-xl bg-pine px-3 text-sm font-semibold text-pine-ink disabled:opacity-50"
       >
         {busy ? "מדפיסים…" : "הדפסת ניסיון"}
       </button>

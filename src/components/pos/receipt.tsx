@@ -47,8 +47,8 @@ export function receiptPlainText(sale: Sale): string {
 function Row({ label, value, strong }: { label: string; value: string; strong?: boolean }) {
   return (
     <div className={`flex items-baseline justify-between gap-3 ${strong ? "text-lg font-semibold" : "text-sm"}`}>
-      <span className={strong ? "" : "text-muted"}>{label}</span>
-      <span className="tabular-nums">{value}</span>
+      <span className={`min-w-0 break-words ${strong ? "" : "text-muted"}`}>{label}</span>
+      <span className="shrink-0 tabular-nums">{value}</span>
     </div>
   );
 }
@@ -57,7 +57,7 @@ export function ReceiptView({ sale }: { sale: Sale }) {
   const credit = sale.kind === "credit";
   const tenders = tendersOf(sale);
   return (
-    <article className="receipt-sheet mx-auto w-full max-w-sm bg-surface px-5 py-6 text-ink">
+    <article className="receipt-sheet mx-auto w-full max-w-sm bg-surface px-4 py-6 text-ink sm:px-5">
       <header className="text-center">
         <h2 className="text-xl font-semibold">{sale.business.businessName}</h2>
         <p className="mt-1 text-sm">{sale.business.ownerName}</p>
@@ -79,7 +79,7 @@ export function ReceiptView({ sale }: { sale: Sale }) {
       <ul className="mt-4 space-y-2">
         {sale.lines.map((line, index) => (
           <li key={`${line.name}-${index}`} className="flex items-baseline justify-between gap-3 text-sm">
-            <span className="min-w-0">
+            <span className="min-w-0 break-words">
               {line.name}
               <span className="text-muted"> × {line.qty}</span>
             </span>
