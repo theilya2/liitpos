@@ -78,14 +78,22 @@
   --update-bar-offset: 0px;
 }
 
-/* Full-screen shells. Padding is inside the height, so the status bar
-   does not cover the first row and the install bar does not cover the last. */
-.app-screen {
+/* One shell for every screen. The status bar sits in this padding,
+   and the install bar sits in the height we leave at the bottom. */
+.shell-safe {
   box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
   height: calc(100dvh - var(--update-bar-offset));
   padding-top: var(--inset-top);
   padding-left: var(--inset-left);
   padding-right: var(--inset-right);
+  background: var(--color-paper);
+  color: var(--color-ink);
+}
+
+.pos-frame.shell-safe {
+  flex-direction: row;
 }
 
 .safe-bottom {

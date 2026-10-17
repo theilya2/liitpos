@@ -87,6 +87,25 @@ export type SaleLine = {
   unitPrice: number;
   qty: number;
   lineTotal: number;
+  /** On a credit note, the line index in the original sale. */
+  sourceIndex?: number;
+};
+
+export type TenderLine = {
+  method: PaymentMethod;
+  /** Amount applied to the bill. Cash change is not included. */
+  amount: number;
+  /** What the customer handed over. Equals `amount` except for cash. */
+  tendered: number;
+  change: number;
+  /** Cash rounding on this slice. Zero for every other method. */
+  rounding: number;
+  payments?: number;
+  terminal?: TerminalKind | null;
+  authCode?: string;
+  cardLast4?: string;
+  cardBrand?: string;
+  voucherCode?: string;
 };
 
 export type Sale = {
@@ -100,6 +119,12 @@ export type Sale = {
   vatAmount: number;
   net: number;
   method: PaymentMethod;
+  /** One entry per payment. Older sales only have `method` and are migrated on read. */
+  tenders?: TenderLine[];
+  /** `credit` is a תעודת זיכוי. Missing means a normal sale. */
+  kind?: "sale" | "credit";
+  creditOfId?: string | null;
+  creditOfNumber?: number | null;
   amountDue: number;
   rounding: number;
   tendered: number;
@@ -138,7 +163,7 @@ export type ClubMember = {
   updatedAt?: string;
 };
 
-export type StockReason = "sale" | "void" | "receive" | "count" | "waste";
+export type StockReason = "sale" | "void" | "refund" | "receive" | "count" | "waste";
 
 export type StockMove = {
   id: string;
@@ -171,7 +196,12 @@ export type ZReport = {
   turnover: number;
   vat: number;
   net: number;
-  byMethod: { method: PaymentMethod; total: number }[];
+  byMethod: { method: PaymentMethod; total: number; sales?: number; refunds?: number }[];
+  /** Present on reports closed after credit notes existed. Turnover is already net of these. */
+  creditCount?: number;
+  creditTotal?: number;
+  grossTurnover?: number;
+  cashRefunds?: number;
   openingFloat: number;
   cashTaken: number;
   cashExpected: number;
@@ -190,6 +220,8 @@ export type Branch = {
   held: HeldOrder[];
   sales: Sale[];
   nextReceipt: number;
+  /** Next תעודת זיכוי number. Older registers default this to 1. */
+  nextCredit: number;
   settings: Settings;
   zReports: ZReport[];
   nextZ: number;
@@ -218,6 +250,7 @@ export type StaffUser = {
 export const STOCK_REASON_LABEL: Record<StockReason, string> = {
   sale: "מכירה",
   void: "ביטול",
+  refund: "החזרה",
   receive: "קבלת סחורה",
   count: "ספירה",
   waste: "פחת",

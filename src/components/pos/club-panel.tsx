@@ -41,7 +41,7 @@ export function ClubPanel() {
     <section className="space-y-3 rounded-2xl bg-surface p-4 ring-1 ring-line">
       <div className="flex items-center justify-between gap-3">
         <h2 className="text-base font-semibold">חברי מועדון</h2>
-        <button type="button" onClick={() => { setError(""); setDraft({ ...empty }); }} className="h-11 rounded-xl bg-paper px-3 text-sm ring-1 ring-line">
+        <button type="button" onClick={() => { setError(""); setDraft({ ...empty }); }} className="h-12 rounded-xl bg-paper px-3 text-sm ring-1 ring-line">
           חבר חדש
         </button>
       </div>
@@ -83,33 +83,33 @@ export function ClubPanel() {
         >
           <label className="block text-sm text-muted">
             שם פרטי
-            <input value={draft.firstName} onChange={(event) => setDraft({ ...draft, firstName: event.target.value })} className="mt-1 h-11 w-full rounded-xl bg-surface px-3 text-ink ring-1 ring-line" />
+            <input value={draft.firstName} onChange={(event) => setDraft({ ...draft, firstName: event.target.value })} className="mt-1 h-12 w-full rounded-xl bg-surface px-3 text-ink ring-1 ring-line" />
           </label>
           <label className="block text-sm text-muted">
             שם משפחה
-            <input value={draft.lastName} onChange={(event) => setDraft({ ...draft, lastName: event.target.value })} className="mt-1 h-11 w-full rounded-xl bg-surface px-3 text-ink ring-1 ring-line" />
+            <input value={draft.lastName} onChange={(event) => setDraft({ ...draft, lastName: event.target.value })} className="mt-1 h-12 w-full rounded-xl bg-surface px-3 text-ink ring-1 ring-line" />
           </label>
           <label className="block text-sm text-muted">
             טלפון
-            <input value={draft.phone} onChange={(event) => setDraft({ ...draft, phone: event.target.value })} dir="ltr" inputMode="tel" className="mt-1 h-11 w-full rounded-xl bg-surface px-3 text-ink ring-1 ring-line" />
+            <input value={draft.phone} onChange={(event) => setDraft({ ...draft, phone: event.target.value })} dir="ltr" inputMode="tel" className="mt-1 h-12 w-full rounded-xl bg-surface px-3 text-ink ring-1 ring-line" />
           </label>
           <label className="block text-sm text-muted">
             הערה
-            <input value={draft.note} onChange={(event) => setDraft({ ...draft, note: event.target.value })} className="mt-1 h-11 w-full rounded-xl bg-surface px-3 text-ink ring-1 ring-line" />
+            <input value={draft.note} onChange={(event) => setDraft({ ...draft, note: event.target.value })} className="mt-1 h-12 w-full rounded-xl bg-surface px-3 text-ink ring-1 ring-line" />
           </label>
           <button
             type="button"
             onClick={() => setDraft({ ...draft, active: !draft.active })}
-            className={`h-11 w-full rounded-xl text-sm ${draft.active ? "bg-pine-soft text-pine" : "bg-surface text-muted ring-1 ring-line"}`}
+            className={`h-12 w-full rounded-xl text-sm ${draft.active ? "bg-pine-soft text-pine" : "bg-surface text-muted ring-1 ring-line"}`}
           >
             {draft.active ? "פעיל" : "לא פעיל"}
           </button>
           {error ? <p className="text-sm text-copper">{error}</p> : null}
           <div className="grid grid-cols-2 gap-2">
-            <button type="button" onClick={() => setDraft(null)} className="h-11 rounded-xl bg-surface ring-1 ring-line">
+            <button type="button" onClick={() => setDraft(null)} className="h-12 rounded-xl bg-surface ring-1 ring-line">
               ביטול
             </button>
-            <button type="submit" className="h-11 rounded-xl bg-pine font-semibold text-pine-ink">
+            <button type="submit" className="h-12 rounded-xl bg-pine font-semibold text-pine-ink">
               שמירה
             </button>
           </div>

@@ -35,7 +35,7 @@ export function SettingsPage() {
               <p className="text-sm font-medium">לוגו</p>
               <p className="text-xs text-muted">מופיע בכניסה, בבחירת משתמש ובמדף הימני העליון.</p>
               <div className="mt-2 flex gap-2">
-                <label className="flex h-10 cursor-pointer items-center rounded-xl bg-paper px-3 text-sm ring-1 ring-line">
+                <label className="flex h-12 cursor-pointer items-center rounded-xl bg-paper px-3 text-sm ring-1 ring-line">
                   העלאה
                   <input
                     type="file"
@@ -50,7 +50,7 @@ export function SettingsPage() {
                   />
                 </label>
                 {settings.logo ? (
-                  <button type="button" onClick={() => updateSettings({ logo: null })} className="h-10 rounded-xl px-3 text-sm text-copper">
+                  <button type="button" onClick={() => updateSettings({ logo: null })} className="h-12 rounded-xl px-3 text-sm text-copper">
                     הסרה
                   </button>
                 ) : null}
@@ -219,7 +219,7 @@ function EndpointFields({
           setSecure(next);
           commit(next);
         }}
-        className={`h-11 w-full rounded-xl text-sm ${secure ? "bg-pine-soft font-medium text-pine" : "bg-surface ring-1 ring-line"}`}
+        className={`h-12 w-full rounded-xl text-sm ${secure ? "bg-pine-soft font-medium text-pine" : "bg-surface ring-1 ring-line"}`}
       >
         {secure ? "המסוף בכתובת מאובטחת" : "המסוף בכתובת רגילה ברשת"}
       </button>
@@ -235,7 +235,7 @@ function EndpointFields({
             setChecking(false);
           });
         }}
-        className="h-11 w-full rounded-xl bg-surface text-sm font-medium ring-1 ring-line disabled:opacity-50"
+        className="h-12 w-full rounded-xl bg-surface text-sm font-medium ring-1 ring-line disabled:opacity-50"
       >
         {checking ? "בודקים…" : "בדיקת חיבור"}
       </button>
@@ -273,10 +273,10 @@ function Confirm({ text, onCancel, onYes }: { text: string; onCancel: () => void
     <div className="rounded-2xl bg-surface p-3">
       <p className="text-sm">{text}</p>
       <div className="mt-3 grid grid-cols-2 gap-2">
-        <button type="button" onClick={onCancel} className="h-11 rounded-xl bg-paper text-sm">
+        <button type="button" onClick={onCancel} className="h-12 rounded-xl bg-paper text-sm">
           ביטול
         </button>
-        <button type="button" onClick={onYes} className="h-11 rounded-xl bg-copper text-sm font-semibold text-pine-ink">
+        <button type="button" onClick={onYes} className="h-12 rounded-xl bg-copper text-sm font-semibold text-pine-ink">
           אישור
         </button>
       </div>

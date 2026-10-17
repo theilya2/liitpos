@@ -49,7 +49,7 @@ export function KioskPage() {
           <h1 className="truncate text-xl font-semibold">{settings.businessName}</h1>
           <p className="text-sm text-muted">הזמנה עצמית · מחירים כוללים מע״מ</p>
         </div>
-        <button type="button" onClick={() => setExitOpen(true)} className="h-11 rounded-xl px-3 text-sm text-muted">
+        <button type="button" onClick={() => setExitOpen(true)} className="h-12 rounded-xl px-3 text-sm text-muted">
           יציאה
         </button>
       </header>
@@ -186,7 +186,7 @@ function Sheet({ title, onClose, children }: { title: string; onClose: () => voi
       <div role="dialog" aria-modal="true" className="max-h-[92dvh] w-full max-w-lg overflow-y-auto rounded-t-3xl bg-surface p-4 text-ink sm:rounded-3xl">
         <div className="mb-3 flex items-center justify-between gap-3">
           <h2 className="text-lg font-semibold">{title}</h2>
-          <button type="button" onClick={onClose} aria-label="סגירה" className="flex h-11 w-11 items-center justify-center rounded-full bg-paper">
+          <button type="button" onClick={onClose} aria-label="סגירה" className="flex h-12 w-12 items-center justify-center rounded-full bg-paper">
             <X className="size-5" />
           </button>
         </div>
@@ -308,9 +308,9 @@ function KioskPay({
           <div className="flex items-center justify-between">
             <span className="text-sm text-muted">תשלומים</span>
             <span className="flex items-center gap-2">
-              <button type="button" onClick={() => setPayments((value) => Math.max(1, value - 1))} className="h-11 w-11 rounded-xl bg-paper ring-1 ring-line">-</button>
+              <button type="button" onClick={() => setPayments((value) => Math.max(1, value - 1))} className="h-12 w-12 rounded-xl bg-paper ring-1 ring-line">-</button>
               <span className="w-6 text-center font-semibold tabular-nums">{plan.count}</span>
-              <button type="button" onClick={() => setPayments((value) => Math.min(12, value + 1))} className="h-11 w-11 rounded-xl bg-paper ring-1 ring-line">+</button>
+              <button type="button" onClick={() => setPayments((value) => Math.min(12, value + 1))} className="h-12 w-12 rounded-xl bg-paper ring-1 ring-line">+</button>
             </span>
           </div>
           {plan.count > 1 ? <p className="text-xs text-muted">ראשון {formatILS(plan.first)} ואז {formatILS(plan.rest)}</p> : null}

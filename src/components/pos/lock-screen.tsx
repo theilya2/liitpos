@@ -66,7 +66,7 @@ export function LockScreen() {
   }
 
   return (
-    <main className="app-screen flex flex-col bg-paper text-ink">
+    <main className="flex min-h-0 flex-1 flex-col bg-paper text-ink">
       <div className="mx-auto flex w-full max-w-md flex-1 flex-col px-4 py-6">
         <div className="flex items-center gap-3">
           {logo ? (
@@ -90,7 +90,7 @@ export function LockScreen() {
               <p className="text-sm text-muted">
                 מזהה <span className="font-semibold tabular-nums text-ink" dir="ltr">{business.settings.code}</span>
               </p>
-              <button type="button" onClick={() => setGateStore(null)} className="h-11 rounded-xl bg-surface px-3 text-sm ring-1 ring-line">
+              <button type="button" onClick={() => setGateStore(null)} className="h-12 rounded-xl bg-surface px-3 text-sm ring-1 ring-line">
                 עסק אחר
               </button>
             </div>

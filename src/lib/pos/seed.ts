@@ -255,6 +255,7 @@ export function emptyBranch(id: string, settings: Settings, products: Product[] 
     held: [],
     sales: [],
     nextReceipt: 1001,
+    nextCredit: 1,
     settings,
     zReports: [],
     nextZ: 1,

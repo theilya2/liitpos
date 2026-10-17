@@ -2,12 +2,12 @@ import { useEffect, useState, type ReactNode } from "react";
 import { Link, useRouterState } from "@tanstack/react-router";
 import { BarChart3, Boxes, LockKeyhole, Receipt, Settings2, ShoppingCart } from "lucide-react";
 import { AppUpdateBanner } from "@/components/pos/app-update";
+import { CloudSync, SyncIndicator } from "@/components/pos/cloud-bar";
 import { areaForPath, can } from "@/lib/pos/access";
 import { prepareNative } from "@/lib/pos/native";
 import { LockScreen } from "@/components/pos/lock-screen";
 import { ReceiptView } from "@/components/pos/receipt";
 import { ZReportView } from "@/components/pos/z-report";
-import { CloudSync } from "@/components/pos/cloud-bar";
 import { currentUser, ensureReady, isWeekLocked, usePos } from "@/lib/pos/store";
 import type { Role } from "@/lib/pos/types";
 
@@ -22,7 +22,7 @@ const NAV: { to: "/" | "/receipts" | "/inventory" | "/reports" | "/manage"; labe
 function WeekLock() {
   const lock = usePos((state) => state.lock);
   return (
-    <main className="app-screen flex flex-col bg-paper text-ink">
+    <main className="flex min-h-0 flex-1 flex-col bg-paper text-ink">
       <div className="mx-auto flex w-full max-w-md flex-1 flex-col justify-center px-5">
         <span className="flex h-14 w-14 items-center justify-center rounded-2xl bg-copper text-lg font-bold text-pine-ink">₪</span>
         <h1 className="mt-4 text-2xl font-semibold">הקופה נעולה</h1>
@@ -39,7 +39,7 @@ function WeekLock() {
 
 function BootScreen() {
   return (
-    <main className="app-screen flex flex-col items-center justify-center gap-3 bg-paper text-ink">
+    <main className="flex min-h-0 flex-1 flex-col items-center justify-center gap-3 bg-paper text-ink">
       <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-pine text-2xl font-bold text-pine-ink">₪</div>
       <h1 className="text-2xl font-semibold">קופהקל</h1>
       <p className="text-muted">פותחים את המגירה…</p>
@@ -49,8 +49,8 @@ function BootScreen() {
 
 function navClass(active: boolean, side: boolean) {
   const base = side
-    ? "flex w-full min-h-14 flex-col items-center justify-center gap-1 rounded-2xl px-1 text-xs"
-    : "flex min-h-14 min-w-14 flex-1 flex-col items-center justify-center gap-1 rounded-2xl px-1 text-xs";
+    ? "flex w-full min-h-12 flex-col items-center justify-center gap-2 rounded-2xl px-1 text-xs"
+    : "flex min-h-12 min-w-12 flex-1 flex-col items-center justify-center gap-2 rounded-2xl px-1 text-xs";
   return `${base} ${active ? "bg-pine-soft font-semibold text-pine" : "text-muted"}`;
 }
 
@@ -104,14 +104,22 @@ export function PosFrame({ children }: { children: ReactNode }) {
     };
   }, []);
 
-  if (!ready) return <BootScreen />;
+  if (!ready) {
+    return (
+      <div className="shell-safe">
+        <BootScreen />
+      </div>
+    );
+  }
 
   if (pathname.startsWith("/admin")) {
     return (
       <>
         <AppUpdateBanner />
         <CloudSync />
-        <div className="app-screen overflow-y-auto bg-paper text-ink">{children}</div>
+        <div className="shell-safe">
+          <div className="min-h-0 flex-1 overflow-y-auto">{children}</div>
+        </div>
       </>
     );
   }
@@ -121,7 +129,7 @@ export function PosFrame({ children }: { children: ReactNode }) {
       <>
         <AppUpdateBanner />
         <CloudSync />
-        {isWeekLocked(lastGoodSync, appliedReleaseAt, now) ? <WeekLock /> : <div className="app-screen overflow-hidden bg-paper text-ink">{children}</div>}
+        <div className="shell-safe">{isWeekLocked(lastGoodSync, appliedReleaseAt, now) ? <WeekLock /> : <div className="min-h-0 flex-1 overflow-hidden">{children}</div>}</div>
       </>
     );
   }
@@ -131,7 +139,9 @@ export function PosFrame({ children }: { children: ReactNode }) {
       <>
         <AppUpdateBanner />
         <CloudSync />
-        <LockScreen />
+        <div className="shell-safe">
+          <LockScreen />
+        </div>
       </>
     );
   }
@@ -141,7 +151,9 @@ export function PosFrame({ children }: { children: ReactNode }) {
       <>
         <AppUpdateBanner />
         <CloudSync />
-        <WeekLock />
+        <div className="shell-safe">
+          <WeekLock />
+        </div>
       </>
     );
   }
@@ -152,20 +164,21 @@ export function PosFrame({ children }: { children: ReactNode }) {
     <>
       <AppUpdateBanner />
       <CloudSync />
-      <div className="pos-frame app-screen flex overflow-hidden bg-paper text-ink">
-        <nav className="no-print hidden w-24 shrink-0 flex-col gap-1 border-e border-line bg-surface p-2 lg:flex">
+      <div className="pos-frame shell-safe flex-row overflow-hidden">
+        <nav className="no-print hidden w-24 shrink-0 flex-col gap-2 border-e border-line bg-surface p-2 lg:flex">
           <div className="mb-2 flex flex-col items-center px-1 pt-2 text-center">
             <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-pine text-lg font-bold text-pine-ink">₪</span>
             <span className="mt-2 text-sm font-semibold">קופהקל</span>
             <span className="mt-1 line-clamp-2 text-xs text-muted">{user.name}</span>
           </div>
           <NavLinks side role={user.role} />
-          <button type="button" onClick={lock} className="mt-auto flex min-h-14 flex-col items-center justify-center gap-1 rounded-2xl text-xs text-muted">
+          <button type="button" onClick={lock} className="mt-auto flex min-h-12 flex-col items-center justify-center gap-2 rounded-2xl text-xs text-muted">
             <LockKeyhole className="size-5" />
             נעילה
           </button>
         </nav>
         <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+          <SyncIndicator />
           <div className="flex min-h-0 flex-1 flex-col">
             {allowed ? (
               children
@@ -179,7 +192,7 @@ export function PosFrame({ children }: { children: ReactNode }) {
               </main>
             )}
           </div>
-          <nav className="safe-bottom no-print flex shrink-0 gap-1 border-t border-line bg-surface px-1 pt-1 lg:hidden">
+          <nav className="safe-bottom no-print flex shrink-0 gap-2 border-t border-line bg-surface px-2 pt-2 lg:hidden">
             <NavLinks side={false} role={user.role} />
           </nav>
         </div>

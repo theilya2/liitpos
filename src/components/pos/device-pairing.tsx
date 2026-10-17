@@ -102,7 +102,7 @@ export function DevicePairing() {
           </p>
           <button
             type="button"
-            className="h-11 rounded-xl bg-surface px-4 text-sm font-semibold ring-1 ring-line"
+            className="h-12 rounded-xl bg-surface px-4 text-sm font-semibold ring-1 ring-line"
             onClick={() => {
               void navigator.clipboard?.writeText(link).then(() => setCopied(true)).catch(() => setCopied(false));
             }}
@@ -126,7 +126,7 @@ export function DevicePairing() {
                 <button
                   type="button"
                   disabled={busy}
-                  className="h-10 shrink-0 rounded-xl px-3 text-copper ring-1 ring-line disabled:opacity-50"
+                  className="h-12 shrink-0 rounded-xl px-3 text-copper ring-1 ring-line disabled:opacity-50"
                   onClick={() => {
                     setBusy(true);
                     setError("");

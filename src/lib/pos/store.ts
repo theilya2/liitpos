@@ -1,8 +1,9 @@
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
-import { canSeeStore } from "@/lib/pos/access";
+import { can, canSeeStore } from "@/lib/pos/access";
 import { applyDocs, catalogDoc, changesToDocs, deviceDoc, mergeOutbox, settingsDoc, snapshotDocs, staffDoc, type CloudDoc } from "@/lib/pos/docs";
-import { computeTotals, roundCash, roundMoney } from "@/lib/pos/money";
+import { computeTotals, roundMoney } from "@/lib/pos/money";
+import { isCredit, quoteRefund, refundMethodsFor, settleSale, tendersOf, zFigures, type RefundPick, type TenderInput } from "@/lib/pos/tender";
 import {
   buildDemoSales,
   cloneCategories,
@@ -20,7 +21,7 @@ import {
   kioskBranch,
   mainBranch,
 } from "@/lib/pos/seed";
-import { PAYMENT_METHODS, type Branch, type CartLine, type Category, type ClubMember, type Discount, type DrawerOpen, type HeldOrder, type PaymentMethod, type Product, type Role, type Sale, type Settings, type StaffUser, type StockMove, type StockReason, type TerminalKind, type ZReport } from "@/lib/pos/types";
+import { type Branch, type CartLine, type Category, type ClubMember, type Discount, type DrawerOpen, type HeldOrder, type PaymentMethod, type Product, type Role, type Sale, type Settings, type StaffUser, type StockMove, type StockReason, type TerminalKind, type ZReport } from "@/lib/pos/types";
 import { cleanEndpoint } from "@/lib/pos/terminal";
 
 type BranchFields = Omit<Branch, "id">;
@@ -49,9 +50,10 @@ type PosState = BranchFields & {
   resumeHeld: (id: string) => void;
   discardHeld: (id: string) => void;
   checkout: (input: {
-    method: PaymentMethod;
-    tendered: number;
+    method?: PaymentMethod;
+    tendered?: number;
     payments?: number;
+    tenders?: TenderInput[];
     terminal?: TerminalKind | null;
     authCode?: string;
     cardLast4?: string;
@@ -60,6 +62,7 @@ type PosState = BranchFields & {
     channel?: "register" | "kiosk";
   }) => Sale | null;
   voidSale: (id: string) => void;
+  refundSale: (input: { saleId: string; lines: RefundPick[]; tenders: TenderInput[] }) => Sale | null;
   markKiosk: (id: string, status: "new" | "done") => void;
   upsertProduct: (product: Product) => void;
   addCategory: (name: string) => string | null;
@@ -133,6 +136,7 @@ function toBranch(state: BranchFields & { activeStoreId: string }): Branch {
     held: state.held,
     sales: state.sales,
     nextReceipt: state.nextReceipt,
+    nextCredit: state.nextCredit,
     settings: state.settings,
     zReports: state.zReports,
     nextZ: state.nextZ,
@@ -151,6 +155,7 @@ function fromBranch(branch: Branch): BranchFields {
     held: branch.held,
     sales: branch.sales,
     nextReceipt: branch.nextReceipt,
+    nextCredit: branch.nextCredit,
     settings: branch.settings,
     zReports: branch.zReports,
     nextZ: branch.nextZ,
@@ -183,11 +188,14 @@ function normalizeBranch(branch: Branch): Branch {
     ...emptyBranch(branch.id, branch.settings ?? cloneSettings(), []),
     ...branch,
     products: (branch.products ?? []).map(normalizeProduct),
+    nextCredit: branch.nextCredit ?? 1,
     sales: (branch.sales ?? []).map((sale) => ({
       ...sale,
       zId: sale.zId ?? null,
       cashierName: sale.cashierName ?? "",
+      kind: sale.kind === "credit" ? "credit" : "sale",
       lines: sale.lines.map((line) => ({ ...line, productId: line.productId ?? null })),
+      tenders: tendersOf(sale),
     })),
     zReports: branch.zReports ?? [],
     nextZ: branch.nextZ ?? 1,
@@ -203,7 +211,7 @@ function normalizeBranch(branch: Branch): Branch {
 function applyDemoStock(products: Product[], sales: Sale[]): Product[] {
   const next = products.map((product) => ({ ...product }));
   for (const sale of sales) {
-    if (sale.voided) continue;
+    if (sale.voided || isCredit(sale)) continue;
     for (const line of sale.lines) {
       const product = next.find((item) => item.name === line.name);
       if (!product?.trackStock) continue;
@@ -361,7 +369,6 @@ export const usePos = create<PosState>()(
 
         checkout: (input) => {
           const state = get();
-          const method = input.method;
           const channel = input.channel ?? "register";
           const lines = input.lines ?? state.cart;
           if (isWeekLocked(state.lastGoodSync, state.appliedReleaseAt)) return null;
@@ -378,12 +385,26 @@ export const usePos = create<PosState>()(
           const discount = channel === "kiosk" ? null : state.discount;
           const totals = computeTotals(lines, discount, state.settings.vatRate);
           if (totals.total <= 0) return null;
-          const amountDue = method === "cash" ? roundCash(totals.total) : totals.total;
-          const paid = method === "cash" ? roundMoney(input.tendered) : amountDue;
-          if (method === "cash" && paid + 0.001 < amountDue) return null;
-          const payments = method === "cash" ? 1 : Math.min(12, Math.max(1, Math.round(input.payments ?? 1)));
+          const parts: TenderInput[] = input.tenders?.length
+            ? input.tenders
+            : input.method
+              ? [
+                  {
+                    method: input.method,
+                    tendered: input.method === "cash" ? roundMoney(input.tendered ?? 0) : totals.total,
+                    payments: input.payments,
+                    terminal: input.terminal,
+                    authCode: input.authCode,
+                    cardLast4: input.cardLast4,
+                    cardBrand: input.cardBrand,
+                  },
+                ]
+              : [];
+          const settled = settleSale(totals.total, parts);
+          if (!settled) return null;
           const number = state.nextReceipt;
           const by = channel === "kiosk" ? "קיוסק" : actorName(state);
+          const card = settled.tenders.find((line) => line.method === "card" || line.method === "club");
           const sale: Sale = {
             id: newId(),
             number,
@@ -400,19 +421,21 @@ export const usePos = create<PosState>()(
             vatRate: state.settings.vatRate,
             vatAmount: totals.vat,
             net: totals.net,
-            method,
-            amountDue,
-            rounding: roundMoney(amountDue - totals.total),
-            tendered: paid,
-            change: method === "cash" ? roundMoney(paid - amountDue) : 0,
+            method: settled.method,
+            tenders: settled.tenders,
+            kind: "sale",
+            amountDue: settled.amountDue,
+            rounding: settled.rounding,
+            tendered: settled.tendered,
+            change: settled.change,
             voided: false,
             zId: null,
             cashierName: by,
-            payments,
-            terminal: method === "cash" ? null : (input.terminal ?? null),
-            authCode: (input.authCode ?? "").slice(0, 16),
-            cardLast4: (input.cardLast4 ?? "").replace(/\D/g, "").slice(-4),
-            cardBrand: (input.cardBrand ?? "").slice(0, 24),
+            payments: settled.payments,
+            terminal: card?.terminal ?? null,
+            authCode: card?.authCode ?? "",
+            cardLast4: card?.cardLast4 ?? "",
+            cardBrand: card?.cardBrand ?? "",
             channel,
             kioskStatus: channel === "kiosk" ? "new" : null,
             business: {
@@ -455,7 +478,8 @@ export const usePos = create<PosState>()(
         voidSale: (id) => {
           const state = get();
           const sale = state.sales.find((item) => item.id === id);
-          if (!sale || sale.voided || sale.zId) return;
+          if (!sale || sale.voided || sale.zId || isCredit(sale)) return;
+          if (state.sales.some((item) => item.kind === "credit" && !item.voided && item.creditOfId === id)) return;
           const by = actorName(state);
           const moves: StockMove[] = [];
           let products = state.products;
@@ -483,6 +507,88 @@ export const usePos = create<PosState>()(
             products,
             stockMoves: [...moves, ...state.stockMoves].slice(0, 400),
           });
+        },
+
+        refundSale: (input) => {
+          const state = get();
+          const user = state.staff.find((item) => item.id === state.sessionUserId);
+          if (!user || !can(user.role, "refund")) return null;
+          if (isWeekLocked(state.lastGoodSync, state.appliedReleaseAt)) return null;
+          const sale = state.sales.find((item) => item.id === input.saleId);
+          if (!sale) return null;
+          const quote = quoteRefund(sale, state.sales, input.lines);
+          if (!quote) return null;
+          const allowed = new Set(refundMethodsFor(sale));
+          if (input.tenders.some((line) => !allowed.has(line.method))) return null;
+          const settled = settleSale(quote.total, input.tenders);
+          if (!settled) return null;
+          const number = state.nextCredit ?? 1;
+          const by = actorName(state);
+          const now = new Date().toISOString();
+          const tenders = settled.tenders.map((line) =>
+            line.method === "voucher" && !line.voucherCode
+              ? { ...line, voucherCode: `Z${Math.floor(100000 + Math.random() * 900000)}` }
+              : line,
+          );
+          const card = tenders.find((line) => line.method === "card" || line.method === "club");
+          const note: Sale = {
+            id: newId(),
+            number,
+            createdAt: now,
+            lines: quote.lines,
+            discountAmount: quote.discountAmount,
+            total: quote.total,
+            vatRate: quote.vatRate,
+            vatAmount: quote.vat,
+            net: quote.net,
+            method: settled.method,
+            tenders,
+            kind: "credit",
+            creditOfId: sale.id,
+            creditOfNumber: sale.number,
+            amountDue: settled.amountDue,
+            rounding: settled.rounding,
+            tendered: settled.tendered,
+            change: settled.change,
+            voided: false,
+            zId: null,
+            cashierName: by,
+            payments: settled.payments,
+            terminal: card?.terminal ?? null,
+            authCode: card?.authCode ?? "",
+            cardLast4: card?.cardLast4 ?? "",
+            cardBrand: card?.cardBrand ?? "",
+            channel: sale.channel,
+            business: sale.business,
+          };
+          const moves: StockMove[] = [];
+          let products = state.products;
+          for (const line of quote.lines) {
+            if (!line.productId) continue;
+            products = products.map((product) => {
+              if (product.id !== line.productId || !product.trackStock) return product;
+              const stock = roundMoney(product.stock + line.qty);
+              moves.push({
+                id: newId(),
+                at: now,
+                productId: product.id,
+                productName: product.name,
+                qty: line.qty,
+                stockAfter: stock,
+                reason: "refund",
+                note: `זיכוי ${number} לקבלה ${sale.number}`,
+                by,
+              });
+              return { ...product, stock };
+            });
+          }
+          commit({
+            sales: [note, ...state.sales],
+            nextCredit: number + 1,
+            products,
+            stockMoves: [...moves, ...state.stockMoves].slice(0, 400),
+          });
+          return note;
         },
 
         markKiosk: (id, status) => {
@@ -604,13 +710,9 @@ export const usePos = create<PosState>()(
           const state = get();
           const open = state.sales.filter((sale) => !sale.zId);
           if (!open.length) return null;
-          const live = open.filter((sale) => !sale.voided);
-          const byMethod = PAYMENT_METHODS.map((method) => ({
-            method,
-            total: roundMoney(live.filter((sale) => sale.method === method).reduce((sum, sale) => sum + sale.amountDue, 0)),
-          })).filter((row) => row.total > 0);
-          const turnover = roundMoney(live.reduce((sum, sale) => sum + sale.amountDue, 0));
-          const cashTaken = byMethod.find((row) => row.method === "cash")?.total ?? 0;
+          const figures = zFigures(open);
+          if (figures.salesCount + figures.creditCount === 0) return null;
+          const cashTaken = figures.cashTaken;
           const expected = roundMoney(state.settings.openingFloat + cashTaken);
           const counted = roundMoney(Math.max(0, cashCounted));
           const left = roundMoney(Math.max(0, leftInDrawer));
@@ -623,12 +725,16 @@ export const usePos = create<PosState>()(
             storeName: state.settings.businessName,
             from: new Date(Math.min(...times)).toISOString(),
             to: new Date(Math.max(...times)).toISOString(),
-            salesCount: live.length,
-            voidCount: open.length - live.length,
-            turnover,
-            vat: roundMoney(live.reduce((sum, sale) => sum + sale.vatAmount, 0)),
-            net: roundMoney(live.reduce((sum, sale) => sum + sale.net, 0)),
-            byMethod,
+            salesCount: figures.salesCount,
+            voidCount: figures.voidCount,
+            turnover: figures.turnover,
+            vat: figures.vat,
+            net: figures.net,
+            byMethod: figures.byMethod,
+            creditCount: figures.creditCount,
+            creditTotal: figures.creditTotal,
+            grossTurnover: figures.gross,
+            cashRefunds: figures.cashRefunds,
             openingFloat: state.settings.openingFloat,
             cashTaken,
             cashExpected: expected,

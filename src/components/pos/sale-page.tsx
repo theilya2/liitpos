@@ -1,17 +1,22 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { Banknote, CreditCard, IdCard, Minus, Pause, Plus, Printer, Search, Share2, Trash2, Wallet, X } from "lucide-react";
+import { ArrowLeftRight, Banknote, CreditCard, IdCard, Minus, Pause, Plus, Printer, Search, Share2, Smartphone, Ticket, Trash2, Wallet, X } from "lucide-react";
 import { Numpad } from "@/components/pos/numpad";
 import { ReceiptView, receiptPlainText } from "@/components/pos/receipt";
 import { pulseCashDrawer } from "@/lib/pos/drawer";
 import { computeTotals, formatILS, formatWhen, moneyFromPad, pushMoneyKey, roundCash, roundMoney } from "@/lib/pos/money";
+import { foldTenders, previewTender, remainingExact, type TenderInput } from "@/lib/pos/tender";
 import { currentUser, isWeekLocked, usePos } from "@/lib/pos/store";
 import { chargeTerminal, deviceLabel, isSafeIpv4, MAX_PAYMENTS, paymentPlan } from "@/lib/pos/terminal";
-import { METHOD_LABEL, TENDER_METHODS, type Product, type Sale, type TenderMethod, type TerminalKind } from "@/lib/pos/types";
+import { METHOD_LABEL, PAYMENT_METHODS, type PaymentMethod, type Product, type Sale, type TerminalKind } from "@/lib/pos/types";
 
 const METHOD_ICON = {
   cash: Banknote,
   card: CreditCard,
   club: IdCard,
+  bit: Smartphone,
+  paybox: Smartphone,
+  transfer: ArrowLeftRight,
+  voucher: Ticket,
 } as const;
 
 function Overlay({
@@ -43,7 +48,7 @@ function Overlay({
           <h2 id="overlay-title" className="text-lg font-semibold">
             {title}
           </h2>
-          <button type="button" onClick={onClose} aria-label="סגירה" className="flex h-11 w-11 items-center justify-center rounded-full bg-paper">
+          <button type="button" onClick={onClose} aria-label="סגירה" className="flex h-12 w-12 items-center justify-center rounded-full bg-paper">
             <X className="size-5" />
           </button>
         </div>
@@ -85,7 +90,7 @@ function CartPanel({
         </div>
         <div className="flex gap-2">
           {onClose ? (
-            <button type="button" onClick={onClose} className="h-11 rounded-xl bg-paper px-3 text-sm font-medium">
+            <button type="button" onClick={onClose} className="h-12 rounded-xl bg-paper px-3 text-sm font-medium">
               חזרה
             </button>
           ) : null}
@@ -93,7 +98,7 @@ function CartPanel({
             type="button"
             onClick={clearCart}
             disabled={!cart.length}
-            className="h-11 rounded-xl bg-paper px-3 text-sm font-medium disabled:opacity-40"
+            className="h-12 rounded-xl bg-paper px-3 text-sm font-medium disabled:opacity-40"
           >
             ניקוי
           </button>
@@ -110,12 +115,12 @@ function CartPanel({
                   <p className="truncate text-sm font-medium">{line.name}</p>
                   <p className="text-sm tabular-nums text-muted">{formatILS(line.unitPrice)}</p>
                 </div>
-                <div className="flex items-center gap-1">
+                <div className="flex items-center gap-2">
                   <button
                     type="button"
                     aria-label="הפחתה"
                     onClick={() => setQty(line.key, line.qty - 1)}
-                    className="flex h-11 w-11 items-center justify-center rounded-full bg-paper"
+                    className="flex h-12 w-12 items-center justify-center rounded-full bg-paper"
                   >
                     <Minus className="size-4" />
                   </button>
@@ -124,13 +129,13 @@ function CartPanel({
                     type="button"
                     aria-label="הוספה"
                     onClick={() => setQty(line.key, line.qty + 1)}
-                    className="flex h-11 w-11 items-center justify-center rounded-full bg-paper"
+                    className="flex h-12 w-12 items-center justify-center rounded-full bg-paper"
                   >
                     <Plus className="size-4" />
                   </button>
                 </div>
                 <span className="w-20 text-end text-sm font-semibold tabular-nums">{formatILS(roundMoney(line.unitPrice * line.qty))}</span>
-                <button type="button" aria-label="הסרת פריט" onClick={() => removeLine(line.key)} className="flex h-11 w-11 items-center justify-center rounded-full text-copper">
+                <button type="button" aria-label="הסרת פריט" onClick={() => removeLine(line.key)} className="flex h-12 w-12 items-center justify-center rounded-full text-copper">
                   <Trash2 className="size-4" />
                 </button>
               </li>
@@ -147,7 +152,7 @@ function CartPanel({
                 key={percent}
                 type="button"
                 onClick={() => setDiscount(active ? null : { kind: "percent", value: percent })}
-                className={`h-11 rounded-full px-3 text-sm ${active ? "bg-copper text-pine-ink" : "bg-copper-soft text-copper"}`}
+                className={`h-12 rounded-full px-3 text-sm ${active ? "bg-copper text-pine-ink" : "bg-copper-soft text-copper"}`}
               >
                 {percent}%
               </button>
@@ -156,11 +161,11 @@ function CartPanel({
           <button
             type="button"
             onClick={() => setDiscount(discount?.kind === "amount" && discount.value === 5 ? null : { kind: "amount", value: 5 })}
-            className={`h-11 rounded-full px-3 text-sm ${discount?.kind === "amount" && discount.value === 5 ? "bg-copper text-pine-ink" : "bg-copper-soft text-copper"}`}
+            className={`h-12 rounded-full px-3 text-sm ${discount?.kind === "amount" && discount.value === 5 ? "bg-copper text-pine-ink" : "bg-copper-soft text-copper"}`}
           >
             ₪5
           </button>
-          <button type="button" onClick={onCustom} className="h-11 rounded-full bg-paper px-3 text-sm">
+          <button type="button" onClick={onCustom} className="h-12 rounded-full bg-paper px-3 text-sm">
             פריט חופשי
           </button>
         </div>
@@ -224,20 +229,23 @@ function PaySheet({ onClose, onDone }: { onClose: () => void; onDone: (sale: Sal
   const checkout = usePos((state) => state.checkout);
   const openDrawer = usePos((state) => state.openDrawer);
   const totals = computeTotals(cart, discount, settings.vatRate);
-  const [method, setMethod] = useState<TenderMethod>("cash");
+  const [method, setMethod] = useState<PaymentMethod>("cash");
   const [pad, setPad] = useState("");
   const [payments, setPayments] = useState(1);
   const [device, setDevice] = useState<TerminalKind>("android");
   const [phase, setPhase] = useState<"idle" | "wait" | "fail">("idle");
   const [message, setMessage] = useState("");
+  const [inputs, setInputs] = useState<TenderInput[]>([]);
   const [manual, setManual] = useState("");
   const abortRef = useRef<AbortController | null>(null);
-  const amountDue = method === "cash" ? roundCash(totals.total) : totals.total;
-  const rounding = roundMoney(amountDue - totals.total);
-  const tendered = moneyFromPad(pad);
-  const short = method === "cash" && tendered + 0.001 < amountDue;
-  const change = method === "cash" ? roundMoney(Math.max(0, tendered - amountDue)) : 0;
-  const plan = paymentPlan(amountDue, payments);
+  const folded = foldTenders(Math.max(totals.total, 0.01), inputs);
+  const taken = folded?.tenders ?? [];
+  const remaining = totals.total > 0 ? (folded?.remaining ?? totals.total) : 0;
+  const cashDue = roundCash(remaining);
+  const slice = pad === "" ? (method === "cash" ? cashDue : remaining) : moneyFromPad(pad);
+  const draft = remaining > 0.001 ? previewTender(remaining, { method, tendered: slice, payments }) : null;
+  const draftCloses = Boolean(draft && remainingExact(totals.total, [...taken, draft]) <= 0.001);
+  const plan = paymentPlan(draft?.amount || remaining, payments);
   const ready = {
     android: isSafeIpv4(settings.androidTerminal.ip),
     pinpad: isSafeIpv4(settings.pinpad.ip),
@@ -250,16 +258,43 @@ function PaySheet({ onClose, onDone }: { onClose: () => void; onDone: (sale: Sal
     return () => abortRef.current?.abort();
   }, []);
 
-  function finishCash() {
-    const sale = checkout({ method: "cash", tendered });
-    if (!sale) return;
-    openDrawer();
-    void pulseCashDrawer();
+  function closeWith(next: TenderInput[]) {
+    const sale = checkout({ tenders: next });
+    if (!sale) {
+      setMessage("היתרה עוד לא כוסתה.");
+      return;
+    }
+    if (next.some((line) => line.method === "cash")) {
+      openDrawer();
+      void pulseCashDrawer();
+    }
     onDone(sale);
   }
 
+  function pushDraft(extra?: Partial<TenderInput>) {
+    const input: TenderInput = {
+      method,
+      tendered: slice,
+      payments,
+      terminal: method === "card" || method === "club" ? device : null,
+      ...extra,
+    };
+    const nextInputs = [...inputs, input];
+    const next = foldTenders(totals.total, nextInputs);
+    if (!next) {
+      setMessage("הסכום גדול מהיתרה.");
+      return;
+    }
+    setInputs(nextInputs);
+    setPad("");
+    setPayments(1);
+    setMessage("");
+    setPhase("idle");
+    if (next.remaining <= 0.001) closeWith(nextInputs);
+  }
+
   async function sendToTerminal() {
-    if (!deviceReady || tooSmall || phase === "wait") return;
+    if (!deviceReady || tooSmall || phase === "wait" || !draft) return;
     if (isWeekLocked(lastGoodSync, appliedReleaseAt)) {
       setPhase("fail");
       setMessage("הקופה נעולה עד שחרור בלוח הבקרה.");
@@ -271,7 +306,7 @@ function PaySheet({ onClose, onDone }: { onClose: () => void; onDone: (sale: Sal
     setMessage("");
     const result = await chargeTerminal({
       endpoint,
-      amount: amountDue,
+      amount: slice,
       payments: plan.count,
       method: method === "club" ? "club" : "credit",
       receipt: nextReceipt,
@@ -284,34 +319,20 @@ function PaySheet({ onClose, onDone }: { onClose: () => void; onDone: (sale: Sal
       setMessage(result.message);
       return;
     }
-    const sale = checkout({
-      method,
-      tendered: amountDue,
+    pushDraft({
+      tendered: slice,
       payments: plan.count,
       terminal: device,
       authCode: result.auth,
       cardLast4: result.last4,
       cardBrand: result.brand,
     });
-    if (!sale) {
-      setPhase("fail");
-      setMessage(result.auth ? `המסוף אישר (${result.auth}) אבל המכירה לא נרשמה. צריך לבטל במסוף.` : "המסוף אישר אבל המכירה לא נרשמה.");
-      return;
-    }
-    onDone(sale);
   }
 
   function recordManual() {
     const auth = manual.trim();
     if (auth.length < 4) return;
-    const sale = checkout({
-      method,
-      tendered: amountDue,
-      payments: plan.count,
-      terminal: deviceReady ? device : null,
-      authCode: auth,
-    });
-    if (sale) onDone(sale);
+    pushDraft({ authCode: auth, terminal: deviceReady ? device : null, payments: plan.count });
   }
 
   return (
@@ -322,17 +343,30 @@ function PaySheet({ onClose, onDone }: { onClose: () => void; onDone: (sale: Sal
         onClose();
       }}
     >
-      <p className="text-center text-sm text-muted">כולל מע״מ {settings.vatRate}%</p>
-      <p className="mt-1 text-center text-4xl font-semibold tabular-nums text-copper">{formatILS(amountDue)}</p>
-      {method === "cash" && rounding !== 0 ? (
-        <p className="mt-1 text-center text-sm text-muted">
-          לפני עיגול {formatILS(totals.total)} · עיגול {formatILS(rounding)}
-        </p>
-      ) : (
-        <p className="mt-1 text-center text-sm text-muted">לפני מע״מ {formatILS(totals.net)}</p>
-      )}
-      <div className="mt-4 grid grid-cols-3 gap-2">
-        {TENDER_METHODS.map((item) => {
+      <p className="text-center text-sm text-muted">יתרה · כולל מע״מ {settings.vatRate}%</p>
+      <p className="mt-1 text-center text-4xl font-semibold tabular-nums text-copper">{formatILS(remaining)}</p>
+      <p className="mt-1 text-center text-sm text-muted">סכום החשבון {formatILS(totals.total)}</p>
+      {taken.length ? (
+        <ul className="mt-3 space-y-2">
+          {taken.map((line, index) => (
+            <li key={`${line.method}-${index}`} className="flex items-center gap-2 rounded-xl bg-paper px-3 py-2 text-sm">
+              <span className="min-w-0 flex-1">
+                {METHOD_LABEL[line.method]}
+                {line.change > 0 ? ` · עודף ${formatILS(line.change)}` : ""}
+              </span>
+              <span className="font-semibold tabular-nums">{formatILS(line.amount)}</span>
+              {index === taken.length - 1 && remaining > 0.001 ? (
+                <button type="button" onClick={() => setInputs((current) => current.slice(0, -1))} className="h-12 rounded-xl px-3 text-copper">
+                  הסרה
+                </button>
+              ) : null}
+            </li>
+          ))}
+        </ul>
+      ) : null}
+      {remaining > 0.001 ? (
+      <div className="mt-4 grid grid-cols-4 gap-2">
+        {PAYMENT_METHODS.map((item) => {
           const Icon = METHOD_ICON[item];
           const active = method === item;
           return (
@@ -344,8 +378,9 @@ function PaySheet({ onClose, onDone }: { onClose: () => void; onDone: (sale: Sal
                 setMethod(item);
                 setPhase("idle");
                 setMessage("");
+                setPad("");
               }}
-              className={`flex h-16 flex-col items-center justify-center gap-1 rounded-2xl text-sm ${active ? "bg-pine text-pine-ink" : "bg-paper text-ink ring-1 ring-line"}`}
+              className={`flex min-h-12 flex-col items-center justify-center gap-1 rounded-2xl px-1 text-xs ${active ? "bg-pine text-pine-ink" : "bg-paper text-ink ring-1 ring-line"}`}
             >
               <Icon className="size-4" />
               {METHOD_LABEL[item]}
@@ -353,42 +388,46 @@ function PaySheet({ onClose, onDone }: { onClose: () => void; onDone: (sale: Sal
           );
         })}
       </div>
-      {method === "cash" ? (
+      ) : null}
+      {remaining <= 0.001 ? (
+        <button type="button" onClick={() => closeWith(inputs)} className="mt-4 h-14 w-full rounded-2xl bg-pine text-lg font-semibold text-pine-ink">
+          סיום
+        </button>
+      ) : method === "cash" ? (
         <div className="mt-4 space-y-3">
           <div className="rounded-2xl bg-paper px-4 py-3">
             <div className="flex items-baseline justify-between">
               <span className="text-sm text-muted">התקבל</span>
-              <span className="text-2xl font-semibold tabular-nums">{pad === "" ? formatILS(0) : formatILS(tendered)}</span>
+              <span className="text-2xl font-semibold tabular-nums">{pad === "" ? formatILS(cashDue) : formatILS(moneyFromPad(pad))}</span>
             </div>
             <div className="mt-1 flex items-baseline justify-between text-sm">
-              <span className="text-muted">{short ? "חסר" : "עודף"}</span>
-              <span className={`font-semibold tabular-nums ${short ? "text-copper" : "text-pine"}`}>
-                {formatILS(short ? roundMoney(amountDue - tendered) : change)}
-              </span>
+              <span className="text-muted">{(draft?.change ?? 0) > 0 ? "עודף" : "ליתרה"}</span>
+              <span className="font-semibold tabular-nums text-pine">{formatILS(draft?.change ?? 0)}</span>
             </div>
           </div>
           <div className="grid grid-cols-5 gap-2">
-            <button type="button" onClick={() => setPad(String(amountDue))} className="h-11 rounded-xl bg-pine-soft text-sm font-medium text-pine">
+            <button type="button" onClick={() => setPad(String(cashDue))} className="h-12 rounded-xl bg-pine-soft text-sm font-medium text-pine">
               מדויק
             </button>
             {[20, 50, 100, 200].map((bill) => (
-              <button key={bill} type="button" onClick={() => setPad(String(bill))} className="h-11 rounded-xl bg-paper text-sm font-semibold ring-1 ring-line">
+              <button key={bill} type="button" onClick={() => setPad(String(bill))} className="h-12 rounded-xl bg-paper text-sm font-semibold ring-1 ring-line">
                 {bill}
               </button>
             ))}
           </div>
           <Numpad onKey={(key) => setPad((current) => pushMoneyKey(current, key))} />
-          <p className="text-center text-xs text-muted">בסיום המגירה נפתחת. מזומן מעוגל לעשר אגורות.</p>
+          <p className="text-center text-xs text-muted">אפשר לחלק לכמה אמצעים. עודף מחושב רק על המזומן, והוא מעוגל לעשר אגורות.</p>
+          {message ? <p className="text-center text-sm text-copper">{message}</p> : null}
           <button
             type="button"
-            disabled={short || totals.total <= 0}
-            onClick={finishCash}
+            disabled={!draft}
+            onClick={() => pushDraft()}
             className="h-14 w-full rounded-2xl bg-pine text-lg font-semibold text-pine-ink disabled:opacity-40"
           >
-            אישור ופתיחת מגירה
+            {draftCloses ? "אישור ופתיחת מגירה" : "הוספת מזומן"}
           </button>
         </div>
-      ) : (
+      ) : method === "card" || method === "club" ? (
         <div className="mt-4 space-y-3">
           <div className="grid grid-cols-2 gap-2">
             {(["android", "pinpad"] as const).map((kind) => (
@@ -449,7 +488,7 @@ function PaySheet({ onClose, onDone }: { onClose: () => void; onDone: (sale: Sal
           ) : (
             <button
               type="button"
-              disabled={!deviceReady || tooSmall || totals.total <= 0}
+              disabled={!deviceReady || tooSmall || !draft}
               onClick={() => void sendToTerminal()}
               className="h-14 w-full rounded-2xl bg-pine text-lg font-semibold text-pine-ink disabled:opacity-40"
             >
@@ -473,6 +512,18 @@ function PaySheet({ onClose, onDone }: { onClose: () => void; onDone: (sale: Sal
               </button>
             </div>
           ) : null}
+          <button type="button" disabled={!draft} onClick={() => pushDraft()} className="h-12 w-full rounded-2xl bg-paper text-sm font-semibold ring-1 ring-line disabled:opacity-40">
+            {draftCloses ? "סגירה בלי מסוף" : "הוספת הסכום בלי מסוף"}
+          </button>
+        </div>
+      ) : (
+        <div className="mt-4 space-y-3">
+          <p className="text-center text-sm text-muted">שדה ריק מחייב את כל היתרה, {formatILS(remaining)}.</p>
+          <Numpad onKey={(key) => setPad((current) => pushMoneyKey(current, key))} />
+          {message ? <p className="text-center text-sm text-copper">{message}</p> : null}
+          <button type="button" disabled={!draft} onClick={() => pushDraft()} className="h-14 w-full rounded-2xl bg-pine text-lg font-semibold text-pine-ink disabled:opacity-40">
+            {draftCloses ? `סיום ב${METHOD_LABEL[method]}` : `הוספת ${METHOD_LABEL[method]}`}
+          </button>
         </div>
       )}
     </Overlay>
@@ -584,11 +635,11 @@ function HeldSheet({ onClose }: { onClose: () => void }) {
                       resumeHeld(order.id);
                       onClose();
                     }}
-                    className="h-11 rounded-xl bg-pine text-sm font-semibold text-pine-ink"
+                    className="h-12 rounded-xl bg-pine text-sm font-semibold text-pine-ink"
                   >
                     החזרה לסל
                   </button>
-                  <button type="button" onClick={() => discardHeld(order.id)} className="h-11 rounded-xl bg-surface text-sm text-copper ring-1 ring-line">
+                  <button type="button" onClick={() => discardHeld(order.id)} className="h-12 rounded-xl bg-surface text-sm text-copper ring-1 ring-line">
                     מחיקה
                   </button>
                 </div>
@@ -808,7 +859,7 @@ export function SalePage() {
             placeholder="חיפוש או מק״ט"
             aria-label="חיפוש מוצר או מק״ט"
             autoComplete="off"
-            className="h-9 w-full rounded-xl bg-surface ps-9 pe-2 text-sm ring-1 ring-line"
+            className="h-12 w-full rounded-xl bg-surface ps-9 pe-2 text-sm ring-1 ring-line"
           />
         </div>
         <ShelfGrid
@@ -829,36 +880,36 @@ export function SalePage() {
             {user ? ` · ${user.name}` : ""}
           </p>
         </header>
-        <div className="grid shrink-0 grid-cols-3 gap-1 px-2 pt-2">
+        <div className="grid shrink-0 grid-cols-3 gap-2 px-2 pt-2">
           <button
             type="button"
             disabled={!cart.length || held.length >= 5}
             onClick={() => {
               if (!holdCart()) setNote(held.length >= 5 ? "אפשר להקפיא עד 5 חשבונות." : "אין מה להקפיא.");
             }}
-            className="flex h-10 items-center justify-center gap-1 rounded-xl bg-paper px-1 text-xs font-medium ring-1 ring-line disabled:opacity-40"
+            className="flex h-12 items-center justify-center gap-1 rounded-xl bg-paper px-1 text-xs font-medium ring-1 ring-line disabled:opacity-40"
           >
             <Pause className="size-4 shrink-0" />
             הקפאה {held.length}/5
           </button>
-          <button type="button" onClick={() => void drawer()} className="flex h-10 items-center justify-center gap-1 rounded-xl bg-paper px-1 text-xs font-medium ring-1 ring-line">
+          <button type="button" onClick={() => void drawer()} className="flex h-12 items-center justify-center gap-1 rounded-xl bg-paper px-1 text-xs font-medium ring-1 ring-line">
             <Wallet className="size-4 shrink-0" />
             מגירה
           </button>
-          <button type="button" onClick={lastReceipt} className="flex h-10 items-center justify-center gap-1 rounded-xl bg-paper px-1 text-xs font-medium ring-1 ring-line">
+          <button type="button" onClick={lastReceipt} className="flex h-12 items-center justify-center gap-1 rounded-xl bg-paper px-1 text-xs font-medium ring-1 ring-line">
             <Printer className="size-4 shrink-0" />
             קבלה
           </button>
         </div>
         {note ? <p className="shrink-0 truncate px-2 pt-1 text-xs text-muted">{note}</p> : null}
         {incoming.length > 0 ? (
-          <div className="flex shrink-0 gap-1 overflow-x-auto px-2 pt-1">
+          <div className="flex shrink-0 gap-2 overflow-x-auto px-2 pt-2">
             {incoming.map((sale) => (
               <button
                 key={sale.id}
                 type="button"
                 onClick={() => markKiosk(sale.id, "done")}
-                className="h-8 shrink-0 rounded-full bg-copper-soft px-2 text-xs font-medium text-copper"
+                className="h-12 shrink-0 rounded-full bg-copper-soft px-3 text-xs font-medium text-copper"
               >
                 קיוסק {sale.number} · {formatILS(sale.amountDue)} · טופל
               </button>
@@ -866,13 +917,13 @@ export function SalePage() {
           </div>
         ) : null}
         {held.length > 0 ? (
-          <div className="flex shrink-0 gap-1 overflow-x-auto px-2 pt-1">
+          <div className="flex shrink-0 gap-2 overflow-x-auto px-2 pt-2">
             {held.map((order, index) => (
               <button
                 key={order.id}
                 type="button"
                 onClick={() => resumeHeld(order.id)}
-                className="h-8 shrink-0 rounded-full bg-pine-soft px-2 text-xs font-medium text-pine"
+                className="h-12 shrink-0 rounded-full bg-pine-soft px-3 text-xs font-medium text-pine"
               >
                 מוקפא {index + 1} · {formatILS(computeTotals(order.lines, order.discount, vatRate).total)}
               </button>
@@ -895,7 +946,7 @@ export function SalePage() {
                   className={`mb-1 flex w-full items-center gap-1 rounded-xl px-1.5 py-1 text-start ${selectedKey === line.key ? "bg-pine-soft" : "bg-paper"}`}
                 >
                   <span className="min-w-0 flex-1 truncate text-xs font-medium">{line.name}</span>
-                  <span className="flex items-center">
+                  <span className="flex items-center gap-2">
                     <button
                       type="button"
                       aria-label="הפחתה"
@@ -903,7 +954,7 @@ export function SalePage() {
                         event.stopPropagation();
                         setQty(line.key, line.qty - 1);
                       }}
-                      className="flex h-8 w-8 items-center justify-center rounded-full bg-surface"
+                      className="flex h-12 w-12 items-center justify-center rounded-full bg-surface"
                     >
                       <Minus className="size-3.5" />
                     </button>
@@ -915,7 +966,7 @@ export function SalePage() {
                         event.stopPropagation();
                         setQty(line.key, line.qty + 1);
                       }}
-                      className="flex h-8 w-8 items-center justify-center rounded-full bg-surface"
+                      className="flex h-12 w-12 items-center justify-center rounded-full bg-surface"
                     >
                       <Plus className="size-3.5" />
                     </button>
@@ -927,7 +978,7 @@ export function SalePage() {
           )}
         </ul>
         <div className="shrink-0 space-y-1 border-t border-line px-2 py-2">
-          <div className="flex gap-1 overflow-x-auto">
+          <div className="flex gap-2 overflow-x-auto">
             {[5, 10, 15].map((percent) => {
               const active = discount?.kind === "percent" && discount.value === percent;
               return (
@@ -935,7 +986,7 @@ export function SalePage() {
                   key={percent}
                   type="button"
                   onClick={() => setDiscount(active ? null : { kind: "percent", value: percent })}
-                  className={`h-8 shrink-0 rounded-full px-2 text-xs ${active ? "bg-copper text-pine-ink" : "bg-copper-soft text-copper"}`}
+                  className={`h-12 shrink-0 rounded-full px-3 text-xs ${active ? "bg-copper text-pine-ink" : "bg-copper-soft text-copper"}`}
                 >
                   {percent}%
                 </button>
@@ -961,22 +1012,22 @@ export function SalePage() {
         />
       </section>
 
-      <section aria-label="סכום עצמאי ותשלום" className="flex min-h-0 min-w-0 flex-col gap-1.5 overflow-hidden rounded-2xl bg-surface p-2 ring-1 ring-line">
+      <section aria-label="סכום עצמאי ותשלום" className="flex min-h-0 min-w-0 flex-col gap-2 overflow-hidden rounded-2xl bg-surface p-2 ring-1 ring-line">
         <p className="shrink-0 text-center text-xl font-semibold leading-none tabular-nums" dir="ltr">
           {pad === "" ? "0.00" : pad}
         </p>
         <div className="min-h-0 flex-1">
           <Numpad fill onKey={(key) => setPad((current) => pushMoneyKey(current, key))} />
         </div>
-        <div className="grid shrink-0 grid-cols-2 gap-1.5">
-          <button type="button" onClick={addAmount} className="h-10 rounded-xl bg-pine text-sm font-semibold text-pine-ink">
+        <div className="grid shrink-0 grid-cols-2 gap-2">
+          <button type="button" onClick={addAmount} className="h-12 rounded-xl bg-pine text-sm font-semibold text-pine-ink">
             הוסף
           </button>
           <button
             type="button"
             onClick={deleteLine}
             disabled={!cart.length}
-            className="flex h-10 items-center justify-center gap-1 rounded-xl bg-copper-soft text-sm font-semibold text-copper disabled:opacity-40"
+            className="flex h-12 items-center justify-center gap-1 rounded-xl bg-copper-soft text-sm font-semibold text-copper disabled:opacity-40"
           >
             <Trash2 className="size-4" />
             מחק שורה
@@ -986,7 +1037,7 @@ export function SalePage() {
           type="button"
           onClick={() => setPayOpen(true)}
           disabled={!cart.length || totals.total <= 0}
-          className="h-11 shrink-0 rounded-xl bg-pine text-sm font-semibold text-pine-ink disabled:opacity-40"
+          className="h-14 shrink-0 rounded-xl bg-pine text-sm font-semibold text-pine-ink disabled:opacity-40"
         >
           תשלום
         </button>
