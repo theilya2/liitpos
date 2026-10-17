@@ -4,14 +4,21 @@ import { GROK_PROVIDERS, signIn } from "@/lib/auth/client";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
 
 export const Route = createFileRoute("/login")({
+  validateSearch: (search: Record<string, unknown>) => ({
+    next: typeof search.next === "string" && search.next.startsWith("/") && !search.next.startsWith("//") ? search.next : "",
+  }),
   component: LoginPage,
 });
 
 function LoginPage() {
   const { user, isPending } = useCurrentUserState();
+  const next = Route.useSearch().next;
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
-  if (!mounted || isPending) {
+  useEffect(() => {
+    if (mounted && !isPending && user && next) window.location.assign(next);
+  }, [mounted, isPending, user, next]);
+  if (!mounted || isPending || (user && next)) {
     return (
       <main className="flex min-h-dvh items-center justify-center bg-paper text-ink">
         <p className="text-sm text-muted">טוענים את החשבון…</p>
@@ -28,7 +35,7 @@ function LoginPage() {
           <button
             key={provider.providerId}
             type="button"
-            onClick={() => signIn(provider.providerId, { callbackURL: "/admin" })}
+            onClick={() => signIn(provider.providerId, { callbackURL: next || "/admin" })}
             className="h-12 w-full rounded-2xl bg-pine font-semibold text-pine-ink"
           >
             המשך עם {provider.label}
