@@ -22,8 +22,8 @@ const NAV: { to: "/" | "/receipts" | "/inventory" | "/reports" | "/manage"; labe
 function WeekLock() {
   const lock = usePos((state) => state.lock);
   return (
-    <main className="flex min-h-0 flex-1 flex-col bg-paper text-ink">
-      <div className="mx-auto flex w-full max-w-md flex-1 flex-col justify-center px-5">
+    <main className="scroll-pane flex min-h-0 flex-1 flex-col bg-paper text-ink">
+      <div className="mx-auto flex min-h-full w-full max-w-md flex-col justify-center px-5">
         <span className="flex h-14 w-14 items-center justify-center rounded-2xl bg-copper text-lg font-bold text-pine-ink">₪</span>
         <h1 className="mt-4 text-2xl font-semibold">הקופה נעולה</h1>
         <p className="mt-2 text-sm text-pretty text-muted">
@@ -65,7 +65,7 @@ function NavLinks({ side, role }: { side: boolean; role: Role }) {
         return (
           <Link key={item.to} to={item.to} className={navClass(active, side)} aria-current={active ? "page" : undefined}>
             <Icon className="size-6" strokeWidth={1.75} />
-            {item.label}
+            <span className="nav-label">{item.label}</span>
           </Link>
         );
       })}
@@ -118,7 +118,7 @@ export function PosFrame({ children }: { children: ReactNode }) {
         <AppUpdateBanner />
         <CloudSync />
         <div className="shell-safe">
-          <div className="min-h-0 flex-1 overflow-y-auto">{children}</div>
+          <div className="scroll-pane min-h-0 flex-1">{children}</div>
         </div>
       </>
     );
@@ -129,7 +129,7 @@ export function PosFrame({ children }: { children: ReactNode }) {
       <>
         <AppUpdateBanner />
         <CloudSync />
-        <div className="shell-safe">{isWeekLocked(lastGoodSync, appliedReleaseAt, now) ? <WeekLock /> : <div className="min-h-0 flex-1 overflow-hidden">{children}</div>}</div>
+        <div className="shell-safe">{isWeekLocked(lastGoodSync, appliedReleaseAt, now) ? <WeekLock /> : <div className="flex min-h-0 flex-1 flex-col overflow-hidden">{children}</div>}</div>
       </>
     );
   }
@@ -177,9 +177,9 @@ export function PosFrame({ children }: { children: ReactNode }) {
             נעילה
           </button>
         </nav>
-        <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
           <SyncIndicator />
-          <div className="flex min-h-0 flex-1 flex-col">
+          <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
             {allowed ? (
               children
             ) : (
@@ -192,7 +192,7 @@ export function PosFrame({ children }: { children: ReactNode }) {
               </main>
             )}
           </div>
-          <nav className="safe-bottom no-print flex shrink-0 gap-2 border-t border-line bg-surface px-2 pt-2 lg:hidden">
+          <nav className="app-nav-bottom safe-bottom no-print flex shrink-0 gap-2 border-t border-line bg-surface px-2 pt-2 lg:hidden">
             <NavLinks side={false} role={user.role} />
           </nav>
         </div>

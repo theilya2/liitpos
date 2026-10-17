@@ -87,7 +87,7 @@ export function ReportsPage() {
   }
 
   return (
-    <div className="min-h-0 flex-1 overflow-y-auto">
+    <div className="scroll-pane page-sheet min-h-0 flex-1">
       <PageHeader title="דוח קופה" subtitle="משמרת פתוחה, סוף יום ודוח Z. זה דוח ניהול, לא דוח מס." />
       <div className="space-y-3 px-3 pb-6">
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
