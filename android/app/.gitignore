@@ -1,0 +1,4 @@
+/build/*
+!/build/.npmkeep
+# Copied by `npx cap sync` from the web build. Do not commit.
+src/main/assets/public

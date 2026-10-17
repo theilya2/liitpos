@@ -385,7 +385,7 @@ export const usePos = create<PosState>()(
           const number = state.nextReceipt;
           const by = channel === "kiosk" ? "קיוסק" : actorName(state);
           const sale: Sale = {
-            id: `s_${number}`,
+            id: newId(),
             number,
             createdAt: new Date().toISOString(),
             lines: lines.map((line) => ({
@@ -503,6 +503,7 @@ export const usePos = create<PosState>()(
             phone,
             note: member.note.trim().slice(0, 80),
             active: member.active !== false,
+            updatedAt: new Date().toISOString(),
           };
           const members = get().members ?? [];
           commit({
@@ -526,10 +527,11 @@ export const usePos = create<PosState>()(
 
         upsertProduct: (product) => {
           const products = get().products;
+          const next = { ...product, updatedAt: new Date().toISOString() };
           commit({
-            products: products.some((item) => item.id === product.id)
-              ? products.map((item) => (item.id === product.id ? product : item))
-              : [product, ...products],
+            products: products.some((item) => item.id === next.id)
+              ? products.map((item) => (item.id === next.id ? next : item))
+              : [next, ...products],
           });
         },
 

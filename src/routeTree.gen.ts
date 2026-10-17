@@ -20,6 +20,9 @@ import { Route as ReceiptsRouteImport } from './routes/receipts'
 import { Route as ReportsRouteImport } from './routes/reports'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
+import { Route as ApiPosLinkRouteImport } from './routes/api/pos/link'
+import { Route as ApiPosSyncRouteImport } from './routes/api/pos/sync'
+import { Route as ApiPosUpdateRouteImport } from './routes/api/pos/update'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -76,6 +79,21 @@ const ApiAuthSplatRoute = ApiAuthSplatRouteImport.update({
   path: '/api/auth/$',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPosLinkRoute = ApiPosLinkRouteImport.update({
+  id: '/api/pos/link',
+  path: '/api/pos/link',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiPosSyncRoute = ApiPosSyncRouteImport.update({
+  id: '/api/pos/sync',
+  path: '/api/pos/sync',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiPosUpdateRoute = ApiPosUpdateRouteImport.update({
+  id: '/api/pos/update',
+  path: '/api/pos/update',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -89,6 +107,9 @@ export interface FileRoutesByFullPath {
   '/reports': typeof ReportsRoute
   '/settings': typeof SettingsRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
+  '/api/pos/link': typeof ApiPosLinkRoute
+  '/api/pos/sync': typeof ApiPosSyncRoute
+  '/api/pos/update': typeof ApiPosUpdateRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -102,6 +123,9 @@ export interface FileRoutesByTo {
   '/reports': typeof ReportsRoute
   '/settings': typeof SettingsRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
+  '/api/pos/link': typeof ApiPosLinkRoute
+  '/api/pos/sync': typeof ApiPosSyncRoute
+  '/api/pos/update': typeof ApiPosUpdateRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -116,6 +140,9 @@ export interface FileRoutesById {
   '/reports': typeof ReportsRoute
   '/settings': typeof SettingsRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
+  '/api/pos/link': typeof ApiPosLinkRoute
+  '/api/pos/sync': typeof ApiPosSyncRoute
+  '/api/pos/update': typeof ApiPosUpdateRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -131,6 +158,9 @@ export interface FileRouteTypes {
     | '/reports'
     | '/settings'
     | '/api/auth/$'
+    | '/api/pos/link'
+    | '/api/pos/sync'
+    | '/api/pos/update'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -144,6 +174,9 @@ export interface FileRouteTypes {
     | '/reports'
     | '/settings'
     | '/api/auth/$'
+    | '/api/pos/link'
+    | '/api/pos/sync'
+    | '/api/pos/update'
   id:
     | '__root__'
     | '/'
@@ -157,6 +190,9 @@ export interface FileRouteTypes {
     | '/reports'
     | '/settings'
     | '/api/auth/$'
+    | '/api/pos/link'
+    | '/api/pos/sync'
+    | '/api/pos/update'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -171,6 +207,9 @@ export interface RootRouteChildren {
   ReportsRoute: typeof ReportsRoute
   SettingsRoute: typeof SettingsRoute
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
+  ApiPosLinkRoute: typeof ApiPosLinkRoute
+  ApiPosSyncRoute: typeof ApiPosSyncRoute
+  ApiPosUpdateRoute: typeof ApiPosUpdateRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -252,6 +291,27 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiAuthSplatRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/pos/link': {
+      id: '/api/pos/link'
+      path: '/api/pos/link'
+      fullPath: '/api/pos/link'
+      preLoaderRoute: typeof ApiPosLinkRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/pos/sync': {
+      id: '/api/pos/sync'
+      path: '/api/pos/sync'
+      fullPath: '/api/pos/sync'
+      preLoaderRoute: typeof ApiPosSyncRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/pos/update': {
+      id: '/api/pos/update'
+      path: '/api/pos/update'
+      fullPath: '/api/pos/update'
+      preLoaderRoute: typeof ApiPosUpdateRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -267,6 +327,9 @@ const rootRouteChildren: RootRouteChildren = {
   ReportsRoute: ReportsRoute,
   SettingsRoute: SettingsRoute,
   ApiAuthSplatRoute: ApiAuthSplatRoute,
+  ApiPosLinkRoute: ApiPosLinkRoute,
+  ApiPosSyncRoute: ApiPosSyncRoute,
+  ApiPosUpdateRoute: ApiPosUpdateRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

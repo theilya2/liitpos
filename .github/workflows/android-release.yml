@@ -1,0 +1,115 @@
+name: Android release
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: Check signing secrets
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          missing=0
+          for name in ANDROID_KEYSTORE_BASE64 ANDROID_KEYSTORE_PASSWORD ANDROID_KEY_ALIAS ANDROID_KEY_PASSWORD; do
+            if [ -z "${!name}" ]; then
+              echo "Missing GitHub secret: $name"
+              missing=1
+            fi
+          done
+          exit "$missing"
+
+      - name: Install Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install SDK packages
+        run: sdkmanager "platforms;android-36" "build-tools;35.0.0"
+
+      - name: Install npm dependencies
+        run: npm ci
+
+      - name: Set version
+        run: |
+          ref="${GITHUB_REF}"
+          if [[ "$ref" == refs/tags/v* ]]; then
+            name="${ref#refs/tags/v}"
+            code="${name##*.}"
+            if [[ "$name" == *+* ]]; then code="${name##*+}"; fi
+            if ! [[ "$code" =~ ^[0-9]+$ ]] || [[ "$code" == "0" ]]; then
+              echo "Tag must end with a version code, for example v1.0.1001"
+              exit 1
+            fi
+          else
+            code=$((1000 + ${{ github.run_number }}))
+            name="1.0.${code}"
+          fi
+          echo "LIITPOS_VERSION_CODE=$code" >> "$GITHUB_ENV"
+          echo "LIITPOS_VERSION_NAME=$name" >> "$GITHUB_ENV"
+
+      - name: Decode keystore
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          echo "$ANDROID_KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/liitpos-release.keystore"
+          {
+            echo "LIITPOS_KEYSTORE=$RUNNER_TEMP/liitpos-release.keystore"
+            echo "LIITPOS_KEYSTORE_PASSWORD<<EOF"
+            echo "$ANDROID_KEYSTORE_PASSWORD"
+            echo "EOF"
+            echo "LIITPOS_KEY_ALIAS<<EOF"
+            echo "$ANDROID_KEY_ALIAS"
+            echo "EOF"
+            echo "LIITPOS_KEY_PASSWORD<<EOF"
+            echo "$ANDROID_KEY_PASSWORD"
+            echo "EOF"
+          } >> "$GITHUB_ENV"
+
+      - name: Build signed release APK
+        run: npm run android:release
+
+      - name: Collect release files
+        run: |
+          cp android/app/build/outputs/apk/release/app-release.apk liitpos-release.apk
+          printf '%s\n' \
+            "{\"versionCode\": $LIITPOS_VERSION_CODE, \"versionName\": \"$LIITPOS_VERSION_NAME\", \"apkUrl\": \"https://github.com/${{ github.repository }}/releases/download/v${LIITPOS_VERSION_NAME}/liitpos-release.apk\", \"notes\": \"\"}" \
+            > update.json
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ env.LIITPOS_VERSION_NAME }}
+          name: Liitpos ${{ env.LIITPOS_VERSION_NAME }}
+          body: |
+            Install this APK over the existing Liitpos app. Sales saved on the device stay on the device.
+            Version code ${{ env.LIITPOS_VERSION_CODE }}.
+          files: |
+            liitpos-release.apk
+            update.json
+          fail_on_unmatched_files: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

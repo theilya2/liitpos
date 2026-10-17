@@ -91,27 +91,8 @@ export const pullDocs = createServerFn({ method: "POST" })
   })
   .middleware([authMiddleware])
   .handler(async ({ context, data }) => {
-    const sql = await getSql();
-    const rows = data.since
-      ? await sql<DocRow>`
-          select id, kind, business_id, updated_at::text as updated_at, deleted, doc::text as doc
-          from pos_docs
-          where user_id = ${context.userId} and updated_at > ${data.since}::timestamptz
-          order by updated_at asc
-          limit 500
-        `
-      : await sql<DocRow>`
-          select id, kind, business_id, updated_at::text as updated_at, deleted, doc::text as doc
-          from pos_docs
-          where user_id = ${context.userId}
-          order by updated_at asc
-          limit 500
-        `;
-    const clock = await sql<{ now: string }>`select now()::text as now`;
-    return {
-      docs: rows.map(toCloud).filter((doc): doc is CloudDoc => Boolean(doc)),
-      serverTime: clock[0]?.now ?? new Date().toISOString(),
-    };
+    const { pullDocsForUser } = await import("./cloud.server");
+    return pullDocsForUser(context.userId, data.since);
   });
 
 export const pushDocs = createServerFn({ method: "POST" })
@@ -122,34 +103,8 @@ export const pushDocs = createServerFn({ method: "POST" })
   })
   .middleware([authMiddleware])
   .handler(async ({ context, data }) => {
-    const sql = await getSql();
-    const accepted: string[] = [];
-    const skipped: string[] = [];
-    for (const doc of data.docs) {
-      const rows = await sql<{ id: string }>`
-        insert into pos_docs (user_id, id, kind, business_id, updated_at, deleted, doc)
-        values (
-          ${context.userId},
-          ${doc.id},
-          ${doc.kind},
-          ${doc.businessId},
-          ${doc.updatedAt}::timestamptz,
-          ${doc.deleted},
-          ${JSON.stringify(doc.doc)}::jsonb
-        )
-        on conflict (user_id, id) do update set
-          kind = excluded.kind,
-          business_id = excluded.business_id,
-          updated_at = excluded.updated_at,
-          deleted = excluded.deleted,
-          doc = excluded.doc
-        where pos_docs.updated_at <= excluded.updated_at
-        returning id
-      `;
-      if (rows[0]?.id) accepted.push(doc.id);
-      else skipped.push(doc.id);
-    }
-    return { accepted, skipped };
+    const { pushDocsForUser } = await import("./cloud.server");
+    return pushDocsForUser(context.userId, data.docs);
   });
 
 function readSettings(doc: unknown): Settings | null {

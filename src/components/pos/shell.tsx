@@ -1,7 +1,9 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { Link, useRouterState } from "@tanstack/react-router";
 import { BarChart3, Boxes, LockKeyhole, Receipt, Settings2, ShoppingCart } from "lucide-react";
+import { AppUpdateBanner } from "@/components/pos/app-update";
 import { areaForPath, can } from "@/lib/pos/access";
+import { prepareNative } from "@/lib/pos/native";
 import { LockScreen } from "@/components/pos/lock-screen";
 import { ReceiptView } from "@/components/pos/receipt";
 import { ZReportView } from "@/components/pos/z-report";
@@ -98,6 +100,7 @@ export function PosFrame({ children }: { children: ReactNode }) {
       ensureReady();
       if (live) setReady(true);
     })();
+    prepareNative();
     const timer = window.setInterval(() => setNow(Date.now()), 60_000);
     return () => {
       live = false;
@@ -110,6 +113,7 @@ export function PosFrame({ children }: { children: ReactNode }) {
   if (pathname.startsWith("/admin") || pathname.startsWith("/login")) {
     return (
       <>
+        <AppUpdateBanner />
         <CloudSync />
         <div className="h-dvh overflow-y-auto bg-paper text-ink">{children}</div>
       </>
@@ -119,6 +123,7 @@ export function PosFrame({ children }: { children: ReactNode }) {
   if (pathname.startsWith("/kiosk")) {
     return (
       <>
+        <AppUpdateBanner />
         <CloudSync />
         {isWeekLocked(lastGoodSync, appliedReleaseAt, now) ? <WeekLock /> : <div className="h-dvh overflow-hidden bg-paper text-ink">{children}</div>}
       </>
@@ -128,6 +133,7 @@ export function PosFrame({ children }: { children: ReactNode }) {
   if (!user) {
     return (
       <>
+        <AppUpdateBanner />
         <CloudSync />
         <LockScreen />
       </>
@@ -137,6 +143,7 @@ export function PosFrame({ children }: { children: ReactNode }) {
   if (isWeekLocked(lastGoodSync, appliedReleaseAt, now)) {
     return (
       <>
+        <AppUpdateBanner />
         <CloudSync />
         <WeekLock />
       </>
@@ -147,6 +154,7 @@ export function PosFrame({ children }: { children: ReactNode }) {
 
   return (
     <>
+      <AppUpdateBanner />
       <CloudSync />
       <div className="pos-frame flex h-dvh overflow-hidden bg-paper text-ink">
         <nav className="no-print hidden w-24 shrink-0 flex-col gap-1 border-e border-line bg-surface p-2 lg:flex">

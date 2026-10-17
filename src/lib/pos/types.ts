@@ -53,6 +53,8 @@ export type Product = {
   /** Shown on the customer kiosk. */
   kiosk: boolean;
   extras: Extra[];
+  /** When the name, price, or other details last changed. Stock moves do not bump this. */
+  updatedAt?: string;
 };
 
 export type CartLine = {
@@ -133,6 +135,7 @@ export type ClubMember = {
   phone: string;
   note: string;
   active: boolean;
+  updatedAt?: string;
 };
 
 export type StockReason = "sale" | "void" | "receive" | "count" | "waste";

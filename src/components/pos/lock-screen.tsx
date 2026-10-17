@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { CloudBar } from "@/components/pos/cloud-bar";
+import { CloudLinkCard } from "@/components/pos/cloud-link";
 import { canSeeStore } from "@/lib/pos/access";
 import { isWeekLocked, usePos } from "@/lib/pos/store";
 import { syncNow } from "@/lib/pos/sync";
@@ -148,6 +149,9 @@ export function LockScreen() {
         <Link to="/admin" className="mt-3 text-center text-sm font-medium text-pine">
           לוח בקרה בענן
         </Link>
+        <div className="mt-4">
+          <CloudLinkCard />
+        </div>
       </div>
     </main>
   );

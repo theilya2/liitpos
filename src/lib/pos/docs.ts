@@ -1,3 +1,4 @@
+import { mergeRemoteCatalog } from "@/lib/pos/merge";
 import { cloneSettings, codeForStore, demoExtras, demoKiosk, demoPhoto, demoShelf, emptyBranch } from "@/lib/pos/seed";
 import { cleanEndpoint } from "@/lib/pos/terminal";
 import type { Branch, ClubMember, DrawerOpen, Extra, Product, Sale, Settings, StaffUser, StockMove, ZReport } from "@/lib/pos/types";
@@ -200,6 +201,7 @@ function asMember(value: unknown): ClubMember | null {
     phone,
     note: typeof value.note === "string" ? value.note.slice(0, 80) : "",
     active: value.active !== false,
+    updatedAt: typeof value.updatedAt === "string" ? value.updatedAt : undefined,
   };
 }
 
@@ -222,6 +224,7 @@ function asProduct(value: unknown): Product | null {
     shelf: value.shelf === "upper" || value.shelf === "lower" || value.shelf === "off" ? value.shelf : (demoShelf(value.id) ?? "off"),
     kiosk: typeof value.kiosk === "boolean" ? value.kiosk : demoKiosk(value.id),
     extras: Array.isArray(value.extras) ? asExtras(value.extras) : demoExtras(value.id),
+    updatedAt: typeof value.updatedAt === "string" ? value.updatedAt : undefined,
   };
 }
 
@@ -281,25 +284,18 @@ export function applyDocs(input: {
     if (doc.kind === "catalog") {
       if (doc.deleted) continue;
       if (!isRecord(doc.doc)) continue;
-      const products = Array.isArray(doc.doc.products) ? doc.doc.products.map(asProduct).filter((item): item is Product => Boolean(item)) : [];
-      const members = Array.isArray(doc.doc.members)
-        ? doc.doc.members.map(asMember).filter((item): item is ClubMember => Boolean(item))
-        : null;
-      const categories = Array.isArray(doc.doc.categories)
-        ? doc.doc.categories.filter((item): item is { id: string; name: string } => isRecord(item) && typeof item.id === "string" && typeof item.name === "string")
-        : [];
-      const nextReceipt = Number(doc.doc.nextReceipt);
-      const nextZ = Number(doc.doc.nextZ);
       stores = upsertBranch(stores, doc.businessId).map((branch) => {
         if (branch.id !== doc.businessId) return branch;
-        return {
-          ...branch,
-          products,
-          categories: categories.length ? categories : branch.categories,
-          members: members ?? branch.members ?? [],
-          nextReceipt: Math.max(branch.nextReceipt, Number.isFinite(nextReceipt) ? nextReceipt : branch.nextReceipt),
-          nextZ: Math.max(branch.nextZ, Number.isFinite(nextZ) ? nextZ : branch.nextZ),
-        };
+        const pendingMoves = input.outbox
+          .filter((item) => item.kind === "move" && item.businessId === doc.businessId)
+          .map((item) => {
+            if (!isRecord(item.doc) || typeof item.doc.productId !== "string") return null;
+            const qty = Number(item.doc.qty);
+            if (!Number.isFinite(qty)) return null;
+            return { productId: item.doc.productId, qty };
+          })
+          .filter((item): item is { productId: string; qty: number } => Boolean(item));
+        return { ...branch, ...mergeRemoteCatalog(branch, doc, pendingMoves) };
       });
       continue;
     }
