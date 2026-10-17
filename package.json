@@ -18,7 +18,15 @@
     "check:auth": "node scripts/check-auth-invariant.mjs",
     "test": "node --test 'scripts/**/*.test.mjs' && node --experimental-strip-types --test src/lib/app-data/app-data.test.ts src/lib/app-data/readiness-schedule.test.ts src/lib/auth/gate-identity.test.ts src/lib/auth/sign-in-gate.test.ts src/lib/preview-path-prefix.test.ts",
     "lint": "eslint .",
-    "format": "prettier --write ."
+    "format": "prettier --write .",
+    "mobile:icons": "node scripts/mobile-icons.mjs",
+    "mobile:config": "node scripts/mobile-config.mjs",
+    "mobile:sync": "node scripts/mobile-config.mjs && cap sync",
+    "mobile:assets": "capacitor-assets generate --ios --android --assetPath mobile/assets --iconBackgroundColor '#0E6B56' --iconBackgroundColorDark '#0E6B56' --splashBackgroundColor '#0E6B56' --splashBackgroundColorDark '#0E6B56'",
+    "mobile:open:android": "node scripts/mobile-config.mjs && cap open android",
+    "mobile:open:ios": "node scripts/mobile-config.mjs && cap open ios",
+    "mobile:android:debug": "node scripts/mobile-config.mjs && cap sync android && cd android && ./gradlew assembleDebug",
+    "mobile:android:bundle": "node scripts/mobile-config.mjs && cap sync android && cd android && ./gradlew bundleRelease"
   },
   "dependencies": {
     "@electric-sql/pglite": "^0.5.4",
@@ -80,6 +88,13 @@
     "zustand": "^5.0.0"
   },
   "devDependencies": {
+    "@capacitor/android": "^8.5.3",
+    "@capacitor/assets": "^3.0.5",
+    "@capacitor/cli": "^8.5.3",
+    "@capacitor/core": "^8.5.3",
+    "@capacitor/ios": "^8.5.3",
+    "@capacitor/splash-screen": "^8.0.2",
+    "@capacitor/status-bar": "^8.0.4",
     "@eslint/js": "^9.20.0",
     "@types/node": "^22.16.5",
     "@types/pg": "^8.11.10",

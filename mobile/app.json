@@ -1,0 +1,22 @@
+{
+  "appName": "Liitpos",
+  "appId": "com.liitpos.app",
+  "serverUrl": "https://liitpos.grok.me",
+  "backgroundColor": "#0E6B56",
+  "allowNavigation": [
+    "*.grok.me",
+    "grok.com",
+    "*.grok.com",
+    "google.com",
+    "*.google.com",
+    "*.googleusercontent.com",
+    "*.gstatic.com",
+    "*.googleapis.com",
+    "youtube.com",
+    "*.youtube.com",
+    "x.com",
+    "*.x.com",
+    "twitter.com",
+    "*.twitter.com"
+  ]
+}
