@@ -277,7 +277,10 @@ function asStaff(doc: unknown): StaffUser | null {
 
 function upsertBranch(stores: Branch[], businessId: string): Branch[] {
   if (stores.some((branch) => branch.id === businessId)) return stores;
-  return [...stores.filter((branch) => branch.id !== "store-empty"), emptyBranch(businessId, cloneSettings(), [])];
+  // A business that arrives from the cloud starts empty. Demo categories belong
+  // to the seeded shop, not to a Back Office business that has no catalog yet.
+  const blank = emptyBranch(businessId, cloneSettings(), []);
+  return [...stores.filter((branch) => branch.id !== "store-empty"), { ...blank, categories: [] }];
 }
 
 export function applyDocs(input: {

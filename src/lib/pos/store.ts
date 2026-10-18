@@ -2,6 +2,7 @@ import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
 import { can, canSeeStore } from "@/lib/pos/access";
 import { drawerExpected, drawerVariance, paidIn, paidOut } from "@/lib/pos/cash";
+import { outboxWithoutDropped, pruneDemoSeed } from "@/lib/pos/baseline";
 import { applyDocs, catalogDoc, changesToDocs, deviceDoc, mergeOutbox, settingsDoc, snapshotDocs, staffDoc, type CloudDoc } from "@/lib/pos/docs";
 import { normalizeKioskSettings } from "@/lib/pos/kiosk";
 import { roundMoney } from "@/lib/pos/money";
@@ -98,6 +99,8 @@ type PosState = BranchFields & {
   addStore: (settings: Omit<Settings, "androidTerminal" | "pinpad" | "logo" | "autoPrint" | "paperWidth" | "printerName" | "openDrawer">) => string;
   saveStaff: (user: StaffUser) => string | null;
   applyRemote: (docs: CloudDoc[]) => void;
+  /** Drop the local demo shop after the cloud baseline for a paired register. */
+  takePairedBaseline: (docs: CloudDoc[], businessId: string) => boolean;
   replaceOutbox: (docs: CloudDoc[]) => void;
   ackOutbox: (ids: string[]) => void;
   setCloudCursor: (cursor: string | null) => void;
@@ -929,7 +932,11 @@ export const usePos = create<PosState>()(
           return true;
         },
 
-        lock: () => set({ sessionUserId: null, gateStoreId: null }),
+        lock: () => {
+          const state = get();
+          const keep = state.registerBusinessId && !state.registerRevoked ? state.registerBusinessId : null;
+          set({ sessionUserId: null, gateStoreId: keep });
+        },
 
         switchStore: (id) => {
           const state = get();
@@ -1007,6 +1014,25 @@ export const usePos = create<PosState>()(
             activeStoreId: active.id,
             ...fromBranch(active),
           });
+        },
+
+        takePairedBaseline: (docs, businessId) => {
+          const state = get();
+          const pruned = pruneDemoSeed({ stores: state.stores, staff: state.staff, docs, businessId });
+          const outbox = outboxWithoutDropped(state.outbox, pruned.droppedBusinessIds, pruned.droppedStaffIds);
+          const active = pruned.stores.find((branch) => branch.id === businessId) ?? pruned.stores[0];
+          if (!active) {
+            set({ staff: pruned.staff, outbox });
+            return false;
+          }
+          set({
+            stores: pruned.stores,
+            staff: pruned.staff,
+            activeStoreId: active.id,
+            outbox,
+            ...fromBranch(active),
+          });
+          return Boolean(businessId) && active.id === businessId;
         },
 
         replaceOutbox: (docs) => set({ outbox: docs }),

@@ -1,9 +1,12 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { canSeeStore } from "@/lib/pos/access";
 import { canUseBusiness, isDemoMode } from "@/lib/pos/demo";
 import { tapKey } from "@/lib/pos/haptics";
+import { lockView } from "@/lib/pos/lock-mode";
+import { readSessionToken } from "@/lib/pos/native";
+import { registerCaption } from "@/lib/pos/register";
 import { isWeekLocked, usePos } from "@/lib/pos/store";
-import { syncNow } from "@/lib/pos/sync";
+import { syncNow, useCloudStatus } from "@/lib/pos/sync";
 import { ROLE_LABEL } from "@/lib/pos/types";
 
 export function LockScreen() {
@@ -14,17 +17,49 @@ export function LockScreen() {
   const setGateStore = usePos((state) => state.setGateStore);
   const lastGoodSync = usePos((state) => state.lastGoodSync);
   const appliedReleaseAt = usePos((state) => state.appliedReleaseAt);
-  const business = stores.find((store) => store.id === gateStoreId) ?? null;
+  const registerNo = usePos((state) => state.registerNo);
+  const registerName = usePos((state) => state.registerName);
+  const registerBusinessId = usePos((state) => state.registerBusinessId);
   const activeLogo = usePos((state) => state.settings.logo);
-  const logo = business?.settings.logo || activeLogo;
-  const visible = staff.filter((user) => user.active && business && canSeeStore(user, business.id) && canUseBusiness(business.id, business.settings.code));
+  const phase = useCloudStatus((state) => state.phase);
+  const detail = useCloudStatus((state) => state.detail);
+  const attempt = useCloudStatus((state) => state.attempt);
+  const [token, setToken] = useState("");
   const [userId, setUserId] = useState("");
   const [pin, setPin] = useState("");
   const [code, setCode] = useState("");
   const [error, setError] = useState("");
+
+  useEffect(() => {
+    const refresh = () => setToken(readSessionToken());
+    refresh();
+    window.addEventListener("liitpos-session", refresh);
+    window.addEventListener("focus", refresh);
+    return () => {
+      window.removeEventListener("liitpos-session", refresh);
+      window.removeEventListener("focus", refresh);
+    };
+  }, []);
+
+  const demo = isDemoMode();
+  const gated = stores.find((store) => store.id === gateStoreId) ?? null;
+  const bound = stores.find((store) => store.id === registerBusinessId) ?? null;
+  const businessReady = Boolean(token && registerBusinessId && bound && gateStoreId === registerBusinessId);
+  const business = demo ? gated : businessReady ? bound : null;
+  const logo = business?.settings.logo || (business ? activeLogo : "");
+  const visible = staff.filter((user) => user.active && business && canSeeStore(user, business.id) && canUseBusiness(business.id, business.settings.code));
   const weekLocked = isWeekLocked(lastGoodSync, appliedReleaseAt);
   const selected = visible.find((user) => user.id === userId)?.id ?? visible.find((user) => user.role === "cashier")?.id ?? visible[0]?.id ?? "";
-  const demo = isDemoMode();
+  const view = lockView({
+    demo,
+    paired: Boolean(token),
+    businessReady,
+    staffCount: visible.length,
+    phase,
+    detail,
+    attempt,
+  });
+  const caption = registerCaption(registerNo, registerName);
 
   function choose(nextCode: string) {
     const match = usePos.getState().stores.find((store) => store.id !== "store-empty" && store.settings.code === nextCode && canUseBusiness(store.id, store.settings.code));
@@ -76,6 +111,44 @@ export function LockScreen() {
     }
   }
 
+  if (view.kind === "unpaired" || view.kind === "loading" || view.kind === "failed") {
+    return (
+      <main className="lock-screen min-h-0 flex-1 bg-paper text-ink">
+        <div className="lock-board">
+          <section className="lock-identity">
+            <div className="flex items-center gap-3">
+              <span className="lock-logo flex items-center justify-center rounded-2xl bg-pine font-bold text-pine-ink">₪</span>
+              <div className="min-w-0">
+                <h1 className="text-2xl font-semibold">קופהקל</h1>
+                <p className="truncate text-sm text-muted">{view.kind === "unpaired" ? "ממתינים לחיבור" : view.kind === "loading" ? "טוענים את העסק…" : "החיבור לעסק נכשל"}</p>
+              </div>
+            </div>
+            {view.kind === "unpaired" ? (
+              <>
+                <p className="mt-4 text-lg font-semibold text-pretty">הקופה עדיין לא מחוברת לעסק</p>
+                <p className="lock-note mt-3 text-sm text-pretty text-muted">
+                  הבעלים מוסיף את הקופה מהמשרד האחורי דרך «הוספת קופה», ופותח את הקישור או את קוד ה-QR במכשיר הזה.
+                </p>
+              </>
+            ) : null}
+            {view.kind === "loading" ? <p className="mt-4 text-lg font-semibold text-pretty">טוענים את העסק…</p> : null}
+            {view.kind === "failed" ? (
+              <>
+                <p className="lock-note mt-4 text-sm text-pretty text-copper">{view.detail}</p>
+                <button type="button" onClick={() => void syncNow()} className="mt-4 min-h-12 rounded-xl bg-pine px-4 text-sm font-semibold text-pine-ink">
+                  נסו שוב
+                </button>
+              </>
+            ) : null}
+          </section>
+        </div>
+      </main>
+    );
+  }
+
+  const showStaff = Boolean(business) && (view.kind === "pin" || view.kind === "code");
+  const emptyStaff = view.kind === "pin" && view.emptyStaff;
+
   return (
     <main className="lock-screen min-h-0 flex-1 bg-paper text-ink">
       <div className="lock-board">
@@ -96,37 +169,49 @@ export function LockScreen() {
               הקופה נעולה כי עבר שבוע בלי חיבור לענן. אחרי כניסה אי אפשר למכור עד שהבעלים משחרר את הנעילה והקופה מתחברת שוב.
             </p>
           ) : null}
-          {business ? (
+          {showStaff && business ? (
             <>
               <div className="mt-3 flex items-center justify-between gap-3">
                 <p className="text-sm text-muted">
-                  מזהה <span className="font-semibold tabular-nums text-ink" dir="ltr">{business.settings.code}</span>
+                  {caption ? <span className="font-semibold text-ink">{caption}</span> : null}
+                  {view.kind === "code" ? (
+                    <>
+                      {caption ? " · " : null}
+                      מזהה <span className="font-semibold tabular-nums text-ink" dir="ltr">{business.settings.code}</span>
+                    </>
+                  ) : null}
                 </p>
-                <button type="button" onClick={() => setGateStore(null)} className="min-h-12 rounded-xl bg-surface px-3 text-sm ring-1 ring-line">
-                  עסק אחר
-                </button>
-              </div>
-              <div className="lock-staff mt-2 grid grid-cols-1 gap-2">
-                {visible.length === 0 ? <p className="text-sm text-muted">אין משתמשים פעילים לעסק הזה.</p> : null}
-                {visible.map((user) => (
-                  <button
-                    key={user.id}
-                    type="button"
-                    onClick={() => {
-                      setUserId(user.id);
-                      setPin("");
-                      setError("");
-                    }}
-                    className={`flex min-h-12 items-center justify-between rounded-2xl px-3 text-start ${selected === user.id ? "bg-pine text-pine-ink" : "bg-surface ring-1 ring-line"}`}
-                  >
-                    <span className="font-medium">{user.name}</span>
-                    <span className={`text-sm ${selected === user.id ? "text-pine-ink" : "text-muted"}`}>{ROLE_LABEL[user.role]}</span>
+                {view.kind === "code" ? (
+                  <button type="button" onClick={() => setGateStore(null)} className="min-h-12 rounded-xl bg-surface px-3 text-sm ring-1 ring-line">
+                    עסק אחר
                   </button>
-                ))}
+                ) : null}
               </div>
-              <PinDots filled={pin.length} total={4} />
-              {error ? <p className="mt-2 text-center text-sm text-pretty text-copper">{error}</p> : <p className="mt-2 text-center text-sm text-muted">קוד בן 4 ספרות</p>}
-              {demo ? <p className="mt-2 text-center text-xs text-pretty text-muted">במכולת: מנהל 1111 · אחראי 2222 · קופאי 3333. בקיוסק נכנסת המנהלת.</p> : null}
+              {emptyStaff ? (
+                <p className="lock-note mt-4 text-sm text-pretty text-muted">אין עובדים לעסק הזה. הבעלים צריך להוסיף עובד במשרד האחורי.</p>
+              ) : (
+                <div className="lock-staff mt-2 grid grid-cols-1 gap-2">
+                  {visible.length === 0 ? <p className="text-sm text-muted">אין משתמשים פעילים לעסק הזה.</p> : null}
+                  {visible.map((user) => (
+                    <button
+                      key={user.id}
+                      type="button"
+                      onClick={() => {
+                        setUserId(user.id);
+                        setPin("");
+                        setError("");
+                      }}
+                      className={`flex min-h-12 items-center justify-between rounded-2xl px-3 text-start ${selected === user.id ? "bg-pine text-pine-ink" : "bg-surface ring-1 ring-line"}`}
+                    >
+                      <span className="font-medium">{user.name}</span>
+                      <span className={`text-sm ${selected === user.id ? "text-pine-ink" : "text-muted"}`}>{ROLE_LABEL[user.role]}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+              {emptyStaff ? null : <PinDots filled={pin.length} total={4} />}
+              {emptyStaff ? null : error ? <p className="mt-2 text-center text-sm text-pretty text-copper">{error}</p> : <p className="mt-2 text-center text-sm text-muted">קוד בן 4 ספרות</p>}
+              {demo && !emptyStaff ? <p className="mt-2 text-center text-xs text-pretty text-muted">במכולת: מנהל 1111 · אחראי 2222 · קופאי 3333. בקיוסק נכנסת המנהלת.</p> : null}
             </>
           ) : (
             <>
@@ -137,16 +222,18 @@ export function LockScreen() {
             </>
           )}
         </section>
-        <section className="lock-keys">
-          <Keypad
-            onDigit={business ? pushPin : pushCode}
-            onClear={() => {
-              if (business) setPin("");
-              else setCode("");
-              setError("");
-            }}
-          />
-        </section>
+        {emptyStaff ? null : (
+          <section className="lock-keys">
+            <Keypad
+              onDigit={showStaff ? pushPin : pushCode}
+              onClear={() => {
+                if (showStaff) setPin("");
+                else setCode("");
+                setError("");
+              }}
+            />
+          </section>
+        )}
       </div>
     </main>
   );
