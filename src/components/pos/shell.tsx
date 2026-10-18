@@ -2,7 +2,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import { Link, useRouterState } from "@tanstack/react-router";
 import { BarChart3, Boxes, LockKeyhole, Receipt, Settings2, ShoppingCart } from "lucide-react";
 import { AppUpdateBanner } from "@/components/pos/app-update";
-import { CloudSync, SyncIndicator } from "@/components/pos/cloud-bar";
+import { CloudSync, RegisterMark, SyncIndicator } from "@/components/pos/cloud-bar";
 import { areaForPath, can } from "@/lib/pos/access";
 import { canUseBusiness } from "@/lib/pos/demo";
 import { prepareNative } from "@/lib/pos/native";
@@ -196,7 +196,10 @@ export function PosFrame({ children }: { children: ReactNode }) {
           </button>
         </nav>
         <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
-          <SyncIndicator />
+          <div className="flex items-start justify-between gap-2">
+            <SyncIndicator />
+            <RegisterMark />
+          </div>
           <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
             {allowed ? (
               children

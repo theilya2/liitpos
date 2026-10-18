@@ -9,6 +9,7 @@ import {
 } from "./admin-credentials";
 import { OWNER_ID } from "./owner";
 import { pairingLink, type DeviceTokenView } from "./pairing";
+import { cleanRegisterName, nextRegisterNo, registerCaption, type RegisterClaim } from "@/lib/pos/register";
 
 export const ADMIN_COOKIE = "liitpos_admin";
 const SESSION_SECONDS = 60 * 60 * 12;
@@ -195,6 +196,24 @@ export async function listDeviceTokens(): Promise<DeviceTokenView[]> {
   }));
 }
 
+export async function listLegacyTokens(): Promise<DeviceTokenView[]> {
+  const sql = await getSql();
+  const rows = await sql<{ id: string; label: string; created_at: string; last_seen: string | null; revoked: boolean }>`
+    select id, label, created_at::text as created_at, last_seen::text as last_seen, (revoked_at is not null) as revoked
+    from device_tokens
+    where register_id is null
+    order by created_at desc
+    limit 50
+  `;
+  return rows.map((row) => ({
+    id: row.id,
+    label: row.label,
+    createdAt: row.created_at,
+    lastSeen: row.last_seen,
+    revoked: asBool(row.revoked),
+  }));
+}
+
 export async function createDeviceToken(request: Request, label: string): Promise<{ id: string; label: string; link: string }> {
   const token = randomBytes(32).toString("base64url");
   const id = `dev_${randomBytes(8).toString("hex")}`;
@@ -209,4 +228,193 @@ export async function createDeviceToken(request: Request, label: string): Promis
 export async function revokeDeviceToken(id: string): Promise<void> {
   const sql = await getSql();
   await sql`update device_tokens set revoked_at = now() where id = ${id} and revoked_at is null`;
+}
+
+export type RegisterView = {
+  id: string;
+  businessId: string;
+  number: number;
+  name: string;
+  revoked: boolean;
+  paired: boolean;
+  appVersion: string;
+  lastSync: string | null;
+  lastContact: string | null;
+  pendingOutbox: number;
+  online: boolean;
+};
+
+export type DeviceSession =
+  | { status: "ok"; ownerId: string; register: RegisterClaim | null; registerId: string | null }
+  | { status: "revoked" }
+  | { status: "unauthorized" };
+
+function isUniqueViolation(error: unknown): boolean {
+  return Boolean(error && typeof error === "object" && "code" in error && (error as { code?: string }).code === "23505");
+}
+
+async function businessExists(businessId: string): Promise<boolean> {
+  const sql = await getSql();
+  const rows = await sql<{ ok: boolean }>`
+    select true as ok from pos_docs
+    where user_id = ${OWNER_ID} and business_id = ${businessId} and kind = 'settings' and deleted = false
+    limit 1
+  `;
+  return Boolean(rows[0]?.ok);
+}
+
+export async function listRegisters(): Promise<RegisterView[]> {
+  const sql = await getSql();
+  const rows = await sql<{
+    id: string;
+    business_id: string;
+    register_no: number;
+    name: string;
+    revoked: boolean;
+    paired: boolean;
+    app_version: string;
+    last_sync: string | null;
+    last_contact: string | null;
+    pending_outbox: number;
+    online: boolean;
+  }>`
+    select
+      r.id,
+      r.business_id,
+      r.register_no,
+      r.name,
+      (r.revoked_at is not null) as revoked,
+      exists (
+        select 1 from device_tokens t
+        where t.register_id = r.id and t.revoked_at is null
+      ) as paired,
+      r.app_version,
+      r.last_sync::text as last_sync,
+      (
+        select max(t.last_seen)::text from device_tokens t where t.register_id = r.id
+      ) as last_contact,
+      r.pending_outbox,
+      (
+        r.revoked_at is null
+        and exists (
+          select 1 from device_tokens t
+          where t.register_id = r.id and t.last_seen is not null and t.last_seen > now() - interval '2 minutes'
+        )
+      ) as online
+    from registers r
+    order by r.business_id, r.register_no
+  `;
+  return rows.map((row) => ({
+    id: row.id,
+    businessId: row.business_id,
+    number: Number(row.register_no),
+    name: row.name ?? "",
+    revoked: asBool(row.revoked),
+    paired: asBool(row.paired),
+    appVersion: row.app_version ?? "",
+    lastSync: row.last_sync,
+    lastContact: row.last_contact,
+    pendingOutbox: Number(row.pending_outbox) || 0,
+    online: asBool(row.online),
+  }));
+}
+
+async function issueToken(request: Request, registerId: string, businessId: string, label: string): Promise<string> {
+  const token = randomBytes(32).toString("base64url");
+  const id = `dev_${randomBytes(8).toString("hex")}`;
+  const sql = await getSql();
+  await sql`
+    insert into device_tokens (id, token_hash, label, register_id, business_id)
+    values (${id}, ${hashToken(token)}, ${label}, ${registerId}, ${businessId})
+  `;
+  return pairingLink(token, cloudOrigin(request));
+}
+
+export async function createRegister(request: Request, businessId: string, name: string): Promise<{ id: string; number: number; name: string; link: string }> {
+  if (!(await businessExists(businessId))) throw new Error("העסק לא נמצא.");
+  const cleanName = cleanRegisterName(name);
+  const sql = await getSql();
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    const numbers = await sql<{ register_no: number }>`
+      select register_no from registers where business_id = ${businessId}
+    `;
+    const registerNo = nextRegisterNo(numbers.map((row) => Number(row.register_no)));
+    const id = `reg_${randomBytes(8).toString("hex")}`;
+    try {
+      await sql`
+        insert into registers (id, business_id, register_no, name)
+        values (${id}, ${businessId}, ${registerNo}, ${cleanName})
+      `;
+      const link = await issueToken(request, id, businessId, registerCaption(registerNo, cleanName));
+      return { id, number: registerNo, name: cleanName, link };
+    } catch (error) {
+      if (!isUniqueViolation(error) || attempt === 2) throw error;
+    }
+  }
+  throw new Error("לא הצלחנו לתת מספר קופה.");
+}
+
+export async function renameRegister(id: string, name: string): Promise<void> {
+  const sql = await getSql();
+  const rows = await sql<{ id: string }>`
+    update registers set name = ${cleanRegisterName(name)} where id = ${id} returning id
+  `;
+  if (!rows[0]?.id) throw new Error("הקופה לא נמצאה.");
+}
+
+export async function revokeRegister(id: string): Promise<void> {
+  const sql = await getSql();
+  await sql`update registers set revoked_at = now() where id = ${id} and revoked_at is null`;
+  await sql`update device_tokens set revoked_at = now() where register_id = ${id} and revoked_at is null`;
+}
+
+export async function reissueRegister(request: Request, id: string): Promise<{ id: string; number: number; name: string; link: string }> {
+  const sql = await getSql();
+  const rows = await sql<{ business_id: string; register_no: number; name: string }>`
+    update registers set revoked_at = null where id = ${id}
+    returning business_id, register_no, name
+  `;
+  const row = rows[0];
+  if (!row) throw new Error("הקופה לא נמצאה.");
+  await sql`update device_tokens set revoked_at = now() where register_id = ${id} and revoked_at is null`;
+  const number = Number(row.register_no);
+  const name = row.name ?? "";
+  const link = await issueToken(request, id, row.business_id, registerCaption(number, name));
+  return { id, number, name, link };
+}
+
+export async function markRegisterSynced(registerId: string): Promise<void> {
+  if (!registerId) return;
+  const sql = await getSql();
+  await sql`update registers set last_sync = now() where id = ${registerId} and revoked_at is null`;
+}
+
+export async function openDeviceSession(token: string, client: { appVersion: string; pending: number }): Promise<DeviceSession> {
+  if (!token) return { status: "unauthorized" };
+  const sql = await getSql();
+  const rows = await sql<{ id: string; revoked_at: string | null; register_id: string | null }>`
+    update device_tokens
+    set last_seen = now()
+    where token_hash = ${hashToken(token)}
+    returning id, revoked_at::text as revoked_at, register_id
+  `;
+  const row = rows[0];
+  if (!row) return { status: "unauthorized" };
+  if (row.revoked_at) return { status: "revoked" };
+  if (!row.register_id) return { status: "ok", ownerId: OWNER_ID, register: null, registerId: null };
+  const registers = await sql<{ business_id: string; register_no: number; name: string; revoked_at: string | null }>`
+    update registers
+    set app_version = ${client.appVersion},
+        pending_outbox = ${client.pending}
+    where id = ${row.register_id} and revoked_at is null
+    returning business_id, register_no, name, revoked_at::text as revoked_at
+  `;
+  const register = registers[0];
+  if (!register) return { status: "revoked" };
+  return {
+    status: "ok",
+    ownerId: OWNER_ID,
+    registerId: row.register_id,
+    register: { number: Number(register.register_no), name: register.name ?? "", businessId: register.business_id },
+  };
 }

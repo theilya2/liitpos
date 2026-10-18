@@ -9,6 +9,7 @@ import { confirmReceipt, deliverPrint, pulseDrawer } from "@/lib/pos/receipt-io"
 import { formatILS, formatWhen, moneyFromPad, pushMoneyKey, roundCash, roundMoney } from "@/lib/pos/money";
 import { buildConfiguredLine, findByCode, mustChoose, needsPicker, shelfPrice } from "@/lib/pos/options";
 import { pricedOrPlain } from "@/lib/pos/promo";
+import { registerCaption } from "@/lib/pos/register";
 import { foldTenders, previewTender, remainingExact, type TenderInput } from "@/lib/pos/tender";
 import { currentUser, isWeekLocked, usePos } from "@/lib/pos/store";
 import { chargeTerminal, deviceLabel, isSafeIpv4, MAX_PAYMENTS, paymentPlan } from "@/lib/pos/terminal";
@@ -690,6 +691,12 @@ export function SalePage() {
   const vatRate = usePos((state) => state.settings.vatRate);
   const promos = usePos((state) => state.settings.promos);
   const businessName = usePos((state) => state.settings.businessName);
+  const registerNo = usePos((state) => state.registerNo);
+  const registerName = usePos((state) => state.registerName);
+  const registerBusinessId = usePos((state) => state.registerBusinessId);
+  const registerRevoked = usePos((state) => state.registerRevoked);
+  const activeStoreId = usePos((state) => state.activeStoreId);
+  const registerLine = !registerRevoked && registerBusinessId === activeStoreId ? registerCaption(registerNo, registerName) : "";
   const sales = usePos((state) => state.sales);
   const user = usePos(currentUser);
   const openDrawer = usePos((state) => state.openDrawer);
@@ -894,6 +901,7 @@ export function SalePage() {
           <p className="truncate text-xs text-muted">
             {dateLabel}
             {user ? ` · ${user.name}` : ""}
+            {registerLine ? ` · ${registerLine}` : ""}
           </p>
         </header>
         <div className="grid shrink-0 grid-cols-2 gap-2 px-2 pt-2">

@@ -27,6 +27,7 @@ import {
 } from "@/lib/pos/seed";
 import { type Branch, type CartLine, type CashMove, type Category, type ClubMember, type Discount, type DrawerOpen, type HeldOrder, type PaymentMethod, type Product, type Role, type Sale, type Settings, type StaffUser, type StockMove, type StockReason, type TerminalKind, type ZReport } from "@/lib/pos/types";
 import { canUseBusiness, isDemoMode } from "@/lib/pos/demo";
+import { registerStamp, type RegisterClaim } from "@/lib/pos/register";
 import { withPrintSettings } from "@/lib/pos/printer";
 import { isReceiptToken, newReceiptToken } from "@/lib/pos/receipt-link";
 import { cleanEndpoint } from "@/lib/pos/terminal";
@@ -44,6 +45,10 @@ type PosState = BranchFields & {
   lastGoodSync: string | null;
   appliedReleaseAt: string | null;
   deviceId: string;
+  registerNo: number | null;
+  registerName: string;
+  registerBusinessId: string;
+  registerRevoked: boolean;
   gateStoreId: string | null;
   receiptToPrint: Sale | null;
   zToPrint: ZReport | null;
@@ -97,6 +102,8 @@ type PosState = BranchFields & {
   ackOutbox: (ids: string[]) => void;
   setCloudCursor: (cursor: string | null) => void;
   acceptCloudClock: (serverTime: string, releaseAt: string | null) => void;
+  adoptRegister: (claim: RegisterClaim) => void;
+  markRegisterRevoked: () => void;
 };
 
 export const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
@@ -305,6 +312,10 @@ export const usePos = create<PosState>()(
         lastGoodSync: null,
         appliedReleaseAt: null,
         deviceId: "",
+        registerNo: null,
+        registerName: "",
+        registerBusinessId: "",
+        registerRevoked: false,
         gateStoreId: null,
         receiptToPrint: null,
         zToPrint: null,
@@ -499,6 +510,7 @@ export const usePos = create<PosState>()(
             cardBrand: card?.cardBrand ?? "",
             channel,
             kioskStatus: channel === "kiosk" ? "new" : null,
+            ...(registerStamp(state) ?? {}),
             publicToken: newReceiptToken(),
             business: {
               businessName: state.settings.businessName,
@@ -627,6 +639,7 @@ export const usePos = create<PosState>()(
             cardLast4: card?.cardLast4 ?? "",
             cardBrand: card?.cardBrand ?? "",
             channel: sale.channel,
+            ...(registerStamp(state) ?? {}),
             business: sale.business,
             publicToken: newReceiptToken(),
           };
@@ -799,7 +812,12 @@ export const usePos = create<PosState>()(
 
         closeZ: (cashCounted, leftInDrawer) => {
           const state = get();
-          const open = state.sales.filter((sale) => !sale.zId);
+          const stamp = registerStamp(state);
+          const open = state.sales.filter((sale) => {
+            if (sale.zId) return false;
+            if (!stamp) return true;
+            return sale.registerNo === stamp.registerNo || typeof sale.registerNo !== "number";
+          });
           if (!open.length) return null;
           const figures = zFigures(open);
           if (figures.salesCount + figures.creditCount === 0) return null;
@@ -815,6 +833,7 @@ export const usePos = create<PosState>()(
             closedAt: new Date().toISOString(),
             closedBy: actorName(state),
             storeName: state.settings.businessName,
+            ...(stamp ?? {}),
             from: new Date(Math.min(...times)).toISOString(),
             to: new Date(Math.max(...times)).toISOString(),
             salesCount: figures.salesCount,
@@ -914,6 +933,7 @@ export const usePos = create<PosState>()(
 
         switchStore: (id) => {
           const state = get();
+          if (state.registerBusinessId && !state.registerRevoked && id !== state.registerBusinessId) return;
           const target = state.stores.find((branch) => branch.id === id);
           if (!target || !canUseBusiness(target.id, target.settings.code)) return;
           if (id === state.activeStoreId) return;
@@ -930,6 +950,7 @@ export const usePos = create<PosState>()(
             return;
           }
           const state = get();
+          if (state.registerBusinessId && !state.registerRevoked && id !== state.registerBusinessId) return;
           const target = state.stores.find((branch) => branch.id === id);
           if (!target || !canUseBusiness(target.id, target.settings.code)) return;
           const switched = state.activeStoreId === id ? {} : activate(state, id);
@@ -997,6 +1018,22 @@ export const usePos = create<PosState>()(
 
         setCloudCursor: (cursor) => set({ cloudCursor: cursor }),
 
+        adoptRegister: (claim) => {
+          const state = get();
+          set({
+            registerNo: claim.number,
+            registerName: claim.name,
+            registerBusinessId: claim.businessId,
+            registerRevoked: false,
+          });
+          if (state.sessionUserId || state.cart.length) return;
+          if (!state.stores.some((branch) => branch.id === claim.businessId)) return;
+          if (state.gateStoreId === claim.businessId && state.activeStoreId === claim.businessId) return;
+          get().setGateStore(claim.businessId);
+        },
+
+        markRegisterRevoked: () => set({ registerRevoked: true }),
+
         acceptCloudClock: (serverTime, releaseAt) => {
           const state = get();
           const serverIso = Number.isFinite(Date.parse(serverTime)) ? new Date(serverTime).toISOString() : new Date().toISOString();
@@ -1052,6 +1089,10 @@ export const usePos = create<PosState>()(
         lastGoodSync: state.lastGoodSync,
         appliedReleaseAt: state.appliedReleaseAt,
         deviceId: state.deviceId,
+        registerNo: state.registerNo,
+        registerName: state.registerName,
+        registerBusinessId: state.registerBusinessId,
+        registerRevoked: state.registerRevoked,
         gateStoreId: state.gateStoreId,
       }),
       migrate: (persisted, version) => {
@@ -1090,6 +1131,10 @@ export const usePos = create<PosState>()(
           lastGoodSync: next.lastGoodSync ?? null,
           appliedReleaseAt: next.appliedReleaseAt ?? null,
           deviceId: next.deviceId ?? "",
+          registerNo: next.registerNo ?? null,
+          registerName: next.registerName ?? "",
+          registerBusinessId: next.registerBusinessId ?? "",
+          registerRevoked: next.registerRevoked === true,
           gateStoreId: next.gateStoreId ?? null,
         };
       },

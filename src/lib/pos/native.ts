@@ -1,3 +1,5 @@
+import { DEFAULT_CLOUD_ORIGIN } from "@/lib/pos/register";
+
 const CLOUD_KEY = "liitpos-cloud-url";
 const TOKEN_KEY = "grok-auth.bearer-token";
 const UPDATE_REPO = "theilya2/Liitpos";
@@ -58,12 +60,15 @@ export function cleanCloudUrl(value: string): string {
 export function readCloudUrl(): string {
   const fromBridge = cleanCloudUrl(bridge()?.getCloudUrl?.() ?? "");
   if (fromBridge) return fromBridge;
-  if (typeof window === "undefined") return "";
-  try {
-    return cleanCloudUrl(window.localStorage.getItem(CLOUD_KEY) ?? "");
-  } catch {
-    return "";
+  if (typeof window !== "undefined") {
+    try {
+      const saved = cleanCloudUrl(window.localStorage.getItem(CLOUD_KEY) ?? "");
+      if (saved) return saved;
+    } catch {
+      /* private mode */
+    }
   }
+  return isNativeApp() ? DEFAULT_CLOUD_ORIGIN : "";
 }
 
 export function writeCloudUrl(value: string): string {

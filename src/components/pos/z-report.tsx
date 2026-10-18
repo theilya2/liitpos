@@ -1,5 +1,6 @@
 import { formatDay, formatILS } from "@/lib/pos/money";
 import { currentUser, usePos } from "@/lib/pos/store";
+import { registerCaption } from "@/lib/pos/register";
 import { METHOD_LABEL, type ZReport } from "@/lib/pos/types";
 
 function Row({ label, value, strong }: { label: string; value: string; strong?: boolean }) {
@@ -20,6 +21,7 @@ export function ZReportView({ report }: { report: ZReport }) {
         <p className="text-sm text-muted">דוח Z</p>
         <h2 className="text-xl font-semibold">{report.storeName}</h2>
         <p className="mt-1 text-sm font-semibold">מספר {report.number}</p>
+        {report.registerNo ? <p className="text-sm font-semibold">{registerCaption(report.registerNo, report.registerName)}</p> : null}
         <p className="text-sm text-muted">{formatDay(report.closedAt)}</p>
         <p className="text-sm text-muted">נסגר על ידי {report.closedBy || "—"}</p>
       </header>

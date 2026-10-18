@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { DevicePairing } from "@/components/pos/device-pairing";
+import { LegacyTokens, RegistersAdmin } from "@/components/pos/registers-admin";
 import {
   deleteCloudBusiness,
   deleteCloudUser,
@@ -212,7 +212,6 @@ function Panel({ onLogout }: { onLogout: () => void }) {
         </button>
       </header>
       <div className="space-y-3 px-4 pb-10">
-        <DevicePairing />
         <section className="rounded-2xl bg-surface p-4 ring-1 ring-line">
           <h2 className="text-base font-semibold">נעילת שבוע</h2>
           <p className="mt-1 text-sm text-muted">קופה שלא דיברה עם הענן שבעה ימים ננעלת למכירה. השחרור נכנס לתוקף כשהיא מתחברת שוב. המכירות שנשמרו במכשיר לא נמחקות.</p>
@@ -260,6 +259,7 @@ function Panel({ onLogout }: { onLogout: () => void }) {
               עסק חדש
             </button>
           </div>
+          <p className="mt-2 text-sm text-pretty text-muted">רק מכאן מוסיפים קופה. בקופה עצמה אין שדה לכתובת שרת, ואין דרך לשייך מכשיר.</p>
           {businesses.length === 0 ? (
             <p className="mt-3 text-sm text-muted">עדיין אין עסקים בענן. יוצרים כאן, או פותחים את הקופה — מה ששמור במכשיר יעלה אוטומטית כשיש רשת.</p>
           ) : (
@@ -283,11 +283,13 @@ function Panel({ onLogout }: { onLogout: () => void }) {
                       {business.settings.address || "בלי כתובת"} · {business.sales} קבלות בענן
                     </span>
                   </button>
+                  <RegistersAdmin businessId={business.id} />
                 </li>
               ))}
             </ul>
           )}
         </section>
+        <LegacyTokens />
 
         {selected ? (
           <section className="rounded-2xl bg-surface p-4 ring-1 ring-line">

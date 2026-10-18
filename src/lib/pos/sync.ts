@@ -1,9 +1,11 @@
 import { create } from "zustand";
-import { pullCloud, pushCloud } from "@/lib/pos/cloud-api";
+import { probeCloud, pullCloud, pushCloud, type SyncClient, type SyncFailureReason } from "@/lib/pos/cloud-api";
 import { catalogDoc, mergeOutbox, snapshotDocs, type CloudDoc } from "@/lib/pos/docs";
+import { isNativeApp, nativeVersion, readSessionToken } from "@/lib/pos/native";
+import { REVOKED_DETAIL, type RegisterClaim } from "@/lib/pos/register";
 import { usePos } from "@/lib/pos/store";
 
-export type CloudPhase = "checking" | "offline" | "local" | "syncing" | "synced" | "error";
+export type CloudPhase = "checking" | "offline" | "local" | "syncing" | "synced" | "error" | "revoked";
 
 type CloudView = {
   phase: CloudPhase;
@@ -16,15 +18,55 @@ export const useCloudStatus = create<CloudView>(() => ({
 }));
 
 let running = false;
+let queued = false;
+let blockedToken = "";
 
-function isOffline() {
+export const UNPAIRED_DETAIL = "המכשיר לא משויך. צריך קישור או קוד QR מהמשרד האחורי, לא רק כתובת שרת.";
+export const OFFLINE_DETAIL = "אין רשת. המכירות נשמרות במכשיר עד שהחיבור חוזר.";
+
+export function serverErrorDetail(status: number): string {
+  return `השרת החזיר שגיאה ${status}.`;
+}
+
+export function unreachableDetail(browserOffline: boolean): string {
+  if (browserOffline) {
+    return "הדפדפן דיווח שאין רשת, אבל השרת נגיש. בקשת הסנכרון נכשלה בלי קוד שגיאה.";
+  }
+  return "השרת נגיש, אבל בקשת הסנכרון נכשלה בלי קוד שגיאה.";
+}
+
+/**
+ * Offline only after the sync request itself failed on the network, and a
+ * reachability probe also failed. navigator.onLine is not enough: Android
+ * WebView can leave it stuck at false while the radio works. A probe that
+ * reaches the host overrides that stuck flag.
+ */
+export function shouldReportOffline(networkError: boolean, browserOffline: boolean, probeFailed: boolean): boolean {
+  if (!networkError) return false;
+  if (!(browserOffline || probeFailed)) return false;
+  // WebView can stick onLine at false. A probe that reached the host wins.
+  if (!probeFailed) return false;
+  return true;
+}
+
+function browserReportsOffline() {
   return typeof navigator !== "undefined" && navigator.onLine === false;
 }
 
-function isUnauthorized(error: unknown) {
-  if (!error || typeof error !== "object") return false;
-  const value = error as { status?: number; message?: string };
-  return value.status === 401 || value.message === "Unauthorized";
+function failureOf(error: unknown): { reason: SyncFailureReason | ""; status: number } {
+  if (!error || typeof error !== "object") return { reason: "", status: 0 };
+  const value = error as { reason?: unknown; status?: unknown; message?: unknown };
+  const reason =
+    value.reason === "unpaired" || value.reason === "revoked" || value.reason === "no-address" || value.reason === "http" || value.reason === "network"
+      ? value.reason
+      : "";
+  const status = typeof value.status === "number" ? value.status : 0;
+  if (!reason && (status === 401 || value.message === "Unauthorized")) return { reason: "unpaired", status: status || 401 };
+  if (!reason && error instanceof TypeError) return { reason: "network", status: 0 };
+  if (!reason && typeof value.message === "string" && /failed to fetch|networkerror|load failed|network request failed/i.test(value.message)) {
+    return { reason: "network", status: 0 };
+  }
+  return { reason, status };
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -63,12 +105,23 @@ function releaseStamp(docs: CloudDoc[]): string | null {
   return value;
 }
 
+function syncClient(): SyncClient {
+  const version = nativeVersion();
+  const appVersion = version.versionName || (isNativeApp() ? String(version.versionCode || "android") : "web");
+  return { appVersion: appVersion.slice(0, 40) || "web", pending: usePos.getState().outbox.length };
+}
+
+function rememberRegister(register: RegisterClaim | null) {
+  if (register) usePos.getState().adoptRegister(register);
+}
+
 async function flushOutbox() {
   let state = usePos.getState();
   let guard = 0;
   while (state.outbox.length && guard < 8) {
     const batch = state.outbox.slice(0, 20);
-    const result = await pushCloud(batch);
+    const result = await pushCloud(batch, syncClient());
+    rememberRegister(result.register);
     const done = new Set([...result.accepted, ...result.skipped]);
     state.ackOutbox(batch.map((doc) => doc.id).filter((id) => done.has(id)));
     state = usePos.getState();
@@ -76,20 +129,57 @@ async function flushOutbox() {
   }
 }
 
-export async function syncNow(): Promise<void> {
-  const pending = () => usePos.getState().outbox.length;
-  if (isOffline()) {
-    useCloudStatus.setState({ phase: "offline", detail: "המכירות נשמרות במכשיר עד שהרשת חוזרת" });
+async function reportFailure(error: unknown) {
+  const failure = failureOf(error);
+  if (failure.reason === "revoked") {
+    blockedToken = readSessionToken();
+    usePos.getState().markRegisterRevoked();
+    useCloudStatus.setState({ phase: "revoked", detail: REVOKED_DETAIL });
     return;
   }
-  if (running) return;
-  running = true;
-  useCloudStatus.setState({ phase: "syncing", detail: pending() ? `${pending()} ממתינות` : "" });
+  if (failure.reason === "unpaired") {
+    const detail = failure.status ? `${UNPAIRED_DETAIL} ${serverErrorDetail(failure.status)}` : UNPAIRED_DETAIL;
+    useCloudStatus.setState({ phase: "local", detail });
+    return;
+  }
+  if (failure.reason === "no-address") {
+    useCloudStatus.setState({ phase: "local", detail: "חסרה כתובת שרת. אחרי ששומרים אותה צריך גם קישור או קוד QR מהמשרד האחורי." });
+    return;
+  }
+  if (failure.reason === "http" && failure.status) {
+    useCloudStatus.setState({ phase: "error", detail: serverErrorDetail(failure.status) });
+    return;
+  }
+  const browserOffline = browserReportsOffline();
+  const probeFailed = failure.reason === "network" ? !(await probeCloud()) : true;
+  if (shouldReportOffline(failure.reason === "network", browserOffline, probeFailed)) {
+    useCloudStatus.setState({ phase: "offline", detail: OFFLINE_DETAIL });
+    return;
+  }
+  useCloudStatus.setState({
+    phase: "error",
+    detail: failure.status ? serverErrorDetail(failure.status) : unreachableDetail(browserOffline),
+  });
+}
+
+async function runSync() {
+  const token = readSessionToken();
+  if (blockedToken && token === blockedToken) {
+    useCloudStatus.setState({ phase: "revoked", detail: REVOKED_DETAIL });
+    return;
+  }
+  const pending = () => usePos.getState().outbox.length;
+  if (usePos.getState().registerRevoked) {
+    useCloudStatus.setState({ phase: "revoked", detail: REVOKED_DETAIL });
+  } else {
+    useCloudStatus.setState({ phase: "syncing", detail: pending() ? `${pending()} ממתינות` : "" });
+  }
   try {
-    let state = usePos.getState();
+    const state = usePos.getState();
     let releaseAt: string | null = null;
     if (!state.cloudCursor) {
-      const probe = await pullCloud(null);
+      const probe = await pullCloud(null, syncClient());
+      rememberRegister(probe.register);
       releaseAt = releaseStamp(probe.docs);
       const known = new Set(probe.docs.map((doc) => doc.id));
       const missing = snapshotDocs(state.stores, state.staff, new Date().toISOString()).filter((doc) => !known.has(doc.id));
@@ -99,7 +189,8 @@ export async function syncNow(): Promise<void> {
       state.setCloudCursor(probe.serverTime);
     }
     await flushOutbox();
-    const pulled = await pullCloud(usePos.getState().cloudCursor);
+    const pulled = await pullCloud(usePos.getState().cloudCursor, syncClient());
+    rememberRegister(pulled.register);
     releaseAt = releaseStamp(pulled.docs) ?? releaseAt;
     usePos.getState().applyRemote(pulled.docs);
     requeueCatalogDrift(pulled.docs);
@@ -108,17 +199,25 @@ export async function syncNow(): Promise<void> {
     await flushOutbox();
     const left = usePos.getState().outbox.length;
     useCloudStatus.setState({
-      phase: left ? "synced" : "synced",
+      phase: "synced",
       detail: left ? `${left} עדיין ממתינות להעלאה` : "הכל בענן",
     });
   } catch (error) {
-    if (isUnauthorized(error)) {
-      useCloudStatus.setState({ phase: "local", detail: "בלי חשבון העסקאות נשארות במכשיר" });
-    } else if (isOffline()) {
-      useCloudStatus.setState({ phase: "offline", detail: "המכירות נשמרות במכשיר עד שהרשת חוזרת" });
-    } else {
-      useCloudStatus.setState({ phase: "error", detail: "הסנכרון לא הצליח. ננסה שוב, והמכירות שמורות במכשיר" });
-    }
+    await reportFailure(error);
+  }
+}
+
+export async function syncNow(): Promise<void> {
+  if (running) {
+    queued = true;
+    return;
+  }
+  running = true;
+  try {
+    do {
+      queued = false;
+      await runSync();
+    } while (queued);
   } finally {
     running = false;
   }
