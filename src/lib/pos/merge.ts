@@ -126,10 +126,20 @@ export function mergeCatalogDocs(existing: CloudDoc | null, incoming: CloudDoc):
   };
 }
 
-function withStock(catalog: CloudDoc, productId: string, qty: number): CloudDoc {
+function withStock(catalog: CloudDoc, productId: string, qty: number, variantId?: string | null): CloudDoc {
   if (!isRecord(catalog.doc) || !Array.isArray(catalog.doc.products)) return catalog;
   const products = catalog.doc.products.map((item) => {
     if (!isRecord(item) || item.id !== productId || item.trackStock === false) return item;
+    if (variantId && Array.isArray(item.variants)) {
+      const variants = item.variants.map((variant) => {
+        if (!isRecord(variant) || variant.id !== variantId) return variant;
+        const stock = Number(variant.stock);
+        const next = Math.round(((Number.isFinite(stock) ? stock : 0) + qty) * 100) / 100;
+        return { ...variant, stock: Math.max(0, next) };
+      });
+      return { ...item, variants };
+    }
+    if (variantId) return item;
     const stock = Number(item.stock);
     const next = Math.round(((Number.isFinite(stock) ? stock : 0) + qty) * 100) / 100;
     return { ...item, stock: Math.max(0, next) };
@@ -193,7 +203,7 @@ export function reconcilePush(existing: CloudDoc[], incoming: CloudDoc[]): Recon
     const catalogId = `catalog:${moveDoc.businessId}`;
     const catalog = catalogs.get(catalogId) ?? byId.get(catalogId);
     if (!catalog) continue;
-    const next = withStock(catalog, move.productId, move.qty);
+    const next = withStock(catalog, move.productId, move.qty, typeof move.variantId === "string" ? move.variantId : null);
     catalogs.set(catalogId, next);
     byId.set(catalogId, next);
   }
@@ -221,7 +231,12 @@ export function mergeRemoteCatalog(
   const pendingIds = new Set(pendingMoves.map((move) => move.productId));
   const products = unionById(local.products, remoteProducts, (prev, next) => {
     const chosen = later(next.updatedAt, prev.updatedAt) ? next : prev;
-    return { ...chosen, stock: pendingIds.has(prev.id) ? prev.stock : next.stock };
+    const hold = pendingIds.has(prev.id);
+    return {
+      ...chosen,
+      stock: hold ? prev.stock : next.stock,
+      variants: hold && Array.isArray(prev.variants) ? prev.variants : chosen.variants,
+    };
   });
   const categories = unionById(local.categories, categoryList(remote), (_prev, next) => next);
   const members = unionById(local.members, memberList(remote), (prev, next) => (later(next.updatedAt, prev.updatedAt) ? next : prev));

@@ -1,16 +1,19 @@
 import { useMemo, useState } from "react";
 import { Plus } from "lucide-react";
+import { ProductOptionsFields } from "@/components/pos/product-options-fields";
 import { PageHeader } from "@/components/pos/shell";
 import { compressImage } from "@/lib/pos/image";
 import { formatILS, roundMoney } from "@/lib/pos/money";
 import { usePos } from "@/lib/pos/store";
-import type { Extra, Product, Shelf } from "@/lib/pos/types";
+import { cleanGroups, cleanVariants } from "@/lib/pos/options";
+import type { Extra, ModifierGroup, Product, ProductVariant, Shelf } from "@/lib/pos/types";
 
 type Draft = {
   id: string | null;
   name: string;
   price: string;
   sku: string;
+  barcode: string;
   categoryId: string;
   favorite: boolean;
   active: boolean;
@@ -21,6 +24,8 @@ type Draft = {
   shelf: Shelf;
   kiosk: boolean;
   extras: Extra[];
+  variants: ProductVariant[];
+  modifierGroups: ModifierGroup[];
 };
 
 function emptyDraft(categoryId: string): Draft {
@@ -29,6 +34,7 @@ function emptyDraft(categoryId: string): Draft {
     name: "",
     price: "",
     sku: "",
+    barcode: "",
     categoryId,
     favorite: false,
     active: true,
@@ -39,6 +45,8 @@ function emptyDraft(categoryId: string): Draft {
     shelf: "off",
     kiosk: false,
     extras: [],
+    variants: [],
+    modifierGroups: [],
   };
 }
 
@@ -58,7 +66,7 @@ export function ProductsPage() {
     return products.filter((product) => {
       if (categoryId !== "all" && product.categoryId !== categoryId) return false;
       if (!q) return true;
-      return product.name.includes(q) || product.sku.includes(q);
+      return product.name.includes(q) || product.sku.includes(q) || (product.barcode ?? "").includes(q) || (product.variants ?? []).some((variant) => variant.name.includes(q) || variant.sku.includes(q) || variant.barcode.includes(q));
     });
   }, [products, query, categoryId]);
 
@@ -88,6 +96,7 @@ export function ProductsPage() {
       name: draft.name.trim().slice(0, 40),
       price,
       sku: draft.sku.trim().slice(0, 20),
+      barcode: draft.barcode.trim().slice(0, 32),
       categoryId: draft.categoryId || categories[0]?.id || "hot",
       favorite: draft.favorite,
       active: draft.active,
@@ -98,6 +107,8 @@ export function ProductsPage() {
       shelf: draft.shelf,
       kiosk: draft.kiosk,
       extras,
+      variants: cleanVariants(draft.variants),
+      modifierGroups: cleanGroups(draft.modifierGroups),
     };
     upsertProduct(product);
     setDraft(null);
@@ -170,6 +181,7 @@ export function ProductsPage() {
                     name: product.name,
                     price: String(product.price),
                     sku: product.sku,
+                    barcode: product.barcode ?? "",
                     categoryId: product.categoryId,
                     favorite: product.favorite,
                     active: product.active,
@@ -180,6 +192,8 @@ export function ProductsPage() {
                     shelf: product.shelf ?? "off",
                     kiosk: Boolean(product.kiosk),
                     extras: product.extras ?? [],
+                    variants: product.variants ?? [],
+                    modifierGroups: product.modifierGroups ?? [],
                   });
                 }}
                 className="flex w-full items-center gap-3 rounded-2xl bg-surface px-3 py-3 text-start ring-1 ring-line"
@@ -199,6 +213,8 @@ export function ProductsPage() {
                     {product.shelf === "upper" ? " · מדף עליון" : product.shelf === "lower" ? " · מדף תחתון" : ""}
                     {product.kiosk ? " · קיוסק" : ""}
                     {product.active ? "" : " · מוסתר"}
+                    {product.variants?.length ? ` · ${product.variants.length} אפשרויות` : ""}
+                    {product.modifierGroups?.length ? ` · ${product.modifierGroups.length} קבוצות` : ""}
                     {product.trackStock ? ` · מלאי ${product.stock}` : ""}
                   </span>
                 </span>
@@ -246,6 +262,15 @@ export function ProductsPage() {
                   inputMode="decimal"
                   value={draft.price}
                   onChange={(event) => setDraft({ ...draft, price: event.target.value })}
+                  className="h-12 w-full rounded-xl bg-paper px-3 ring-1 ring-line tabular-nums"
+                  dir="ltr"
+                />
+              </label>
+              <label className="block">
+                <span className="mb-1 block text-sm text-muted">ברקוד נוסף</span>
+                <input
+                  value={draft.barcode}
+                  onChange={(event) => setDraft({ ...draft, barcode: event.target.value })}
                   className="h-12 w-full rounded-xl bg-paper px-3 ring-1 ring-line tabular-nums"
                   dir="ltr"
                 />
@@ -358,6 +383,7 @@ export function ProductsPage() {
                   תוספת
                 </button>
               </div>
+              <ProductOptionsFields draft={draft} setDraft={setDraft} />
               <div className="rounded-2xl bg-paper p-3 ring-1 ring-line">
                 <div className="flex items-center gap-3">
                   {draft.image ? (

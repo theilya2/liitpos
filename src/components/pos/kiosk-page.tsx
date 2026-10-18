@@ -1,16 +1,18 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useNavigate } from "@tanstack/react-router";
-import { Minus, Plus, X } from "lucide-react";
+import { X } from "lucide-react";
+import { OptionSheet } from "@/components/pos/option-sheet";
 import { canSeeStore } from "@/lib/pos/access";
 import { attractImages, kioskTiming, upsellSuggestions } from "@/lib/pos/kiosk";
 import { computeTotals, formatILS, roundCash, roundMoney } from "@/lib/pos/money";
 import { setKioskLock } from "@/lib/pos/native";
+import { hasEnough, needsPicker, shelfPrice } from "@/lib/pos/options";
 import { confirmReceipt } from "@/lib/pos/receipt-io";
 import { usePos } from "@/lib/pos/store";
 import { chargeTerminal, deviceLabel, paymentPlan, terminalOrigin } from "@/lib/pos/terminal";
-import type { CartLine, Extra, Product, TenderMethod, TerminalKind } from "@/lib/pos/types";
+import type { CartLine, Product, TenderMethod, TerminalKind } from "@/lib/pos/types";
 
-type Pick = { product: Product; extras: string[]; qty: number };
+type Pick = Product;
 
 export function KioskPage() {
   const products = usePos((state) => state.products);
@@ -79,18 +81,10 @@ export function KioskPage() {
     return () => window.clearTimeout(timer);
   }, [warnLeft]);
 
-  function qtyOf(productId: string) {
-    return cart.filter((line) => line.productId === productId).reduce((sum, line) => sum + line.qty, 0);
-  }
-
-  function addPick() {
-    if (!pick) return;
-    const chosen = pick.product.extras.filter((extra) => pick.extras.includes(extra.id));
-    const unitPrice = roundMoney(pick.product.price + chosen.reduce((sum, extra) => sum + extra.price, 0));
-    const name = chosen.length ? `${pick.product.name} (${chosen.map((extra) => extra.name).join(", ")})` : pick.product.name;
-    const line: CartLine = { key: `k_${crypto.randomUUID()}`, productId: pick.product.id, name: name.slice(0, 80), unitPrice, qty: pick.qty };
-    setCart((current) => [...current, line]);
-    setPick(null);
+  function taken(productId: string, variantId: string | null) {
+    return cart
+      .filter((line) => line.productId === productId && (line.variantId ?? null) === variantId)
+      .reduce((sum, line) => sum + line.qty, 0);
   }
 
   return (
@@ -118,7 +112,7 @@ export function KioskPage() {
               <button
                 key={product.id}
                 type="button"
-                onClick={() => setPick({ product, extras: [], qty: 1 })}
+                onClick={() => setPick(product)}
                 className="overflow-hidden rounded-3xl bg-surface text-start ring-1 ring-line transition-transform duration-150 active:scale-95"
               >
                 <span className="block aspect-[4/3] max-h-56 overflow-hidden bg-pine-soft">
@@ -126,7 +120,7 @@ export function KioskPage() {
                 </span>
                 <span className="block px-3 py-3">
                   <span className="block text-base font-semibold">{product.name}</span>
-                  <span className="mt-1 block text-sm font-semibold tabular-nums text-copper">{formatILS(product.price)}</span>
+                  <span className="mt-1 block text-sm font-semibold tabular-nums text-copper">{shelfPrice(product).from ? `מ־${formatILS(shelfPrice(product).amount)}` : formatILS(shelfPrice(product).amount)}</span>
                 </span>
               </button>
             ))}
@@ -144,57 +138,6 @@ export function KioskPage() {
           <span className="tabular-nums">{formatILS(totals.total)}</span>
         </button>
       </div>
-      {pick ? (
-        <Sheet title={pick.product.name} onClose={() => setPick(null)}>
-          <p className="text-2xl font-semibold tabular-nums text-copper">{formatILS(roundMoney(pick.product.price + extraSum(pick.product.extras, pick.extras)))}</p>
-          {pick.product.extras.length ? (
-            <ul className="mt-4 space-y-2">
-              {pick.product.extras.map((extra) => {
-                const on = pick.extras.includes(extra.id);
-                return (
-                  <li key={extra.id}>
-                    <button
-                      type="button"
-                      onClick={() =>
-                        setPick({
-                          ...pick,
-                          extras: on ? pick.extras.filter((id) => id !== extra.id) : [...pick.extras, extra.id],
-                        })
-                      }
-                      className={`flex h-14 w-full items-center justify-between rounded-2xl px-4 text-start ${on ? "bg-pine text-pine-ink" : "bg-paper ring-1 ring-line"}`}
-                    >
-                      <span className="font-medium">{extra.name}</span>
-                      <span className="tabular-nums">+{formatILS(extra.price)}</span>
-                    </button>
-                  </li>
-                );
-              })}
-            </ul>
-          ) : (
-            <p className="mt-3 text-sm text-muted">בלי תוספות לפריט הזה.</p>
-          )}
-          <div className="mt-4 flex items-center justify-center gap-4">
-            <button type="button" aria-label="הפחתה" onClick={() => setPick({ ...pick, qty: Math.max(1, pick.qty - 1) })} className="flex h-12 w-12 items-center justify-center rounded-full bg-paper ring-1 ring-line">
-              <Minus />
-            </button>
-            <span className="w-8 text-center text-xl font-semibold tabular-nums">{pick.qty}</span>
-            <button
-              type="button"
-              aria-label="הוספה"
-              onClick={() => {
-                const cap = pick.product.trackStock ? Math.max(1, pick.product.stock - qtyOf(pick.product.id)) : 9;
-                setPick({ ...pick, qty: Math.min(cap, pick.qty + 1) });
-              }}
-              className="flex h-12 w-12 items-center justify-center rounded-full bg-paper ring-1 ring-line"
-            >
-              <Plus />
-            </button>
-          </div>
-          <button type="button" onClick={addPick} className="mt-4 h-14 w-full rounded-2xl bg-pine text-lg font-semibold text-pine-ink">
-            הוספה להזמנה
-          </button>
-        </Sheet>
-      ) : null}
       {attract ? (
         <button
           type="button"
@@ -236,23 +179,30 @@ export function KioskPage() {
             <div className="mt-4">
               <p className="text-sm font-medium">אולי גם</p>
               <div className="mt-2 grid grid-cols-2 gap-2">
-                {suggestions.map((product) => (
-                  <button
-                    key={product.id}
-                    type="button"
-                    onClick={() => {
-                      if (product.trackStock && product.stock <= qtyOf(product.id)) return;
-                      setCart((current) => [
-                        ...current,
-                        { key: `k_${crypto.randomUUID()}`, productId: product.id, name: product.name, unitPrice: product.price, qty: 1 },
-                      ]);
-                    }}
-                    className="min-h-14 rounded-2xl bg-paper px-3 py-2 text-start text-sm ring-1 ring-line"
-                  >
-                    <span className="block font-medium">{product.name}</span>
-                    <span className="tabular-nums text-copper">{formatILS(product.price)}</span>
-                  </button>
-                ))}
+                {suggestions.map((product) => {
+                  const price = shelfPrice(product);
+                  return (
+                    <button
+                      key={product.id}
+                      type="button"
+                      onClick={() => {
+                        if (needsPicker(product)) {
+                          setPick(product);
+                          return;
+                        }
+                        if (!hasEnough(product, null, taken(product.id, null) + 1)) return;
+                        setCart((current) => [
+                          ...current,
+                          { key: `k_${crypto.randomUUID()}`, productId: product.id, name: product.name, unitPrice: product.price, qty: 1 },
+                        ]);
+                      }}
+                      className="min-h-14 rounded-2xl bg-paper px-3 py-2 text-start text-sm ring-1 ring-line"
+                    >
+                      <span className="block font-medium">{product.name}</span>
+                      <span className="tabular-nums text-copper">{price.from ? `מ־${formatILS(price.amount)}` : formatILS(price.amount)}</span>
+                    </button>
+                  );
+                })}
               </div>
             </div>
           ) : null}
@@ -268,6 +218,17 @@ export function KioskPage() {
             <span className="tabular-nums">{formatILS(totals.total)}</span>
           </button>
         </Sheet>
+      ) : null}
+      {pick ? (
+        <OptionSheet
+          product={pick}
+          taken={(variantId) => taken(pick.id, variantId)}
+          onClose={() => setPick(null)}
+          onAdd={(line) => {
+            setCart((current) => [...current, { ...line, key: `k_${crypto.randomUUID()}` }]);
+            setPick(null);
+          }}
+        />
       ) : null}
       {pay ? (
         <KioskPay
@@ -309,10 +270,6 @@ export function KioskPage() {
       ) : null}
     </main>
   );
-}
-
-function extraSum(extras: Extra[], ids: string[]) {
-  return extras.filter((extra) => ids.includes(extra.id)).reduce((sum, extra) => sum + extra.price, 0);
 }
 
 function Sheet({ title, onClose, children }: { title: string; onClose: () => void; children: ReactNode }) {

@@ -1,4 +1,5 @@
 import { mergeRemoteCatalog } from "@/lib/pos/merge";
+import { cleanGroups, cleanVariants } from "@/lib/pos/options";
 import { cloneSettings, codeForStore, demoExtras, demoKiosk, demoPhoto, demoShelf, emptyBranch } from "@/lib/pos/seed";
 import { normalizeKioskSettings } from "@/lib/pos/kiosk";
 import { normalizePrintSettings } from "@/lib/pos/printer";
@@ -234,6 +235,9 @@ function asProduct(value: unknown): Product | null {
     shelf: value.shelf === "upper" || value.shelf === "lower" || value.shelf === "off" ? value.shelf : (demoShelf(value.id) ?? "off"),
     kiosk: typeof value.kiosk === "boolean" ? value.kiosk : demoKiosk(value.id),
     extras: Array.isArray(value.extras) ? asExtras(value.extras) : demoExtras(value.id),
+    barcode: typeof value.barcode === "string" ? value.barcode.slice(0, 32) : "",
+    variants: cleanVariants(value.variants),
+    modifierGroups: cleanGroups(value.modifierGroups),
     updatedAt: typeof value.updatedAt === "string" ? value.updatedAt : undefined,
   };
 }

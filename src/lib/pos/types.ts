@@ -34,6 +34,40 @@ export type Extra = {
   price: number;
 };
 
+/** A size or other sellable version. Each one has its own price, code, and stock. */
+export type ProductVariant = {
+  id: string;
+  name: string;
+  price: number;
+  sku: string;
+  barcode: string;
+  stock: number;
+  active: boolean;
+};
+
+export type ModifierOption = {
+  id: string;
+  name: string;
+  price: number;
+};
+
+/** Rules are min/max. Required means min is at least 1. Exactly one is min = max = 1. */
+export type ModifierGroup = {
+  id: string;
+  name: string;
+  required: boolean;
+  min: number;
+  max: number;
+  options: ModifierOption[];
+};
+
+export type ChosenModifier = {
+  groupId: string;
+  optionId: string;
+  name: string;
+  price: number;
+};
+
 export type Shelf = "upper" | "lower" | "off";
 
 export type Product = {
@@ -42,6 +76,8 @@ export type Product = {
   price: number;
   categoryId: string;
   sku: string;
+  /** Extra scan code. Older products leave this empty and keep using `sku`. */
+  barcode?: string;
   favorite: boolean;
   active: boolean;
   image: string | null;
@@ -53,6 +89,10 @@ export type Product = {
   /** Shown on the customer kiosk. */
   kiosk: boolean;
   extras: Extra[];
+  /** Empty on older products. When present, the register sells these instead of the parent price. */
+  variants?: ProductVariant[];
+  /** Empty on older products. Extras stay as one optional group until a group is saved. */
+  modifierGroups?: ModifierGroup[];
   /** When the name, price, or other details last changed. Stock moves do not bump this. */
   updatedAt?: string;
 };
@@ -60,9 +100,12 @@ export type Product = {
 export type CartLine = {
   key: string;
   productId: string | null;
+  variantId?: string | null;
+  sku?: string;
   name: string;
   unitPrice: number;
   qty: number;
+  modifiers?: ChosenModifier[];
 };
 
 export type HeldOrder = {
@@ -83,10 +126,13 @@ export type BusinessSnapshot = {
 
 export type SaleLine = {
   productId: string | null;
+  variantId?: string | null;
+  sku?: string;
   name: string;
   unitPrice: number;
   qty: number;
   lineTotal: number;
+  modifiers?: ChosenModifier[];
   /** On a credit note, the line index in the original sale. */
   sourceIndex?: number;
 };
@@ -200,6 +246,7 @@ export type StockMove = {
   id: string;
   at: string;
   productId: string;
+  variantId?: string | null;
   productName: string;
   qty: number;
   stockAfter: number;
