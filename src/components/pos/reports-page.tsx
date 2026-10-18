@@ -52,6 +52,7 @@ export function ReportsPage() {
   );
   const figures = useMemo(() => zFigures(pool), [pool]);
   const liveSales = pool.filter((sale) => !sale.voided && !isCredit(sale));
+  const promoGiven = roundMoney(liveSales.reduce((sum, sale) => sum + (sale.promoAmount ?? 0), 0));
   const kioskCount = liveSales.filter((sale) => sale.channel === "kiosk").length;
   const kioskTurnover = roundMoney(liveSales.filter((sale) => sale.channel === "kiosk").reduce((sum, sale) => sum + sale.amountDue, 0));
   const maxMethod = Math.max(...figures.byMethod.map((row) => Math.abs(row.total)), 1);
@@ -119,6 +120,9 @@ export function ReportsPage() {
           <Stat label="לפני מע״מ" value={formatILS(figures.net)} />
           <Stat label="זיכויים" value={String(figures.creditCount)} />
         </section>
+        {promoGiven > 0 ? (
+          <p className="text-sm text-muted">הנחות מבצע בטווח: {formatILS(promoGiven)}. המחזור למעלה כבר אחרי המבצעים.</p>
+        ) : null}
         {kioskCount > 0 ? (
           <p className="text-sm text-muted">
             מהקיוסק: {kioskCount} הזמנות · {formatILS(kioskTurnover)}. הן כלולות במחזור וב-Z.

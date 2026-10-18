@@ -4,8 +4,9 @@ import { can, canSeeStore } from "@/lib/pos/access";
 import { drawerExpected, drawerVariance, paidIn, paidOut } from "@/lib/pos/cash";
 import { applyDocs, catalogDoc, changesToDocs, deviceDoc, mergeOutbox, settingsDoc, snapshotDocs, staffDoc, type CloudDoc } from "@/lib/pos/docs";
 import { normalizeKioskSettings } from "@/lib/pos/kiosk";
-import { computeTotals, roundMoney } from "@/lib/pos/money";
+import { roundMoney } from "@/lib/pos/money";
 import { activeVariants, changeStock, cleanGroups, cleanVariants, demandOf, groupsFor, hasEnough, splitStockKey, stockOnHand } from "@/lib/pos/options";
+import { cleanPromos, priceCart } from "@/lib/pos/promo";
 import { isCredit, quoteRefund, refundMethodsFor, settleSale, tendersOf, zFigures, type RefundPick, type TenderInput } from "@/lib/pos/tender";
 import {
   buildDemoSales,
@@ -261,7 +262,14 @@ function stampCode(branch: Branch, used: Set<string>): Branch {
     }
     used.add(code);
   }
-  return { ...branch, settings: withPrintSettings({ ...settings, code }) };
+  return {
+    ...branch,
+    settings: withPrintSettings({
+      ...settings,
+      code,
+      ...(Array.isArray(settings.promos) ? { promos: cleanPromos(settings.promos) } : {}),
+    }),
+  };
 }
 
 function activate(state: PosState, id: string): Partial<PosState> | null {
@@ -431,7 +439,7 @@ export const usePos = create<PosState>()(
             if (!hasEnough(product, variantId, qty)) return null;
           }
           const discount = channel === "kiosk" ? null : state.discount;
-          const totals = computeTotals(lines, discount, state.settings.vatRate);
+          const totals = priceCart(lines, state.products, state.settings.promos, discount, state.settings.vatRate);
           if (totals.total <= 0) return null;
           const parts: TenderInput[] = input.tenders?.length
             ? input.tenders
@@ -468,6 +476,8 @@ export const usePos = create<PosState>()(
               modifiers: line.modifiers ?? [],
             })),
             discountAmount: totals.discountAmount,
+            promoAmount: totals.promoAmount,
+            promoLabel: totals.promoLabel,
             total: totals.total,
             vatRate: state.settings.vatRate,
             vatAmount: totals.vat,
@@ -725,6 +735,7 @@ export const usePos = create<PosState>()(
           if (patch.code !== undefined && !/^\d{6}$/.test(patch.code)) next.code = state.settings.code;
           next.androidTerminal = cleanEndpoint(next.androidTerminal, state.settings.androidTerminal ?? cloneSettings().androidTerminal);
           next.pinpad = cleanEndpoint(next.pinpad, state.settings.pinpad ?? cloneSettings().pinpad);
+          if (patch.promos !== undefined) next.promos = cleanPromos(patch.promos);
           if (patch.logo !== undefined) {
             const logo = patch.logo;
             next.logo = logo && logo.startsWith("data:image/") && logo.length <= 150_000 ? logo : null;
@@ -816,6 +827,9 @@ export const usePos = create<PosState>()(
             creditTotal: figures.creditTotal,
             grossTurnover: figures.gross,
             cashRefunds: figures.cashRefunds,
+            promoTotal: roundMoney(
+              open.filter((sale) => !sale.voided && !isCredit(sale)).reduce((sum, sale) => sum + (sale.promoAmount ?? 0), 0),
+            ),
             openingFloat: state.settings.openingFloat,
             cashTaken,
             cashExpected: expected,

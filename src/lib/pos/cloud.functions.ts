@@ -4,6 +4,7 @@ import { getSql } from "@/lib/db";
 import { isDocKind, type CloudDoc, type DocKind, type Json } from "@/lib/pos/docs";
 import { normalizeKioskSettings } from "@/lib/pos/kiosk";
 import { normalizePrintSettings } from "@/lib/pos/printer";
+import { cleanPromos } from "@/lib/pos/promo";
 import { cloneSettings, codeForStore } from "@/lib/pos/seed";
 import { cleanEndpoint } from "@/lib/pos/terminal";
 import type { Settings, StaffUser } from "@/lib/pos/types";
@@ -129,6 +130,7 @@ function readSettings(doc: unknown): Settings | null {
     logo: typeof raw.logo === "string" && raw.logo.startsWith("data:image/") && raw.logo.length <= 150_000 ? raw.logo : null,
     ...normalizePrintSettings(raw),
     ...normalizeKioskSettings(raw),
+    ...(Array.isArray(raw.promos) ? { promos: cleanPromos(raw.promos) } : {}),
   };
 }
 

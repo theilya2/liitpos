@@ -4,9 +4,10 @@ import { X } from "lucide-react";
 import { OptionSheet } from "@/components/pos/option-sheet";
 import { canSeeStore } from "@/lib/pos/access";
 import { attractImages, kioskTiming, upsellSuggestions } from "@/lib/pos/kiosk";
-import { computeTotals, formatILS, roundCash, roundMoney } from "@/lib/pos/money";
+import { formatILS, roundCash, roundMoney } from "@/lib/pos/money";
 import { setKioskLock } from "@/lib/pos/native";
 import { hasEnough, needsPicker, shelfPrice } from "@/lib/pos/options";
+import { pricedOrPlain } from "@/lib/pos/promo";
 import { confirmReceipt } from "@/lib/pos/receipt-io";
 import { usePos } from "@/lib/pos/store";
 import { chargeTerminal, deviceLabel, paymentPlan, terminalOrigin } from "@/lib/pos/terminal";
@@ -33,7 +34,7 @@ export function KioskPage() {
   const staff = usePos((state) => state.staff);
   const activeStoreId = usePos((state) => state.activeStoreId);
   const navigate = useNavigate();
-  const totals = computeTotals(cart, null, settings.vatRate);
+  const totals = pricedOrPlain(cart, products, settings.promos, null, settings.vatRate);
   const timing = kioskTiming(settings);
   const slides = attractImages(settings, products);
   const [slide, setSlide] = useState(0);
@@ -128,6 +129,9 @@ export function KioskPage() {
         )}
       </div>
       <div className="safe-bottom shrink-0 border-t border-line bg-surface p-3">
+        {totals.promoAmount > 0 ? (
+          <p className="mb-2 truncate text-center text-sm text-pine">מבצע {totals.promoLabel} · {formatILS(totals.promoAmount)}</p>
+        ) : null}
         <button
           type="button"
           disabled={!cart.length}
@@ -205,6 +209,9 @@ export function KioskPage() {
                 })}
               </div>
             </div>
+          ) : null}
+          {totals.promoAmount > 0 ? (
+            <p className="mt-3 text-sm text-pine">מבצע {totals.promoLabel} · {formatILS(totals.promoAmount)}</p>
           ) : null}
           <button
             type="button"

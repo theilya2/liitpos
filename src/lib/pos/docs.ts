@@ -3,6 +3,7 @@ import { cleanGroups, cleanVariants } from "@/lib/pos/options";
 import { cloneSettings, codeForStore, demoExtras, demoKiosk, demoPhoto, demoShelf, emptyBranch } from "@/lib/pos/seed";
 import { normalizeKioskSettings } from "@/lib/pos/kiosk";
 import { normalizePrintSettings } from "@/lib/pos/printer";
+import { cleanPromos } from "@/lib/pos/promo";
 import { saleCloudId } from "@/lib/pos/receipt-link";
 import { cleanEndpoint } from "@/lib/pos/terminal";
 import type { Branch, CashMove, ClubMember, DrawerOpen, Extra, Product, Sale, Settings, StaffUser, StockMove, ZReport } from "@/lib/pos/types";
@@ -185,6 +186,7 @@ function asSettings(doc: unknown): Settings | null {
     logo: asLogo(doc.logo),
     ...normalizePrintSettings(doc),
     ...normalizeKioskSettings(doc),
+    ...(Array.isArray(doc.promos) ? { promos: cleanPromos(doc.promos) } : {}),
   };
 }
 

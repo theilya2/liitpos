@@ -114,6 +114,8 @@ export function toPublicSale(doc: unknown): Sale | null {
     createdAt: text(raw.createdAt, 40),
     lines,
     discountAmount: Number(raw.discountAmount) || 0,
+    promoAmount: Number(raw.promoAmount) > 0 ? Number(raw.promoAmount) : undefined,
+    promoLabel: typeof raw.promoLabel === "string" && raw.promoLabel.trim() ? raw.promoLabel.trim().slice(0, 80) : undefined,
     total: Number(raw.total) || 0,
     vatRate: Number(raw.vatRate) || 0,
     vatAmount: Number(raw.vatAmount) || 0,
