@@ -22,6 +22,7 @@ import {
   mainBranch,
 } from "@/lib/pos/seed";
 import { type Branch, type CartLine, type Category, type ClubMember, type Discount, type DrawerOpen, type HeldOrder, type PaymentMethod, type Product, type Role, type Sale, type Settings, type StaffUser, type StockMove, type StockReason, type TerminalKind, type ZReport } from "@/lib/pos/types";
+import { canUseBusiness, isDemoMode } from "@/lib/pos/demo";
 import { withPrintSettings } from "@/lib/pos/printer";
 import { isReceiptToken, newReceiptToken } from "@/lib/pos/receipt-link";
 import { cleanEndpoint } from "@/lib/pos/terminal";
@@ -246,7 +247,7 @@ function stampCode(branch: Branch, used: Set<string>): Branch {
 function activate(state: PosState, id: string): Partial<PosState> | null {
   const stores = state.stores.map((branch) => (branch.id === state.activeStoreId ? toBranch(state) : branch));
   const next = stores.find((branch) => branch.id === id);
-  if (!next) return null;
+  if (!next || !canUseBusiness(next.id, next.settings.code)) return null;
   return { stores, activeStoreId: id, receiptToPrint: null, zToPrint: null, ...fromBranch(next) };
 }
 
@@ -762,6 +763,7 @@ export const usePos = create<PosState>()(
         clearHistory: () => commit({ sales: [], cart: [], discount: null, held: [], zReports: [], drawerOpens: [] }),
 
         resetDemo: () => {
+          if (!isDemoMode()) return;
           const stores = freshStores();
           const sales = buildDemoSales(stores[0].settings);
           stores[0] = {
@@ -804,7 +806,8 @@ export const usePos = create<PosState>()(
           const user = state.staff.find((item) => item.id === userId);
           if (!user || !user.active || user.pin !== pin) return false;
           const gate = state.gateStoreId;
-          if (!gate || !canSeeStore(user, gate)) return false;
+          const gated = state.stores.find((branch) => branch.id === gate);
+          if (!gate || !gated || !canUseBusiness(gated.id, gated.settings.code) || !canSeeStore(user, gate)) return false;
           if (state.activeStoreId !== gate) {
             const switched = activate(state, gate);
             if (!switched) return false;
@@ -819,6 +822,8 @@ export const usePos = create<PosState>()(
 
         switchStore: (id) => {
           const state = get();
+          const target = state.stores.find((branch) => branch.id === id);
+          if (!target || !canUseBusiness(target.id, target.settings.code)) return;
           if (id === state.activeStoreId) return;
           const user = state.staff.find((item) => item.id === state.sessionUserId);
           if (user && !canSeeStore(user, id)) return;
@@ -833,6 +838,8 @@ export const usePos = create<PosState>()(
             return;
           }
           const state = get();
+          const target = state.stores.find((branch) => branch.id === id);
+          if (!target || !canUseBusiness(target.id, target.settings.code)) return;
           const switched = state.activeStoreId === id ? {} : activate(state, id);
           if (!switched) return;
           set({ ...switched, gateStoreId: id, sessionUserId: null });
@@ -1020,7 +1027,13 @@ export function ensureReady(): void {
   const used = new Set<string>();
   const stores = current.stores.map(normalizeBranch).map((branch) => stampCode(branch, used));
   let active = stores.find((branch) => branch.id === current.activeStoreId) ?? stores[0];
-  const gateStoreId = current.gateStoreId && stores.some((branch) => branch.id === current.gateStoreId) ? current.gateStoreId : null;
+  let gateStoreId = current.gateStoreId && stores.some((branch) => branch.id === current.gateStoreId) ? current.gateStoreId : null;
+  let sessionUserId = current.sessionUserId;
+  if (!isDemoMode()) {
+    const gated = stores.find((branch) => branch.id === gateStoreId);
+    if (gated && !canUseBusiness(gated.id, gated.settings.code)) gateStoreId = null;
+    if (sessionUserId && !canUseBusiness(active.id, active.settings.code)) sessionUserId = null;
+  }
   if (!current.deviceId) usePos.setState({ deviceId: newId() });
   if (!current.seeded) {
     const sales = buildDemoSales(active.settings);
@@ -1037,6 +1050,7 @@ export function ensureReady(): void {
       activeStoreId: active.id,
       staff: current.staff?.length ? current.staff : defaultStaff(),
       gateStoreId,
+      sessionUserId,
       ...fromBranch(active),
     });
     return;
@@ -1045,6 +1059,7 @@ export function ensureReady(): void {
     stores,
     activeStoreId: active.id,
     gateStoreId,
+    sessionUserId,
     ...fromBranch(active),
   });
 }

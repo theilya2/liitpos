@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { isDemoMode } from "@/lib/pos/demo";
 import { CloudLinkCard } from "@/components/pos/cloud-link";
 import { PageHeader } from "@/components/pos/shell";
 import { ClubPanel } from "@/components/pos/club-panel";
@@ -131,20 +132,22 @@ export function SettingsPage() {
               קופה נקייה
             </button>
           )}
-          {armed === "demo" ? (
-            <Confirm
-              text="לשחזר את מכולת ההדגמה? המוצרים, הפרטים והקבלות הנוכחיים יוחלפו."
-              onCancel={() => setArmed("none")}
-              onYes={() => {
-                resetDemo();
-                setArmed("none");
-              }}
-            />
-          ) : (
-            <button type="button" onClick={() => setArmed("demo")} className="h-12 w-full rounded-2xl bg-surface text-sm font-medium">
-              שחזור נתוני הדגמה
-            </button>
-          )}
+          {isDemoMode() ? (
+            armed === "demo" ? (
+              <Confirm
+                text="לשחזר את מכולת ההדגמה? המוצרים, הפרטים והקבלות הנוכחיים יוחלפו."
+                onCancel={() => setArmed("none")}
+                onYes={() => {
+                  resetDemo();
+                  setArmed("none");
+                }}
+              />
+            ) : (
+              <button type="button" onClick={() => setArmed("demo")} className="min-h-12 w-full rounded-2xl bg-surface px-3 text-sm font-medium">
+                שחזור נתוני הדגמה
+              </button>
+            )
+          ) : null}
         </section>
       </div>
     </div>

@@ -248,6 +248,201 @@
   margin-inline: auto;
 }
 
+.lock-screen {
+  container: lock / size;
+  display: flex;
+  min-height: 0;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.lock-board {
+  display: flex;
+  width: min(100%, 28rem);
+  min-height: 0;
+  flex: 1 1 auto;
+  flex-direction: column;
+  margin-inline: auto;
+  padding: 0.75rem 1rem 0.5rem;
+}
+
+.lock-identity {
+  min-width: 0;
+  min-height: 0;
+}
+
+.lock-keys {
+  min-width: 0;
+  min-height: 0;
+}
+
+.lock-logo {
+  width: 3rem;
+  height: 3rem;
+  font-size: 1.125rem;
+}
+
+.lock-pad {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+}
+
+.lock-key {
+  min-height: 3.5rem;
+  font-size: 1.125rem;
+}
+
+.pin-dots {
+  display: flex;
+  justify-content: center;
+  gap: 0.7rem;
+  margin-top: 0.85rem;
+}
+
+.pin-dot {
+  display: flex;
+  width: 1.15rem;
+  height: 1.15rem;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid var(--color-ink);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--color-ink);
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.pin-dot-filled {
+  background: var(--color-ink);
+  color: var(--color-paper);
+}
+
+.lock-cloud {
+  width: min(100%, 28rem);
+  margin-inline: auto;
+  padding: 0 1rem 0.75rem;
+}
+
+/* Phone landscape: logo and dots on one side, keypad on the other, no page scroll. */
+@media (orientation: landscape) and (max-height: 32.5rem) {
+  .lock-board {
+    width: 100%;
+    max-width: none;
+    flex-direction: row;
+    align-items: stretch;
+    gap: 0.75rem;
+    padding: 0.35rem 0.6rem;
+  }
+
+  .lock-identity,
+  .lock-keys {
+    display: flex;
+    flex: 1 1 0;
+    flex-direction: column;
+    justify-content: center;
+  }
+
+  .lock-staff button {
+    min-height: 2.25rem;
+    padding-block: 0.15rem;
+  }
+
+  .lock-note {
+    display: -webkit-box;
+    overflow: hidden;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+  }
+
+  .lock-pad {
+    height: 100%;
+    margin-top: 0;
+    grid-template-rows: repeat(4, minmax(2.5rem, 1fr));
+  }
+
+  .lock-key {
+    height: 100%;
+    min-height: 2.5rem;
+  }
+
+  .lock-cloud {
+    display: none;
+  }
+}
+
+/* 15.6" and up: the lock and the kiosk grow with the screen instead of a phone column. */
+@container lock (min-width: 60rem) {
+  .lock-board,
+  .lock-cloud {
+    width: min(100%, 72rem);
+  }
+
+  .lock-board {
+    flex-direction: row;
+    align-items: center;
+    gap: clamp(1.5rem, 4vw, 4rem);
+    padding-block: 1.5rem;
+  }
+
+  .lock-identity,
+  .lock-keys {
+    flex: 1 1 0;
+  }
+
+  .lock-logo {
+    width: clamp(3.5rem, 6vw, 5.5rem);
+    height: clamp(3.5rem, 6vw, 5.5rem);
+    font-size: clamp(1.4rem, 2vw, 2rem);
+  }
+
+  .lock-pad {
+    gap: clamp(0.6rem, 1.2vw, 1rem);
+  }
+
+  .lock-key {
+    min-height: clamp(4.25rem, 10cqh, 6.5rem);
+    font-size: clamp(1.4rem, 2.4vw, 2.4rem);
+    border-radius: 1.25rem;
+  }
+
+  .pin-dot {
+    width: clamp(1.35rem, 2vw, 2rem);
+    height: clamp(1.35rem, 2vw, 2rem);
+  }
+}
+
+@media (min-width: 64rem) {
+  .kiosk-grid {
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 16rem), 1fr));
+    gap: clamp(0.75rem, 1.2vw, 1.25rem);
+  }
+
+  .kiosk-sheet {
+    width: min(68rem, 78vw);
+    max-width: none;
+    padding: clamp(1rem, 2vw, 2rem);
+  }
+
+  .kiosk-board > header h1 {
+    font-size: clamp(1.35rem, 2vw, 2.25rem);
+  }
+
+  .kiosk-sheet button,
+  .kiosk-board > .safe-bottom > button {
+    min-height: clamp(3.25rem, 6vh, 5rem);
+    font-size: clamp(1.05rem, 1.5vw, 1.4rem);
+  }
+
+  .kiosk-sheet button.rounded-full,
+  .kiosk-sheet button.h-12.w-12 {
+    width: clamp(3.25rem, 6vh, 4.75rem);
+    height: clamp(3.25rem, 6vh, 4.75rem);
+  }
+}
+
 /* Customer receipt links skip the register chrome but keep the same insets and scroll. */
 .public-sheet {
   box-sizing: border-box;

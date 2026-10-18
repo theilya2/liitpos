@@ -4,6 +4,7 @@ import { BarChart3, Boxes, LockKeyhole, Receipt, Settings2, ShoppingCart } from 
 import { AppUpdateBanner } from "@/components/pos/app-update";
 import { CloudSync, SyncIndicator } from "@/components/pos/cloud-bar";
 import { areaForPath, can } from "@/lib/pos/access";
+import { canUseBusiness } from "@/lib/pos/demo";
 import { prepareNative } from "@/lib/pos/native";
 import { LockScreen } from "@/components/pos/lock-screen";
 import { ReceiptView } from "@/components/pos/receipt";
@@ -81,6 +82,8 @@ export function PosFrame({ children }: { children: ReactNode }) {
   const pathname = useRouterState({ select: (state) => state.location.pathname });
   const lock = usePos((state) => state.lock);
   const businessName = usePos((state) => state.settings.businessName);
+  const businessCode = usePos((state) => state.settings.code);
+  const activeStoreId = usePos((state) => state.activeStoreId);
   const lastGoodSync = usePos((state) => state.lastGoodSync);
   const appliedReleaseAt = usePos((state) => state.appliedReleaseAt);
   const [now, setNow] = useState(() => Date.now());
@@ -129,6 +132,17 @@ export function PosFrame({ children }: { children: ReactNode }) {
   }
 
   if (pathname.startsWith("/kiosk")) {
+    if (!canUseBusiness(activeStoreId, businessCode)) {
+      return (
+        <>
+          <AppUpdateBanner />
+          <CloudSync />
+          <div className="shell-safe">
+            <LockScreen />
+          </div>
+        </>
+      );
+    }
     return (
       <>
         <AppUpdateBanner />
