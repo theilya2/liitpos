@@ -1,10 +1,13 @@
 import type { CloudDoc } from "@/lib/pos/docs";
 import { isNativeApp, readCloudUrl, readSessionToken } from "@/lib/pos/native";
+import { readRegisterClaim, type RegisterClaim } from "@/lib/pos/register";
 
-type PullResult = { docs: CloudDoc[]; serverTime: string };
-type PushResult = { accepted: string[]; skipped: string[] };
+type PullResult = { docs: CloudDoc[]; serverTime: string; register: RegisterClaim | null };
+type PushResult = { accepted: string[]; skipped: string[]; register: RegisterClaim | null };
 
-export type SyncFailureReason = "unpaired" | "no-address" | "http" | "network";
+export type SyncFailureReason = "unpaired" | "revoked" | "no-address" | "http" | "network";
+
+export type SyncClient = { appVersion: string; pending: number };
 
 export type SyncFailure = Error & { status: number; reason: SyncFailureReason };
 
@@ -39,7 +42,7 @@ export async function probeCloud(timeoutMs = 4000): Promise<boolean> {
   }
 }
 
-async function devicePost<T>(body: unknown): Promise<T> {
+async function devicePost<T extends { register?: unknown }>(body: unknown): Promise<T & { register: RegisterClaim | null }> {
   const token = readSessionToken();
   const endpoint = syncEndpoint();
   if (!token) throw syncFailure("Unauthorized", 401, "unpaired");
@@ -59,15 +62,17 @@ async function devicePost<T>(body: unknown): Promise<T> {
     failure.cause = error;
     throw failure;
   }
+  const payload = (await response.json().catch(() => null)) as (T & { error?: string }) | null;
+  if (response.status === 401 && payload?.error === "revoked") throw syncFailure("revoked", 401, "revoked");
   if (response.status === 401) throw syncFailure("Unauthorized", 401, "unpaired");
-  if (!response.ok) throw syncFailure("sync failed", response.status, "http");
-  return (await response.json()) as T;
+  if (!response.ok || !payload) throw syncFailure("sync failed", response.status, "http");
+  return { ...payload, register: readRegisterClaim(payload.register) };
 }
 
-export async function pullCloud(since: string | null): Promise<PullResult> {
-  return devicePost<PullResult>({ op: "pull", since });
+export async function pullCloud(since: string | null, client?: SyncClient): Promise<PullResult> {
+  return devicePost<PullResult>({ op: "pull", since, client });
 }
 
-export async function pushCloud(docs: CloudDoc[]): Promise<PushResult> {
-  return devicePost<PushResult>({ op: "push", docs });
+export async function pushCloud(docs: CloudDoc[], client?: SyncClient): Promise<PushResult> {
+  return devicePost<PushResult>({ op: "push", docs, client });
 }

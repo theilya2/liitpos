@@ -1,6 +1,7 @@
 import { formatILS, formatWhen } from "@/lib/pos/money";
 import { tendersOf } from "@/lib/pos/tender";
 import { deviceLabel } from "@/lib/pos/terminal";
+import { registerCaption } from "@/lib/pos/register";
 import { METHOD_LABEL, type Sale, type TenderLine } from "@/lib/pos/types";
 
 function tenderText(line: TenderLine): string {
@@ -24,6 +25,7 @@ export function receiptPlainText(sale: Sale): string {
     credit ? `תעודת זיכוי ${sale.number}` : `קבלה ${sale.number}`,
     credit && sale.creditOfNumber ? `עבור קבלה ${sale.creditOfNumber}` : "",
     sale.cashierName ? `קופאי ${sale.cashierName}` : "",
+    registerCaption(sale.registerNo, sale.registerName),
     sale.channel === "kiosk" ? "הזמנת קיוסק" : "",
     formatWhen(sale.createdAt),
     sale.voided ? "מבוטלת" : "",
@@ -75,6 +77,7 @@ export function ReceiptView({ sale }: { sale: Sale }) {
       </div>
       {credit && sale.creditOfNumber ? <p className="mt-1 text-sm text-muted">עבור קבלה {sale.creditOfNumber}</p> : null}
       {sale.cashierName ? <p className="mt-1 text-sm text-muted">קופאי {sale.cashierName}</p> : null}
+      {sale.registerNo ? <p className="mt-1 text-sm text-muted">{registerCaption(sale.registerNo, sale.registerName)}</p> : null}
       {sale.channel === "kiosk" ? <p className="mt-1 text-sm font-medium text-pine">הזמנת קיוסק</p> : null}
       {sale.voided ? <p className="mt-2 text-center text-sm font-semibold text-copper">קבלה מבוטלת</p> : null}
       <ul className="mt-4 space-y-2">

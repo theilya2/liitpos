@@ -1,6 +1,7 @@
 import { formatILS, formatWhen } from "@/lib/pos/money";
 import { tendersOf } from "@/lib/pos/tender";
 import { deviceLabel } from "@/lib/pos/terminal";
+import { registerCaption } from "@/lib/pos/register";
 import { METHOD_LABEL, type PaymentMethod, type Sale, type Settings, type TenderLine } from "@/lib/pos/types";
 
 /** Product name of the USB thermal printer the register looks for first. */
@@ -116,6 +117,8 @@ export function receiptPrintLines(sale: Sale): PrintLine[] {
   });
   if (credit && sale.creditOfNumber) lines.push({ text: `עבור קבלה ${sale.creditOfNumber}`, align: "right", size: "sm" });
   if (sale.cashierName) lines.push({ text: `קופאי ${clip(sale.cashierName, 24)}`, align: "right", size: "sm" });
+  const register = registerCaption(sale.registerNo, sale.registerName);
+  if (register) lines.push({ text: register, align: "right", size: "sm" });
   if (sale.channel === "kiosk") lines.push({ text: "הזמנת קיוסק", align: "right", size: "sm" });
   lines.push({ text: formatWhen(sale.createdAt), align: "right", size: "sm" });
   if (sale.voided) lines.push({ text: "מבוטלת", align: "center", bold: true });

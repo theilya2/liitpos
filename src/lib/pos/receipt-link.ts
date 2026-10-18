@@ -1,5 +1,6 @@
 import { formatILS, formatWhen } from "@/lib/pos/money";
 import { isPaymentMethod, tendersOf } from "@/lib/pos/tender";
+import { registerCaption } from "@/lib/pos/register";
 import { METHOD_LABEL, type PaymentMethod, type Sale, type SaleLine, type TenderLine } from "@/lib/pos/types";
 
 /** Public host for customer receipt links. The register itself may be offline. */
@@ -45,6 +46,7 @@ export function receiptSmsBody(sale: Sale, url: string | null): string {
     sale.business.businessName,
     formatWhen(sale.createdAt),
     credit ? `תעודת זיכוי ${sale.number}` : `קבלה ${sale.number}`,
+    registerCaption(sale.registerNo, sale.registerName),
     `${credit ? "זיכוי" : "סה״כ"} ${formatILS(sale.total)}`,
     methodsOf(sale),
   ];
@@ -144,6 +146,8 @@ export function toPublicSale(doc: unknown): Sale | null {
     cardLast4: text(raw.cardLast4, 4),
     cardBrand: text(raw.cardBrand, 24),
     channel: raw.channel === "kiosk" ? "kiosk" : "register",
+    registerNo: Number.isInteger(raw.registerNo) && Number(raw.registerNo) > 0 ? Number(raw.registerNo) : undefined,
+    registerName: text(raw.registerName, 40) || undefined,
     tenders: Array.isArray(raw.tenders) ? raw.tenders.slice(0, 12).map(publicTender).filter((line): line is TenderLine => Boolean(line)) : undefined,
   };
 }

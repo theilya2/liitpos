@@ -5,6 +5,7 @@ import { can } from "@/lib/pos/access";
 import { drawerExpected, drawerVariance, openCashMoves, paidIn, paidOut } from "@/lib/pos/cash";
 import { formatILS, formatWhen, roundMoney } from "@/lib/pos/money";
 import { soldItems, stockRows } from "@/lib/pos/options";
+import { registerCaption } from "@/lib/pos/register";
 import { currentUser, usePos } from "@/lib/pos/store";
 import { isCredit, zFigures } from "@/lib/pos/tender";
 import { METHOD_LABEL, type PaymentMethod } from "@/lib/pos/types";
@@ -41,14 +42,30 @@ export function ReportsPage() {
   const user = usePos(currentUser);
   const closeZ = usePos((state) => state.closeZ);
   const queueZPrint = usePos((state) => state.queueZPrint);
+  const registerNo = usePos((state) => state.registerNo);
   const [range, setRange] = useState<Range>("shift");
+  const [registerFilter, setRegisterFilter] = useState<number | "all">(registerNo ?? "all");
   const [counted, setCounted] = useState("");
   const [left, setLeft] = useState("");
   const [zError, setZError] = useState("");
 
+  const registerChoices = useMemo(() => {
+    const numbers = new Set<number>();
+    for (const sale of sales) {
+      if (typeof sale.registerNo === "number") numbers.add(sale.registerNo);
+    }
+    for (const report of zReports) {
+      if (typeof report.registerNo === "number") numbers.add(report.registerNo);
+    }
+    return [...numbers].sort((a, b) => a - b);
+  }, [sales, zReports]);
   const pool = useMemo(
-    () => sales.filter((sale) => (range === "shift" ? !sale.zId : inRange(sale.createdAt, range))),
-    [sales, range],
+    () =>
+      sales.filter((sale) => {
+        if (registerFilter !== "all" && sale.registerNo !== registerFilter) return false;
+        return range === "shift" ? !sale.zId : inRange(sale.createdAt, range);
+      }),
+    [sales, range, registerFilter],
   );
   const figures = useMemo(() => zFigures(pool), [pool]);
   const liveSales = pool.filter((sale) => !sale.voided && !isCredit(sale));
@@ -102,6 +119,18 @@ export function ReportsPage() {
     <div className="scroll-pane page-sheet min-h-0 flex-1">
       <PageHeader title="דוח קופה" subtitle="משמרת פתוחה, סוף יום ודוח Z. זה דוח ניהול, לא דוח מס." />
       <div className="space-y-3 px-3 pb-6">
+        {registerChoices.length > 0 ? (
+          <div className="flex gap-2 overflow-x-auto">
+            <button type="button" onClick={() => setRegisterFilter("all")} className={`h-12 shrink-0 rounded-full px-4 text-sm ${registerFilter === "all" ? "bg-pine font-semibold text-pine-ink" : "bg-surface ring-1 ring-line"}`}>
+              כל הקופות
+            </button>
+            {registerChoices.map((number) => (
+              <button key={number} type="button" onClick={() => setRegisterFilter(number)} className={`h-12 shrink-0 rounded-full px-4 text-sm ${registerFilter === number ? "bg-pine font-semibold text-pine-ink" : "bg-surface ring-1 ring-line"}`}>
+                {registerCaption(number)}
+              </button>
+            ))}
+          </div>
+        ) : null}
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
           {RANGES.map((item) => (
             <button
@@ -256,10 +285,13 @@ export function ReportsPage() {
             <p className="py-4 text-sm text-muted">עדיין לא נסגרה משמרת.</p>
           ) : (
             <ul className="mt-3 space-y-2">
-              {zReports.slice(0, 8).map((report) => (
+              {zReports
+                .filter((report) => registerFilter === "all" || report.registerNo === registerFilter)
+                .slice(0, 8)
+                .map((report) => (
                 <li key={report.id} className="flex items-center justify-between gap-3 rounded-xl bg-paper px-3 py-2">
                   <span className="min-w-0">
-                    <span className="block text-sm font-medium">Z {report.number}</span>
+                    <span className="block text-sm font-medium">Z {report.number}{report.registerNo ? ` · ${registerCaption(report.registerNo, report.registerName)}` : ""}</span>
                     <span className="text-xs text-muted">{formatWhen(report.closedAt)} · {report.closedBy}</span>
                   </span>
                   <button

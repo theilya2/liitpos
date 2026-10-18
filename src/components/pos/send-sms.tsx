@@ -29,7 +29,7 @@ async function linkAfterSync(businessId: string, saleId: string): Promise<string
     const url = publishedUrl(businessId, saleId);
     if (url) return url;
     const phase = useCloudStatus.getState().phase;
-    if (phase === "offline" || phase === "local" || phase === "error") break;
+    if (phase === "offline" || phase === "local" || phase === "error" || phase === "revoked") break;
     await sleep(250);
   }
   return publishedUrl(businessId, saleId);

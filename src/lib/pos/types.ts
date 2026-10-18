@@ -213,6 +213,9 @@ export type Sale = {
   cardLast4?: string;
   cardBrand?: string;
   channel?: "register" | "kiosk";
+  /** Register that made the sale. Missing on sales from before numbered registers. */
+  registerNo?: number;
+  registerName?: string;
   kioskStatus?: "new" | "done" | null;
   /** Unguessable id for the public receipt page. Missing on sales from before SMS links. */
   publicToken?: string;
@@ -310,6 +313,9 @@ export type ZReport = {
   closedAt: string;
   closedBy: string;
   storeName: string;
+  /** Register that closed the shift. Missing on older reports. */
+  registerNo?: number;
+  registerName?: string;
   from: string;
   to: string;
   salesCount: number;

@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
 import { isDemoMode } from "@/lib/pos/demo";
-import { CloudLinkCard } from "@/components/pos/cloud-link";
 import { PageHeader } from "@/components/pos/shell";
 import { ClubPanel } from "@/components/pos/club-panel";
 import { PrinterSettings } from "@/components/pos/printer-settings";
@@ -21,7 +20,6 @@ export function SettingsPage() {
     <div className="scroll-pane page-sheet min-h-0 flex-1">
       <PageHeader title="הגדרות" subtitle="פרטי העסק מופיעים על כל קבלה חדשה." />
       <div className="space-y-3 px-3 pb-8">
-        <CloudLinkCard />
         <section className="space-y-3 rounded-2xl bg-surface p-4 ring-1 ring-line">
           <h2 className="text-base font-semibold">פרטי העסק</h2>
           <p className="text-sm text-muted">

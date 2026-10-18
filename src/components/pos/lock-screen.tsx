@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { CloudLinkCard } from "@/components/pos/cloud-link";
 import { canSeeStore } from "@/lib/pos/access";
 import { canUseBusiness, isDemoMode } from "@/lib/pos/demo";
 import { tapKey } from "@/lib/pos/haptics";
@@ -35,15 +34,24 @@ export function LockScreen() {
       void syncNow().then(() => {
         const again = usePos.getState().stores.find((store) => store.id !== "store-empty" && store.settings.code === nextCode && canUseBusiness(store.id, store.settings.code));
         if (again) {
-          setError("");
           setGateStore(again.id);
+          if (usePos.getState().gateStoreId !== again.id) {
+            setError("הקופה הזו משויכת לעסק אחר. רק הבעלים מוסיף קופה מהמשרד האחורי.");
+            return;
+          }
+          setError("");
         }
       });
       return;
     }
-    setError("");
     setPin("");
     setGateStore(match.id);
+    if (usePos.getState().gateStoreId !== match.id) {
+      setCode("");
+      setError("הקופה הזו משויכת לעסק אחר. רק הבעלים מוסיף קופה מהמשרד האחורי.");
+      return;
+    }
+    setError("");
   }
 
   function pushCode(digit: string) {
@@ -139,9 +147,6 @@ export function LockScreen() {
             }}
           />
         </section>
-      </div>
-      <div className="lock-cloud">
-        <CloudLinkCard />
       </div>
     </main>
   );
