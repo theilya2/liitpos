@@ -1,4 +1,5 @@
 import { formatDay, formatILS } from "@/lib/pos/money";
+import { currentUser, usePos } from "@/lib/pos/store";
 import { METHOD_LABEL, type ZReport } from "@/lib/pos/types";
 
 function Row({ label, value, strong }: { label: string; value: string; strong?: boolean }) {
@@ -11,6 +12,8 @@ function Row({ label, value, strong }: { label: string; value: string; strong?: 
 }
 
 export function ZReportView({ report }: { report: ZReport }) {
+  const user = usePos(currentUser);
+  const showExpected = user?.role === "manager";
   return (
     <article className="receipt-sheet mx-auto w-full max-w-sm bg-surface px-5 py-6 text-ink">
       <header className="text-center">
@@ -45,7 +48,9 @@ export function ZReportView({ report }: { report: ZReport }) {
         <Row label="יתרת פתיחה" value={formatILS(report.openingFloat)} />
         <Row label="מזומן נטו" value={formatILS(report.cashTaken)} />
         {report.cashRefunds ? <Row label="החזר מזומן" value={formatILS(report.cashRefunds)} /> : null}
-        <Row label="צפוי במגירה" value={formatILS(report.cashExpected)} />
+        {report.paidIn ? <Row label="הכנסות לקופה" value={formatILS(report.paidIn)} /> : null}
+        {report.paidOut ? <Row label="הוצאות מהקופה" value={formatILS(report.paidOut)} /> : null}
+        {showExpected ? <Row label="צפוי במגירה" value={formatILS(report.cashExpected)} /> : null}
         <Row label="נספר בפועל" value={formatILS(report.cashCounted)} />
         <Row label="הפרש" value={formatILS(report.variance)} strong />
         <Row label="נשאר למחר" value={formatILS(report.leftInDrawer)} />

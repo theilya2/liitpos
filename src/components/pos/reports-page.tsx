@@ -1,6 +1,8 @@
 import { useMemo, useState } from "react";
+import { CashSheet } from "@/components/pos/cash-sheet";
 import { PageHeader } from "@/components/pos/shell";
 import { can } from "@/lib/pos/access";
+import { drawerExpected, drawerVariance, openCashMoves, paidIn, paidOut } from "@/lib/pos/cash";
 import { formatILS, formatWhen, roundMoney } from "@/lib/pos/money";
 import { soldItems, stockRows } from "@/lib/pos/options";
 import { currentUser, usePos } from "@/lib/pos/store";
@@ -34,6 +36,8 @@ export function ReportsPage() {
   const openingFloat = usePos((state) => state.settings.openingFloat);
   const zReports = usePos((state) => state.zReports);
   const drawerOpens = usePos((state) => state.drawerOpens);
+  const cashMoves = usePos((state) => state.cashMoves);
+  const [cashOpen, setCashOpen] = useState(false);
   const user = usePos(currentUser);
   const closeZ = usePos((state) => state.closeZ);
   const queueZPrint = usePos((state) => state.queueZPrint);
@@ -69,6 +73,11 @@ export function ReportsPage() {
   const shortages = stockRows(products).filter((row) => row.stock <= row.lowStock);
   const sold = useMemo(() => soldItems(pool), [pool]);
   const mayClose = !!user && can(user.role, "z");
+  const manager = user?.role === "manager";
+  const moves = openCashMoves(cashMoves ?? []);
+  const expected = drawerExpected(openingFloat, figures.cashTaken, cashMoves ?? []);
+  const countedValue = Number(counted.replace(",", "."));
+  const revealExpected = manager && Number.isFinite(countedValue) && counted.trim() !== "";
 
   function submitZ() {
     const cashCounted = Number(counted.replace(",", "."));
@@ -121,15 +130,29 @@ export function ReportsPage() {
             <Row label="יתרת פתיחה" value={formatILS(openingFloat)} />
             <Row label="מזומן נטו" value={formatILS(figures.cashTaken)} />
             {figures.cashRefunds > 0 ? <Row label="החזר מזומן" value={formatILS(figures.cashRefunds)} /> : null}
-            <Row label="צפוי במגירה" value={formatILS(roundMoney(openingFloat + figures.cashTaken))} strong />
+            {paidIn(cashMoves ?? []) > 0 ? <Row label="הכנסות לקופה" value={formatILS(paidIn(cashMoves ?? []))} /> : null}
+            {paidOut(cashMoves ?? []) > 0 ? <Row label="הוצאות מהקופה" value={formatILS(paidOut(cashMoves ?? []))} /> : null}
             {range === "shift" ? <Row label="פתיחות מגירה" value={String(drawerOpens.length)} /> : null}
-            <p className="mt-2 text-xs text-muted">הצפוי הוא יתרת הפתיחה ועוד מזומן מהמכירות. סופרים את המגירה לפני סגירת Z.</p>
+            <p className="mt-2 text-xs text-pretty text-muted">סופרים את המגירה לפני שרואים את הצפוי. הצפוי גלוי למנהל בלבד.</p>
+            {moves.length ? (
+              <ul className="mt-3 space-y-2">
+                {moves.slice(0, 8).map((move) => (
+                  <li key={move.id} className="flex items-baseline justify-between gap-3 text-sm">
+                    <span className="min-w-0 break-words">{move.direction === "in" ? "הכנסה" : "הוצאה"} · {move.reason} · {move.by}</span>
+                    <span className="shrink-0 tabular-nums">{move.direction === "in" ? "+" : "−"}{formatILS(move.amount)}</span>
+                  </li>
+                ))}
+              </ul>
+            ) : null}
+            <button type="button" onClick={() => setCashOpen(true)} className="mt-3 min-h-12 w-full rounded-xl bg-paper text-sm font-medium ring-1 ring-line">
+              הכנסה / הוצאה
+            </button>
           </section>
         ) : null}
         {range === "shift" && mayClose ? (
           <section className="rounded-2xl bg-surface p-4 ring-1 ring-line">
             <h2 className="text-base font-semibold">סגירת משמרת · דוח Z</h2>
-            <p className="mt-1 text-sm text-muted">הסגירה נועלת את כל הקבלות שעדיין לא נכנסו ל-Z, ומעבירה את מה שנשאר במגירה ליתרת הפתיחה הבאה.</p>
+            <p className="mt-1 text-sm text-pretty text-muted">קודם סופרים. הצפוי וההפרש נשמרים בדוח. מנהל רואה את הצפוי אחרי שהספירה הוקלדה.</p>
             <label className="mt-3 block">
               <span className="mb-1 block text-sm text-muted">מזומן שנספר</span>
               <input value={counted} onChange={(event) => setCounted(event.target.value)} inputMode="decimal" dir="ltr" className="h-12 w-full rounded-xl bg-paper px-3 ring-1 ring-line tabular-nums" />
@@ -138,6 +161,12 @@ export function ReportsPage() {
               <span className="mb-1 block text-sm text-muted">נשאר במגירה למשמרת הבאה</span>
               <input value={left} onChange={(event) => setLeft(event.target.value)} inputMode="decimal" dir="ltr" placeholder={counted || "כמו הספירה"} className="h-12 w-full rounded-xl bg-paper px-3 ring-1 ring-line tabular-nums" />
             </label>
+            {revealExpected ? (
+              <div className="mt-3 space-y-1">
+                <Row label="צפוי במגירה" value={formatILS(expected)} strong />
+                <Row label="הפרש" value={formatILS(drawerVariance(countedValue, expected))} />
+              </div>
+            ) : null}
             {zError ? <p className="mt-2 text-sm text-copper">{zError}</p> : null}
             <button type="button" onClick={submitZ} disabled={figures.salesCount + figures.creditCount === 0} className="mt-3 h-12 w-full rounded-2xl bg-pine font-semibold text-pine-ink disabled:opacity-40">
               סגירה והדפסת Z
@@ -245,6 +274,7 @@ export function ReportsPage() {
           )}
         </section>
       </div>
+      {cashOpen ? <CashSheet onClose={() => setCashOpen(false)} /> : null}
     </div>
   );
 }

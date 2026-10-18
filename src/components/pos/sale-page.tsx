@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { ArrowLeftRight, Banknote, CreditCard, IdCard, Minus, Pause, Plus, Printer, Search, Smartphone, Ticket, Trash2, Wallet, X } from "lucide-react";
+import { CashSheet } from "@/components/pos/cash-sheet";
 import { Numpad } from "@/components/pos/numpad";
 import { OptionSheet } from "@/components/pos/option-sheet";
 import { ReceiptView } from "@/components/pos/receipt";
@@ -695,6 +696,7 @@ export function SalePage() {
   const [pad, setPad] = useState("");
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
   const [payOpen, setPayOpen] = useState(false);
+  const [cashOpen, setCashOpen] = useState(false);
   const [done, setDone] = useState<Sale | null>(null);
   const [note, setNote] = useState("");
 
@@ -880,7 +882,7 @@ export function SalePage() {
             {user ? ` · ${user.name}` : ""}
           </p>
         </header>
-        <div className="grid shrink-0 grid-cols-3 gap-2 px-2 pt-2">
+        <div className="grid shrink-0 grid-cols-2 gap-2 px-2 pt-2">
           <button
             type="button"
             disabled={!cart.length || held.length >= 5}
@@ -895,6 +897,9 @@ export function SalePage() {
           <button type="button" onClick={() => void drawer()} className="flex min-h-12 items-center justify-center gap-1 rounded-xl bg-paper px-1 py-1 text-center text-xs font-medium leading-tight ring-1 ring-line">
             <Wallet className="size-4 shrink-0" />
             מגירה
+          </button>
+          <button type="button" onClick={() => setCashOpen(true)} className="flex min-h-12 items-center justify-center gap-1 rounded-xl bg-paper px-1 py-1 text-center text-xs font-medium leading-tight ring-1 ring-line">
+            הכנסה / הוצאה
           </button>
           <button type="button" onClick={lastReceipt} className="flex min-h-12 items-center justify-center gap-1 rounded-xl bg-paper px-1 py-1 text-center text-xs font-medium leading-tight ring-1 ring-line">
             <Printer className="size-4 shrink-0" />
@@ -1076,6 +1081,7 @@ export function SalePage() {
         }}
       />
     ) : null}
+    {cashOpen ? <CashSheet onClose={() => setCashOpen(false)} /> : null}
     </>
   );
 }

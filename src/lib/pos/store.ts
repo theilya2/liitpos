@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
 import { can, canSeeStore } from "@/lib/pos/access";
+import { drawerExpected, drawerVariance, paidIn, paidOut } from "@/lib/pos/cash";
 import { applyDocs, catalogDoc, changesToDocs, deviceDoc, mergeOutbox, settingsDoc, snapshotDocs, staffDoc, type CloudDoc } from "@/lib/pos/docs";
 import { normalizeKioskSettings } from "@/lib/pos/kiosk";
 import { computeTotals, roundMoney } from "@/lib/pos/money";
@@ -23,7 +24,7 @@ import {
   kioskBranch,
   mainBranch,
 } from "@/lib/pos/seed";
-import { type Branch, type CartLine, type Category, type ClubMember, type Discount, type DrawerOpen, type HeldOrder, type PaymentMethod, type Product, type Role, type Sale, type Settings, type StaffUser, type StockMove, type StockReason, type TerminalKind, type ZReport } from "@/lib/pos/types";
+import { type Branch, type CartLine, type CashMove, type Category, type ClubMember, type Discount, type DrawerOpen, type HeldOrder, type PaymentMethod, type Product, type Role, type Sale, type Settings, type StaffUser, type StockMove, type StockReason, type TerminalKind, type ZReport } from "@/lib/pos/types";
 import { canUseBusiness, isDemoMode } from "@/lib/pos/demo";
 import { withPrintSettings } from "@/lib/pos/printer";
 import { isReceiptToken, newReceiptToken } from "@/lib/pos/receipt-link";
@@ -77,6 +78,7 @@ type PosState = BranchFields & {
   rememberBusinessSettings: (businessId: string, patch: Partial<Settings>) => void;
   adjustStock: (productId: string, qty: number, reason: StockReason, note: string, variantId?: string | null) => void;
   openDrawer: () => void;
+  recordCash: (direction: "in" | "out", amount: number, reason: string) => boolean;
   closeZ: (cashCounted: number, leftInDrawer: number) => ZReport | null;
   clearHistory: () => void;
   resetDemo: () => void;
@@ -149,6 +151,7 @@ function toBranch(state: BranchFields & { activeStoreId: string }): Branch {
     nextZ: state.nextZ,
     stockMoves: state.stockMoves,
     drawerOpens: state.drawerOpens,
+    cashMoves: state.cashMoves ?? [],
     members: state.members,
   };
 }
@@ -168,6 +171,7 @@ function fromBranch(branch: Branch): BranchFields {
     nextZ: branch.nextZ,
     stockMoves: branch.stockMoves,
     drawerOpens: branch.drawerOpens,
+    cashMoves: branch.cashMoves ?? [],
     members: branch.members,
   };
 }
@@ -220,6 +224,7 @@ function normalizeBranch(branch: Branch): Branch {
     nextZ: branch.nextZ ?? 1,
     stockMoves: branch.stockMoves ?? [],
     drawerOpens: branch.drawerOpens ?? [],
+    cashMoves: branch.cashMoves ?? [],
     cart: branch.cart ?? [],
     held: branch.held ?? [],
     categories: branch.categories ?? cloneCategories(),
@@ -760,6 +765,27 @@ export const usePos = create<PosState>()(
           commit({ drawerOpens: [event, ...state.drawerOpens].slice(0, 200) });
         },
 
+        recordCash: (direction, amount, reason) => {
+          const state = get();
+          const user = state.staff.find((item) => item.id === state.sessionUserId);
+          if (!user) return false;
+          const value = roundMoney(amount);
+          const why = reason.trim().slice(0, 80);
+          if (!(value > 0) || !why) return false;
+          const move: CashMove = {
+            id: newId(),
+            at: new Date().toISOString(),
+            direction,
+            amount: value,
+            reason: why,
+            by: user.name,
+            employeeId: user.id,
+            zId: null,
+          };
+          commit({ cashMoves: [move, ...(state.cashMoves ?? [])].slice(0, 200) });
+          return true;
+        },
+
         closeZ: (cashCounted, leftInDrawer) => {
           const state = get();
           const open = state.sales.filter((sale) => !sale.zId);
@@ -767,7 +793,8 @@ export const usePos = create<PosState>()(
           const figures = zFigures(open);
           if (figures.salesCount + figures.creditCount === 0) return null;
           const cashTaken = figures.cashTaken;
-          const expected = roundMoney(state.settings.openingFloat + cashTaken);
+          const moves = state.cashMoves ?? [];
+          const expected = drawerExpected(state.settings.openingFloat, cashTaken, moves);
           const counted = roundMoney(Math.max(0, cashCounted));
           const left = roundMoney(Math.max(0, leftInDrawer));
           const times = open.map((sale) => new Date(sale.createdAt).getTime());
@@ -793,7 +820,9 @@ export const usePos = create<PosState>()(
             cashTaken,
             cashExpected: expected,
             cashCounted: counted,
-            variance: roundMoney(counted - expected),
+            variance: drawerVariance(counted, expected),
+            paidIn: paidIn(moves),
+            paidOut: paidOut(moves),
             leftInDrawer: left,
             drawerOpens: state.drawerOpens.length,
           };
@@ -802,13 +831,14 @@ export const usePos = create<PosState>()(
             zReports: [report, ...state.zReports],
             nextZ: state.nextZ + 1,
             drawerOpens: [],
+            cashMoves: moves.map((move) => (move.zId ? move : { ...move, zId: report.id })),
             settings: { ...state.settings, openingFloat: left },
             zToPrint: report,
           });
           return report;
         },
 
-        clearHistory: () => commit({ sales: [], cart: [], discount: null, held: [], zReports: [], drawerOpens: [] }),
+        clearHistory: () => commit({ sales: [], cart: [], discount: null, held: [], zReports: [], drawerOpens: [], cashMoves: [] }),
 
         resetDemo: () => {
           if (!isDemoMode()) return;
