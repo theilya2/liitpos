@@ -2,6 +2,7 @@ import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
 import { can, canSeeStore } from "@/lib/pos/access";
 import { applyDocs, catalogDoc, changesToDocs, deviceDoc, mergeOutbox, settingsDoc, snapshotDocs, staffDoc, type CloudDoc } from "@/lib/pos/docs";
+import { normalizeKioskSettings } from "@/lib/pos/kiosk";
 import { computeTotals, roundMoney } from "@/lib/pos/money";
 import { isCredit, quoteRefund, refundMethodsFor, settleSale, tendersOf, zFigures, type RefundPick, type TenderInput } from "@/lib/pos/tender";
 import {
@@ -677,7 +678,7 @@ export const usePos = create<PosState>()(
           } else if (!next.logo || !next.logo.startsWith("data:image/")) {
             next.logo = null;
           }
-          commit({ settings: withPrintSettings(next) });
+          commit({ settings: { ...withPrintSettings(next), ...normalizeKioskSettings(next) } });
         },
 
         adjustStock: (productId, qty, reason, note) => {

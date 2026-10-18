@@ -2,6 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { authMiddleware } from "@/lib/auth/middleware";
 import { getSql } from "@/lib/db";
 import { isDocKind, type CloudDoc, type DocKind, type Json } from "@/lib/pos/docs";
+import { normalizeKioskSettings } from "@/lib/pos/kiosk";
 import { normalizePrintSettings } from "@/lib/pos/printer";
 import { cloneSettings, codeForStore } from "@/lib/pos/seed";
 import { cleanEndpoint } from "@/lib/pos/terminal";
@@ -127,6 +128,7 @@ function readSettings(doc: unknown): Settings | null {
     pinpad: cleanEndpoint(raw.pinpad, base.pinpad),
     logo: typeof raw.logo === "string" && raw.logo.startsWith("data:image/") && raw.logo.length <= 150_000 ? raw.logo : null,
     ...normalizePrintSettings(raw),
+    ...normalizeKioskSettings(raw),
   };
 }
 

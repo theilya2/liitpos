@@ -1,7 +1,10 @@
-import { useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { Minus, Plus, X } from "lucide-react";
+import { canSeeStore } from "@/lib/pos/access";
+import { attractImages, kioskTiming, upsellSuggestions } from "@/lib/pos/kiosk";
 import { computeTotals, formatILS, roundCash, roundMoney } from "@/lib/pos/money";
+import { setKioskLock } from "@/lib/pos/native";
 import { confirmReceipt } from "@/lib/pos/receipt-io";
 import { usePos } from "@/lib/pos/store";
 import { chargeTerminal, deviceLabel, paymentPlan, terminalOrigin } from "@/lib/pos/terminal";
@@ -21,8 +24,60 @@ export function KioskPage() {
   const [pay, setPay] = useState(false);
   const [done, setDone] = useState<number | null>(null);
   const [exitOpen, setExitOpen] = useState(false);
+  const [attract, setAttract] = useState(true);
+  const [review, setReview] = useState(false);
+  const [warnLeft, setWarnLeft] = useState<number | null>(null);
+  const sales = usePos((state) => state.sales);
+  const staff = usePos((state) => state.staff);
+  const activeStoreId = usePos((state) => state.activeStoreId);
   const navigate = useNavigate();
   const totals = computeTotals(cart, null, settings.vatRate);
+  const timing = kioskTiming(settings);
+  const slides = attractImages(settings, products);
+  const [slide, setSlide] = useState(0);
+  const idleAt = useRef(Date.now());
+  const suggestions = upsellSuggestions(cart, products, settings.upsellRules, sales);
+
+  function bump() {
+    idleAt.current = Date.now();
+    setWarnLeft(null);
+  }
+
+  useEffect(() => {
+    if (!timing.lock) return;
+    setKioskLock(true);
+    return () => setKioskLock(false);
+  }, [timing.lock]);
+
+  useEffect(() => {
+    if (!attract || slides.length < 2) return;
+    const timer = window.setInterval(() => setSlide((current) => (current + 1) % slides.length), 4000);
+    return () => window.clearInterval(timer);
+  }, [attract, slides.length]);
+
+  useEffect(() => {
+    if (attract) return;
+    const timer = window.setInterval(() => {
+      if ((Date.now() - idleAt.current) / 1000 >= timing.idle) setWarnLeft((current) => current ?? timing.warn);
+    }, 500);
+    return () => window.clearInterval(timer);
+  }, [attract, timing.idle, timing.warn]);
+
+  useEffect(() => {
+    if (warnLeft === null) return;
+    if (warnLeft <= 0) {
+      setCart([]);
+      setPick(null);
+      setPay(false);
+      setReview(false);
+      setDone(null);
+      setAttract(true);
+      setWarnLeft(null);
+      return;
+    }
+    const timer = window.setTimeout(() => setWarnLeft((current) => (current === null ? null : current - 1)), 1000);
+    return () => window.clearTimeout(timer);
+  }, [warnLeft]);
 
   function qtyOf(productId: string) {
     return cart.filter((line) => line.productId === productId).reduce((sum, line) => sum + line.qty, 0);
@@ -39,8 +94,8 @@ export function KioskPage() {
   }
 
   return (
-    <main className="kiosk-board flex min-h-0 flex-1 flex-col bg-paper text-ink">
-      <header className="flex shrink-0 items-center gap-3 border-b border-line bg-surface px-4 py-3">
+    <main className="kiosk-board relative flex min-h-0 flex-1 flex-col bg-paper text-ink" onPointerDown={bump}>
+      <header className="relative z-40 flex shrink-0 items-center gap-3 border-b border-line bg-surface px-4 py-3">
         {settings.logo ? (
           <img src={settings.logo} alt="" className="h-12 w-12 rounded-2xl object-cover" />
         ) : (
@@ -82,7 +137,7 @@ export function KioskPage() {
         <button
           type="button"
           disabled={!cart.length}
-          onClick={() => setPay(true)}
+          onClick={() => setReview(true)}
           className="flex h-14 w-full items-center justify-between rounded-2xl bg-pine px-4 text-lg font-semibold text-pine-ink disabled:opacity-40"
         >
           <span>לתשלום</span>
@@ -140,6 +195,80 @@ export function KioskPage() {
           </button>
         </Sheet>
       ) : null}
+      {attract ? (
+        <button
+          type="button"
+          onClick={() => {
+            bump();
+            setAttract(false);
+          }}
+          className="absolute inset-0 z-30 flex flex-col items-center justify-center bg-ink text-pine-ink"
+        >
+          {slides[slide] ? <img src={slides[slide].image} alt="" className="absolute inset-0 h-full w-full object-cover opacity-80" /> : null}
+          <span className="relative mt-auto w-full bg-ink/55 px-6 py-8 text-center">
+            <span className="block text-3xl font-semibold text-balance">{slides[slide]?.caption || settings.businessName}</span>
+            <span className="mt-4 inline-flex min-h-14 items-center rounded-2xl bg-pine px-8 text-xl font-semibold">לחצו להזמנה</span>
+          </span>
+        </button>
+      ) : null}
+      {warnLeft !== null ? (
+        <div className="absolute inset-0 z-30 flex items-center justify-center bg-ink/50 p-4">
+          <div className="w-full max-w-md rounded-3xl bg-surface p-6 text-center">
+            <h2 className="text-2xl font-semibold">עדיין כאן?</h2>
+            <p className="mt-2 text-4xl font-semibold tabular-nums">{warnLeft}</p>
+            <button type="button" onClick={bump} className="mt-4 min-h-14 w-full rounded-2xl bg-pine text-lg font-semibold text-pine-ink">
+              כן, ממשיכים
+            </button>
+          </div>
+        </div>
+      ) : null}
+      {review ? (
+        <Sheet title="ההזמנה" onClose={() => setReview(false)}>
+          <ul className="space-y-2">
+            {cart.map((line) => (
+              <li key={line.key} className="flex items-center justify-between gap-3 text-sm">
+                <span className="min-w-0 break-words">{line.name} × {line.qty}</span>
+                <span className="shrink-0 tabular-nums">{formatILS(roundMoney(line.unitPrice * line.qty))}</span>
+              </li>
+            ))}
+          </ul>
+          {suggestions.length ? (
+            <div className="mt-4">
+              <p className="text-sm font-medium">אולי גם</p>
+              <div className="mt-2 grid grid-cols-2 gap-2">
+                {suggestions.map((product) => (
+                  <button
+                    key={product.id}
+                    type="button"
+                    onClick={() => {
+                      if (product.trackStock && product.stock <= qtyOf(product.id)) return;
+                      setCart((current) => [
+                        ...current,
+                        { key: `k_${crypto.randomUUID()}`, productId: product.id, name: product.name, unitPrice: product.price, qty: 1 },
+                      ]);
+                    }}
+                    className="min-h-14 rounded-2xl bg-paper px-3 py-2 text-start text-sm ring-1 ring-line"
+                  >
+                    <span className="block font-medium">{product.name}</span>
+                    <span className="tabular-nums text-copper">{formatILS(product.price)}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          ) : null}
+          <button
+            type="button"
+            onClick={() => {
+              setReview(false);
+              setPay(true);
+            }}
+            className="mt-4 flex min-h-14 w-full items-center justify-between rounded-2xl bg-pine px-4 text-lg font-semibold text-pine-ink"
+          >
+            <span>לתשלום</span>
+            <span className="tabular-nums">{formatILS(totals.total)}</span>
+          </button>
+        </Sheet>
+      ) : null}
       {pay ? (
         <KioskPay
           total={totals.total}
@@ -165,9 +294,14 @@ export function KioskPage() {
       ) : null}
       {exitOpen ? (
         <ExitGate
-          code={settings.code}
+          lock={timing.lock}
+          accept={(value) => {
+            if (!timing.lock) return value === settings.code;
+            return staff.some((user) => user.active && user.role === "manager" && user.pin === value && canSeeStore(user, activeStoreId));
+          }}
           onClose={() => setExitOpen(false)}
           onLeave={() => {
+            setKioskLock(false);
             lock();
             void navigate({ to: "/" });
           }}
@@ -325,25 +459,38 @@ function KioskPay({
   );
 }
 
-function ExitGate({ code, onClose, onLeave }: { code: string; onClose: () => void; onLeave: () => void }) {
+function ExitGate({
+  lock,
+  accept,
+  onClose,
+  onLeave,
+}: {
+  lock: boolean;
+  accept: (value: string) => boolean;
+  onClose: () => void;
+  onLeave: () => void;
+}) {
+  const length = lock ? 4 : 6;
   const [typed, setTyped] = useState("");
   const [error, setError] = useState("");
   function push(digit: string) {
-    const next = (typed + digit).slice(0, 6);
+    const next = (typed + digit).slice(0, length);
     setTyped(next);
     setError("");
-    if (next.length === 6) {
-      if (next === code) onLeave();
+    if (next.length === length) {
+      if (accept(next)) onLeave();
       else {
         setTyped("");
-        setError("המזהה לא מתאים לעסק הזה.");
+        setError(lock ? "קוד המנהל לא מתאים." : "המזהה לא מתאים לעסק הזה.");
       }
     }
   }
   return (
     <Sheet title="יציאה מהקיוסק" onClose={onClose}>
-      <p className="text-sm text-muted">מקלידים את מזהה העסק. לקוחות לא יוצאים מכאן לניהול.</p>
-      <p className="mt-3 text-center text-2xl font-semibold tracking-[0.3em] tabular-nums" dir="ltr">{typed.padEnd(6, "·")}</p>
+      <p className="text-sm text-muted">
+        {lock ? "נעילת הקיוסק פעילה. רק קוד מנהל משחרר אותה." : "מקלידים את מזהה העסק. לקוחות לא יוצאים מכאן לניהול."}
+      </p>
+      <p className="mt-3 text-center text-2xl font-semibold tracking-[0.3em] tabular-nums" dir="ltr">{typed.padEnd(length, "·")}</p>
       {error ? <p className="mt-2 text-center text-sm text-copper">{error}</p> : null}
       <div className="mt-3 grid grid-cols-3 gap-2" dir="ltr">
         {["1", "2", "3", "4", "5", "6", "7", "8", "9", "מחק", "0"].map((key) => (
