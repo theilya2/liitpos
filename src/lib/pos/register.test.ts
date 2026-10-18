@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { nextRegisterNo, registerCaption, registerStamp, REVOKED_DETAIL } from "./register.ts";
+import { formatRegisterTime, nextRegisterNo, registerCaption, registerStamp, REVOKED_DETAIL } from "./register.ts";
 
 describe("register numbers", () => {
   it("starts at 1 and does not reuse a revoked number", () => {
@@ -27,6 +27,12 @@ describe("register numbers", () => {
     assert.equal(registerStamp({ ...bound, activeStoreId: "store-b" }), null);
     assert.equal(registerStamp({ ...bound, registerRevoked: true }), null);
     assert.equal(registerStamp({ ...bound, registerNo: null }), null);
+  });
+
+  it("formats connection time as dd/MM/yyyy HH:mm in Jerusalem", () => {
+    assert.equal(formatRegisterTime("2026-01-15T22:30:00.000Z"), "16/01/2026 00:30");
+    assert.equal(formatRegisterTime("2026-07-15T09:05:00.000Z"), "15/07/2026 12:05");
+    assert.equal(formatRegisterTime("not-a-date"), "");
   });
 
   it("uses the manager disconnect sentence", () => {

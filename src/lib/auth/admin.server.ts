@@ -239,12 +239,13 @@ export type RegisterView = {
   paired: boolean;
   appVersion: string;
   lastSync: string | null;
+  lastContact: string | null;
   pendingOutbox: number;
   online: boolean;
 };
 
 export type DeviceSession =
-  | { status: "ok"; ownerId: string; register: RegisterClaim | null }
+  | { status: "ok"; ownerId: string; register: RegisterClaim | null; registerId: string | null }
   | { status: "revoked" }
   | { status: "unauthorized" };
 
@@ -273,6 +274,7 @@ export async function listRegisters(): Promise<RegisterView[]> {
     paired: boolean;
     app_version: string;
     last_sync: string | null;
+    last_contact: string | null;
     pending_outbox: number;
     online: boolean;
   }>`
@@ -288,8 +290,17 @@ export async function listRegisters(): Promise<RegisterView[]> {
       ) as paired,
       r.app_version,
       r.last_sync::text as last_sync,
+      (
+        select max(t.last_seen)::text from device_tokens t where t.register_id = r.id
+      ) as last_contact,
       r.pending_outbox,
-      (r.revoked_at is null and r.last_sync is not null and r.last_sync > now() - interval '2 minutes') as online
+      (
+        r.revoked_at is null
+        and exists (
+          select 1 from device_tokens t
+          where t.register_id = r.id and t.last_seen is not null and t.last_seen > now() - interval '2 minutes'
+        )
+      ) as online
     from registers r
     order by r.business_id, r.register_no
   `;
@@ -302,6 +313,7 @@ export async function listRegisters(): Promise<RegisterView[]> {
     paired: asBool(row.paired),
     appVersion: row.app_version ?? "",
     lastSync: row.last_sync,
+    lastContact: row.last_contact,
     pendingOutbox: Number(row.pending_outbox) || 0,
     online: asBool(row.online),
   }));
@@ -371,6 +383,12 @@ export async function reissueRegister(request: Request, id: string): Promise<{ i
   return { id, number, name, link };
 }
 
+export async function markRegisterSynced(registerId: string): Promise<void> {
+  if (!registerId) return;
+  const sql = await getSql();
+  await sql`update registers set last_sync = now() where id = ${registerId} and revoked_at is null`;
+}
+
 export async function openDeviceSession(token: string, client: { appVersion: string; pending: number }): Promise<DeviceSession> {
   if (!token) return { status: "unauthorized" };
   const sql = await getSql();
@@ -383,11 +401,10 @@ export async function openDeviceSession(token: string, client: { appVersion: str
   const row = rows[0];
   if (!row) return { status: "unauthorized" };
   if (row.revoked_at) return { status: "revoked" };
-  if (!row.register_id) return { status: "ok", ownerId: OWNER_ID, register: null };
+  if (!row.register_id) return { status: "ok", ownerId: OWNER_ID, register: null, registerId: null };
   const registers = await sql<{ business_id: string; register_no: number; name: string; revoked_at: string | null }>`
     update registers
-    set last_sync = now(),
-        app_version = ${client.appVersion},
+    set app_version = ${client.appVersion},
         pending_outbox = ${client.pending}
     where id = ${row.register_id} and revoked_at is null
     returning business_id, register_no, name, revoked_at::text as revoked_at
@@ -397,6 +414,7 @@ export async function openDeviceSession(token: string, client: { appVersion: str
   return {
     status: "ok",
     ownerId: OWNER_ID,
+    registerId: row.register_id,
     register: { number: Number(register.register_no), name: register.name ?? "", businessId: register.business_id },
   };
 }

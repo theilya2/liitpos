@@ -14,6 +14,7 @@ export type RegisterView = {
   paired: boolean;
   appVersion: string;
   lastSync: string | null;
+  lastContact: string | null;
   pendingOutbox: number;
   online: boolean;
 };

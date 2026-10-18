@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { openDeviceSession } from "@/lib/auth/admin.server";
+import { markRegisterSynced, openDeviceSession } from "@/lib/auth/admin.server";
 import { assertSameSiteRequest } from "@/lib/auth/isolation.server";
 import { UnauthorizedError } from "@/lib/auth/verify.server";
 import { bearerFrom, withCors } from "@/lib/pos/http.server";
@@ -36,20 +36,24 @@ export const Route = createFileRoute("/api/pos/sync")({
           const bearer = bearerFrom(request);
           if (!bearer) assertSameSiteRequest();
           const body = (await request.json()) as { op?: unknown; since?: unknown; docs?: unknown; client?: unknown };
-          const session = bearer ? await openDeviceSession(bearer, clientOf(body)) : { status: "unauthorized" as const, ownerId: "", register: null as RegisterClaim | null };
+          const session = bearer
+            ? await openDeviceSession(bearer, clientOf(body))
+            : { status: "unauthorized" as const, ownerId: "", register: null as RegisterClaim | null, registerId: null };
           if (session.status === "revoked") return json(request, { error: "revoked" }, 401);
           if (session.status !== "ok") return json(request, { error: "Unauthorized" }, 401);
           const userId = session.ownerId;
           const register = session.register;
           const { acceptedCloudDocs, pullDocsForUser, pushDocsForUser } = await import("@/lib/pos/cloud.server");
+          let payload: unknown = null;
           if (body.op === "pull") {
             const since = body.since === null || typeof body.since === "string" ? body.since : null;
-            return json(request, { ...(await pullDocsForUser(userId, since)), register });
+            payload = { ...(await pullDocsForUser(userId, since)), register };
+          } else if (body.op === "push" && Array.isArray(body.docs) && body.docs.length <= 20) {
+            payload = { ...(await pushDocsForUser(userId, acceptedCloudDocs(body.docs))), register };
           }
-          if (body.op === "push" && Array.isArray(body.docs) && body.docs.length <= 20) {
-            return json(request, { ...(await pushDocsForUser(userId, acceptedCloudDocs(body.docs))), register });
-          }
-          return json(request, { error: "בקשה לא תקינה" }, 400);
+          if (!payload) return json(request, { error: "בקשה לא תקינה" }, 400);
+          if (session.registerId) await markRegisterSynced(session.registerId);
+          return json(request, payload);
         } catch (error) {
           if (error instanceof UnauthorizedError || (error instanceof Error && error.message === "Unauthorized")) {
             return json(request, { error: "Unauthorized" }, 401);

@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { formatWhen } from "@/lib/pos/money";
+import { formatRegisterTime } from "@/lib/pos/register";
 import {
   createRegister,
   listLegacyTokens,
@@ -85,7 +86,7 @@ export function RegistersAdmin({ businessId }: { businessId: string }) {
   return (
     <div className="mt-4 space-y-3">
       <h3 className="font-medium">קופות</h3>
-      {mine.length === 0 ? <p className="text-sm text-muted">עדיין אין קופה לעסק הזה.</p> : null}
+      {rows.length === 0 ? <p className="text-sm text-muted">עדיין אין קופה לעסק הזה.</p> : null}
       <ul className="space-y-2">
         {rows.map((row) => (
           <li key={row.id} className="rounded-xl bg-paper px-3 py-3 text-sm ring-1 ring-line">
@@ -97,7 +98,8 @@ export function RegistersAdmin({ businessId }: { businessId: string }) {
               {statusOf(row)}
               {row.appVersion ? ` · גרסה ${row.appVersion}` : " · אין גרסה"}
             </p>
-            <p className="text-muted">{row.lastSync ? `סונכרן ${formatWhen(row.lastSync)}` : "עדיין לא סונכרנה"}</p>
+            <p className="text-muted">{row.lastContact ? `חיבור אחרון ${formatRegisterTime(row.lastContact)}` : "עדיין לא התחברה"}</p>
+            <p className="text-muted">{row.lastSync ? `סנכרון אחרון ${formatRegisterTime(row.lastSync)}` : "עדיין לא סונכרנה"}</p>
             <p className="text-muted">{row.pendingOutbox > 0 ? `${row.pendingOutbox} ממתינים להעלאה` : "אין המתנה"}</p>
             {renameId === row.id ? (
               <form
