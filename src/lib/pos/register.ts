@@ -1,4 +1,4 @@
-/** Cloud host baked into the Android app. A pairing link may still override it. */
+/** Cloud host baked into the Android app. */
 export const DEFAULT_CLOUD_ORIGIN = "https://liitpos.vercel.app";
 
 export const REVOKED_DETAIL = 'הקופה נותקה ע"י המנהל';

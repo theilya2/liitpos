@@ -12,7 +12,6 @@ import {
   verifyPasswordHash,
 } from "./admin-credentials.ts";
 import { OWNER_ID } from "./owner.ts";
-import { cleanDeviceLabel, pairingLink } from "./pairing.ts";
 
 describe("admin credentials", () => {
   it("fails closed when the username or secret is missing", () => {
@@ -48,15 +47,7 @@ describe("admin credentials", () => {
   });
 });
 
-describe("device pairing", () => {
-  it("builds the deep link the phone already handles", () => {
-    const link = pairingLink("tok/en", "https://liitpos.vercel.app/");
-    assert.equal(link, "liitpos://link?token=tok%2Fen&cloud=https%3A%2F%2Fliitpos.vercel.app");
-    assert.equal(cleanDeviceLabel("  קופה  "), "קופה");
-    assert.equal(cleanDeviceLabel(""), null);
-    assert.equal(cleanDeviceLabel("x".repeat(41)), null);
-  });
-
+describe("device tokens", () => {
   it("moves every existing cloud row onto the single owner and stores only token hashes", () => {
     const sql = readFileSync(join(dirname(fileURLToPath(import.meta.url)), "../../../migrations/0003_admin_devices.sql"), "utf8");
     assert.match(sql, new RegExp(`user_id = '${OWNER_ID}'`));

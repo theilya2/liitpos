@@ -17,6 +17,7 @@ import android.webkit.WebView;
 import androidx.core.content.FileProvider;
 import com.getcapacitor.BridgeActivity;
 import java.io.ByteArrayOutputStream;
+import java.util.UUID;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.InputStream;
@@ -39,7 +40,6 @@ public class MainActivity extends BridgeActivity {
             webView.post(() -> webView.evaluateJavascript(script, null));
         });
         usbPrinters.register();
-        captureLink(getIntent());
     }
 
     @Override
@@ -64,17 +64,6 @@ public class MainActivity extends BridgeActivity {
         }
     }
 
-    @Override
-    protected void onNewIntent(Intent intent) {
-        super.onNewIntent(intent);
-        setIntent(intent);
-        captureLink(intent);
-        WebView webView = getBridge().getWebView();
-        webView.post(() -> webView.evaluateJavascript(
-                "window.__liitposApplySession && window.__liitposApplySession()",
-                null));
-    }
-
     private SharedPreferences prefs() {
         return getSharedPreferences(PREFS, MODE_PRIVATE);
     }
@@ -97,18 +86,6 @@ public class MainActivity extends BridgeActivity {
         }
     }
 
-    private void captureLink(Intent intent) {
-        if (intent == null || intent.getData() == null) return;
-        Uri data = intent.getData();
-        if (!"liitpos".equals(data.getScheme()) || !"link".equals(data.getHost())) return;
-        SharedPreferences.Editor editor = prefs().edit();
-        String token = data.getQueryParameter("token");
-        String cloud = data.getQueryParameter("cloud");
-        if (token != null && !token.isEmpty()) editor.putString("token", token);
-        if (cloud != null && !cloud.isEmpty()) editor.putString("cloud", cloud);
-        editor.apply();
-    }
-
     private final class Bridge {
         @JavascriptInterface
         public String getCloudUrl() {
@@ -123,6 +100,37 @@ public class MainActivity extends BridgeActivity {
         @JavascriptInterface
         public String getSessionToken() {
             return prefs().getString("token", "");
+        }
+
+        @JavascriptInterface
+        public void setSessionToken(String token) {
+            prefs().edit().putString("token", token == null ? "" : token).apply();
+        }
+
+        @JavascriptInterface
+        public String getDeviceId() {
+            String id = prefs().getString("deviceId", "");
+            if (id == null || id.isEmpty()) {
+                id = UUID.randomUUID().toString();
+                prefs().edit().putString("deviceId", id).apply();
+            }
+            return id;
+        }
+
+        @JavascriptInterface
+        public void setDeviceId(String id) {
+            if (id == null || id.isEmpty()) return;
+            String current = prefs().getString("deviceId", "");
+            if (current != null && !current.isEmpty()) return;
+            prefs().edit().putString("deviceId", id).apply();
+        }
+
+        @JavascriptInterface
+        public String getDeviceModel() {
+            String maker = Build.MANUFACTURER == null ? "" : Build.MANUFACTURER;
+            String model = Build.MODEL == null ? "" : Build.MODEL;
+            String label = (maker + " " + model).trim();
+            return label.length() > 80 ? label.substring(0, 80) : label;
         }
 
         @JavascriptInterface

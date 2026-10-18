@@ -1,7 +1,9 @@
+import { isDeviceId } from "@/lib/pos/activation";
 import { DEFAULT_CLOUD_ORIGIN } from "@/lib/pos/register";
 
 const CLOUD_KEY = "liitpos-cloud-url";
 const TOKEN_KEY = "grok-auth.bearer-token";
+const DEVICE_KEY = "liitpos-device-id";
 const UPDATE_REPO = "theilya2/Liitpos";
 
 export type AppUpdate = {
@@ -15,6 +17,10 @@ type NativeBridge = {
   getCloudUrl?: () => string;
   setCloudUrl?: (url: string) => void;
   getSessionToken?: () => string;
+  setSessionToken?: (token: string) => void;
+  getDeviceId?: () => string;
+  setDeviceId?: (id: string) => void;
+  getDeviceModel?: () => string;
   getVersionCode?: () => number;
   getVersionName?: () => string;
   openExternal?: (url: string) => void;
@@ -32,7 +38,6 @@ type NativeBridge = {
 
 type NativeWindow = Window & {
   LiitposNative?: NativeBridge;
-  __liitposApplySession?: () => void;
 };
 
 function bridge(): NativeBridge | null {
@@ -90,19 +95,87 @@ export function readSessionToken(): string {
   if (fromBridge) return fromBridge;
   if (typeof window === "undefined") return "";
   try {
-    return window.sessionStorage.getItem(TOKEN_KEY) ?? "";
+    return window.localStorage.getItem(TOKEN_KEY) || window.sessionStorage.getItem(TOKEN_KEY) || "";
   } catch {
     return "";
   }
 }
 
-function rememberToken(token: string) {
-  if (!token || typeof window === "undefined") return;
+function persistToken(token: string) {
+  bridge()?.setSessionToken?.(token);
+  if (typeof window === "undefined") return;
   try {
-    window.sessionStorage.setItem(TOKEN_KEY, token);
+    if (token) {
+      window.sessionStorage.setItem(TOKEN_KEY, token);
+      window.localStorage.setItem(TOKEN_KEY, token);
+    } else {
+      window.sessionStorage.removeItem(TOKEN_KEY);
+      window.localStorage.removeItem(TOKEN_KEY);
+    }
   } catch {
-    /* ignore */
+    /* private mode */
   }
+}
+
+function rememberToken(token: string) {
+  if (!token) return;
+  persistToken(token);
+}
+
+/** Keep the license on the device. Native prefs survive an app update; storage covers the browser. */
+export function writeSessionToken(token: string): void {
+  persistToken(token);
+  if (typeof window !== "undefined") window.dispatchEvent(new Event("liitpos-session"));
+}
+
+export function clearSessionToken(): void {
+  persistToken("");
+  if (typeof window !== "undefined") window.dispatchEvent(new Event("liitpos-session"));
+}
+
+function newDeviceId(): string {
+  if (typeof crypto !== "undefined" && "randomUUID" in crypto) return crypto.randomUUID();
+  return `dev_${Date.now()}_${Math.random().toString(16).slice(2)}`;
+}
+
+function rememberDeviceId(id: string) {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(DEVICE_KEY, id);
+  } catch {
+    /* private mode */
+  }
+}
+
+/** Stable id for this register. Created once, then kept in native prefs and local storage. */
+export function readDeviceId(preferred = ""): string {
+  const fromBridge = (bridge()?.getDeviceId?.() ?? "").trim();
+  if (isDeviceId(fromBridge)) {
+    rememberDeviceId(fromBridge);
+    return fromBridge;
+  }
+  if (typeof window !== "undefined") {
+    try {
+      const saved = window.localStorage.getItem(DEVICE_KEY) ?? "";
+      if (isDeviceId(saved)) {
+        bridge()?.setDeviceId?.(saved);
+        return saved;
+      }
+    } catch {
+      /* private mode */
+    }
+  }
+  const next = isDeviceId(preferred) ? preferred : newDeviceId();
+  rememberDeviceId(next);
+  bridge()?.setDeviceId?.(next);
+  return next;
+}
+
+export function deviceModel(): string {
+  const fromBridge = bridge()?.getDeviceModel?.() ?? "";
+  if (fromBridge.trim()) return fromBridge.trim().slice(0, 80);
+  if (typeof navigator === "undefined") return "";
+  return (navigator.userAgent || "").replace(/\s+/g, " ").trim().slice(0, 80);
 }
 
 export function nativeVersion(): { versionCode: number; versionName: string } {
@@ -173,13 +246,6 @@ export function prepareNative(): void {
   if (nativePrint) {
     window.print = () => nativePrint();
   }
-  (window as NativeWindow).__liitposApplySession = () => {
-    const next = bridge()?.getSessionToken?.() ?? "";
-    if (next) rememberToken(next);
-    const url = readCloudUrl();
-    if (url) writeCloudUrl(url);
-    window.dispatchEvent(new Event("liitpos-session"));
-  };
 }
 
 function asUpdate(value: unknown): AppUpdate | null {
