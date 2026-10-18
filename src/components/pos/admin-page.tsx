@@ -261,7 +261,7 @@ function Panel({ onLogout }: { onLogout: () => void }) {
           </div>
           <p className="mt-2 text-sm text-pretty text-muted">רק מכאן מוסיפים קופה. בקופה עצמה אין שדה לכתובת שרת, ואין דרך לשייך מכשיר.</p>
           {businesses.length === 0 ? (
-            <p className="mt-3 text-sm text-muted">עדיין אין עסקים בענן. יוצרים כאן, או פותחים את הקופה — מה ששמור במכשיר יעלה אוטומטית כשיש רשת.</p>
+            <p className="mt-3 text-sm text-muted">עדיין אין עסקים בענן. יוצרים עסק כאן, ואז מוסיפים קופה ופותחים את הקישור במכשיר.</p>
           ) : (
             <ul className="mt-3 space-y-2">
               {businesses.map((business) => (

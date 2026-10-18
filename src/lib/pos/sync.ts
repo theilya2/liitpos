@@ -1,5 +1,7 @@
 import { create } from "zustand";
+import { pairedBaselineUpload } from "@/lib/pos/baseline";
 import { probeCloud, pullCloud, pushCloud, type SyncClient, type SyncFailureReason } from "@/lib/pos/cloud-api";
+import { isDemoMode } from "@/lib/pos/demo";
 import { catalogDoc, mergeOutbox, snapshotDocs, type CloudDoc } from "@/lib/pos/docs";
 import { isNativeApp, nativeVersion, readSessionToken } from "@/lib/pos/native";
 import { REVOKED_DETAIL, type RegisterClaim } from "@/lib/pos/register";
@@ -10,11 +12,14 @@ export type CloudPhase = "checking" | "offline" | "local" | "syncing" | "synced"
 type CloudView = {
   phase: CloudPhase;
   detail: string;
+  /** Completed sync attempts. Zero means the first pull has not finished. */
+  attempt: number;
 };
 
 export const useCloudStatus = create<CloudView>(() => ({
   phase: "checking",
   detail: "",
+  attempt: 0,
 }));
 
 let running = false;
@@ -164,29 +169,41 @@ async function reportFailure(error: unknown) {
 
 async function runSync() {
   const token = readSessionToken();
-  if (blockedToken && token === blockedToken) {
-    useCloudStatus.setState({ phase: "revoked", detail: REVOKED_DETAIL });
-    return;
-  }
   const pending = () => usePos.getState().outbox.length;
-  if (usePos.getState().registerRevoked) {
-    useCloudStatus.setState({ phase: "revoked", detail: REVOKED_DETAIL });
-  } else {
-    useCloudStatus.setState({ phase: "syncing", detail: pending() ? `${pending()} ממתינות` : "" });
-  }
   try {
+    if (blockedToken && token === blockedToken) {
+      useCloudStatus.setState({ phase: "revoked", detail: REVOKED_DETAIL });
+      return;
+    }
+    if (usePos.getState().registerRevoked) {
+      useCloudStatus.setState({ phase: "revoked", detail: REVOKED_DETAIL });
+    } else {
+      useCloudStatus.setState({ phase: "syncing", detail: pending() ? `${pending()} ממתינות` : "" });
+    }
     const state = usePos.getState();
     let releaseAt: string | null = null;
     if (!state.cloudCursor) {
       const probe = await pullCloud(null, syncClient());
-      rememberRegister(probe.register);
       releaseAt = releaseStamp(probe.docs);
       const known = new Set(probe.docs.map((doc) => doc.id));
-      const missing = snapshotDocs(state.stores, state.staff, new Date().toISOString()).filter((doc) => !known.has(doc.id));
-      if (missing.length) state.replaceOutbox(mergeOutbox(state.outbox, missing));
-      state.applyRemote(probe.docs);
+      const now = new Date().toISOString();
+      if (!isDemoMode()) {
+        state.applyRemote(probe.docs);
+        const claimId = probe.register?.businessId ?? "";
+        usePos.getState().takePairedBaseline(probe.docs, claimId);
+        if (probe.register) {
+          const fresh = usePos.getState();
+          const extra = pairedBaselineUpload(fresh.stores, fresh.staff, known, probe.register.businessId, now);
+          if (extra.length) fresh.replaceOutbox(mergeOutbox(fresh.outbox, extra));
+        }
+      } else {
+        const missing = snapshotDocs(state.stores, state.staff, now).filter((doc) => !known.has(doc.id));
+        if (missing.length) state.replaceOutbox(mergeOutbox(state.outbox, missing));
+        state.applyRemote(probe.docs);
+      }
       requeueCatalogDrift(probe.docs);
-      state.setCloudCursor(probe.serverTime);
+      usePos.getState().setCloudCursor(probe.serverTime);
+      rememberRegister(probe.register);
     }
     await flushOutbox();
     const pulled = await pullCloud(usePos.getState().cloudCursor, syncClient());
@@ -204,6 +221,8 @@ async function runSync() {
     });
   } catch (error) {
     await reportFailure(error);
+  } finally {
+    useCloudStatus.setState((current) => ({ attempt: current.attempt + 1 }));
   }
 }
 
