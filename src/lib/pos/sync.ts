@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import { pullCloud, pushCloud } from "@/lib/pos/cloud-api";
+import { probeCloud, pullCloud, pushCloud, type SyncFailureReason } from "@/lib/pos/cloud-api";
 import { catalogDoc, mergeOutbox, snapshotDocs, type CloudDoc } from "@/lib/pos/docs";
 import { usePos } from "@/lib/pos/store";
 
@@ -16,15 +16,51 @@ export const useCloudStatus = create<CloudView>(() => ({
 }));
 
 let running = false;
+let queued = false;
 
-function isOffline() {
+export const UNPAIRED_DETAIL = "המכשיר לא משויך. צריך קישור או קוד QR מהמשרד האחורי, לא רק כתובת שרת.";
+export const OFFLINE_DETAIL = "אין רשת. המכירות נשמרות במכשיר עד שהחיבור חוזר.";
+
+export function serverErrorDetail(status: number): string {
+  return `השרת החזיר שגיאה ${status}.`;
+}
+
+export function unreachableDetail(browserOffline: boolean): string {
+  if (browserOffline) {
+    return "הדפדפן דיווח שאין רשת, אבל השרת נגיש. בקשת הסנכרון נכשלה בלי קוד שגיאה.";
+  }
+  return "השרת נגיש, אבל בקשת הסנכרון נכשלה בלי קוד שגיאה.";
+}
+
+/**
+ * Offline only after the sync request itself failed on the network, and a
+ * reachability probe also failed. navigator.onLine is not enough: Android
+ * WebView can leave it stuck at false while the radio works. A probe that
+ * reaches the host overrides that stuck flag.
+ */
+export function shouldReportOffline(networkError: boolean, browserOffline: boolean, probeFailed: boolean): boolean {
+  if (!networkError) return false;
+  if (!(browserOffline || probeFailed)) return false;
+  // WebView can stick onLine at false. A probe that reached the host wins.
+  if (!probeFailed) return false;
+  return true;
+}
+
+function browserReportsOffline() {
   return typeof navigator !== "undefined" && navigator.onLine === false;
 }
 
-function isUnauthorized(error: unknown) {
-  if (!error || typeof error !== "object") return false;
-  const value = error as { status?: number; message?: string };
-  return value.status === 401 || value.message === "Unauthorized";
+function failureOf(error: unknown): { reason: SyncFailureReason | ""; status: number } {
+  if (!error || typeof error !== "object") return { reason: "", status: 0 };
+  const value = error as { reason?: unknown; status?: unknown; message?: unknown };
+  const reason = value.reason === "unpaired" || value.reason === "no-address" || value.reason === "http" || value.reason === "network" ? value.reason : "";
+  const status = typeof value.status === "number" ? value.status : 0;
+  if (!reason && (status === 401 || value.message === "Unauthorized")) return { reason: "unpaired", status: status || 401 };
+  if (!reason && error instanceof TypeError) return { reason: "network", status: 0 };
+  if (!reason && typeof value.message === "string" && /failed to fetch|networkerror|load failed|network request failed/i.test(value.message)) {
+    return { reason: "network", status: 0 };
+  }
+  return { reason, status };
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -76,17 +112,38 @@ async function flushOutbox() {
   }
 }
 
-export async function syncNow(): Promise<void> {
-  const pending = () => usePos.getState().outbox.length;
-  if (isOffline()) {
-    useCloudStatus.setState({ phase: "offline", detail: "המכירות נשמרות במכשיר עד שהרשת חוזרת" });
+async function reportFailure(error: unknown) {
+  const failure = failureOf(error);
+  if (failure.reason === "unpaired") {
+    const detail = failure.status ? `${UNPAIRED_DETAIL} ${serverErrorDetail(failure.status)}` : UNPAIRED_DETAIL;
+    useCloudStatus.setState({ phase: "local", detail });
     return;
   }
-  if (running) return;
-  running = true;
+  if (failure.reason === "no-address") {
+    useCloudStatus.setState({ phase: "local", detail: "חסרה כתובת שרת. אחרי ששומרים אותה צריך גם קישור או קוד QR מהמשרד האחורי." });
+    return;
+  }
+  if (failure.reason === "http" && failure.status) {
+    useCloudStatus.setState({ phase: "error", detail: serverErrorDetail(failure.status) });
+    return;
+  }
+  const browserOffline = browserReportsOffline();
+  const probeFailed = failure.reason === "network" ? !(await probeCloud()) : true;
+  if (shouldReportOffline(failure.reason === "network", browserOffline, probeFailed)) {
+    useCloudStatus.setState({ phase: "offline", detail: OFFLINE_DETAIL });
+    return;
+  }
+  useCloudStatus.setState({
+    phase: "error",
+    detail: failure.status ? serverErrorDetail(failure.status) : unreachableDetail(browserOffline),
+  });
+}
+
+async function runSync() {
+  const pending = () => usePos.getState().outbox.length;
   useCloudStatus.setState({ phase: "syncing", detail: pending() ? `${pending()} ממתינות` : "" });
   try {
-    let state = usePos.getState();
+    const state = usePos.getState();
     let releaseAt: string | null = null;
     if (!state.cloudCursor) {
       const probe = await pullCloud(null);
@@ -108,17 +165,25 @@ export async function syncNow(): Promise<void> {
     await flushOutbox();
     const left = usePos.getState().outbox.length;
     useCloudStatus.setState({
-      phase: left ? "synced" : "synced",
+      phase: "synced",
       detail: left ? `${left} עדיין ממתינות להעלאה` : "הכל בענן",
     });
   } catch (error) {
-    if (isUnauthorized(error)) {
-      useCloudStatus.setState({ phase: "local", detail: "בלי חשבון העסקאות נשארות במכשיר" });
-    } else if (isOffline()) {
-      useCloudStatus.setState({ phase: "offline", detail: "המכירות נשמרות במכשיר עד שהרשת חוזרת" });
-    } else {
-      useCloudStatus.setState({ phase: "error", detail: "הסנכרון לא הצליח. ננסה שוב, והמכירות שמורות במכשיר" });
-    }
+    await reportFailure(error);
+  }
+}
+
+export async function syncNow(): Promise<void> {
+  if (running) {
+    queued = true;
+    return;
+  }
+  running = true;
+  try {
+    do {
+      queued = false;
+      await runSync();
+    } while (queued);
   } finally {
     running = false;
   }

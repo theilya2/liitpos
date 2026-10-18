@@ -23,8 +23,6 @@ function publishedUrl(businessId: string, saleId: string): string | null {
 async function linkAfterSync(businessId: string, saleId: string): Promise<string | null> {
   const ready = publishedUrl(businessId, saleId);
   if (ready) return ready;
-  const online = typeof navigator === "undefined" || navigator.onLine !== false;
-  if (!online) return null;
   const started = Date.now();
   while (Date.now() - started < 4000) {
     await syncNow().catch(() => undefined);
@@ -52,7 +50,7 @@ export function SendReceipt({ sale }: { sale: Sale }) {
   const match = normalized ? matchClubMember(members ?? [], normalized) : null;
   const canonical = normalized ? formatIsraeliMobile(normalized) : "";
   const canSave = Boolean(match && match.phone.replace(/\s/g, "") !== canonical);
-  const offline = typeof navigator !== "undefined" && navigator.onLine === false;
+  const offline = useCloudStatus((state) => state.phase === "offline");
 
   async function send() {
     const to = normalizeIsraeliMobile(phone);

@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { isNativeApp, readCloudUrl, readSessionToken, writeCloudUrl } from "@/lib/pos/native";
-import { syncNow } from "@/lib/pos/sync";
+import { syncNow, UNPAIRED_DETAIL, useCloudStatus } from "@/lib/pos/sync";
 
 export function CloudLinkCard() {
   const [native, setNative] = useState(false);
@@ -22,8 +22,8 @@ export function CloudLinkCard() {
   return (
     <section className="space-y-3 rounded-2xl bg-surface p-4 ring-1 ring-line">
       <h2 className="text-base font-semibold">ענן</h2>
-      <p className="text-sm text-muted">
-        הקופה עובדת בלי רשת. חיבור לענן מגיע בקישור שהבעלים פותח באפליקציה. כאן אפשר רק לשמור כתובת ולנסות סנכרון.
+      <p className="text-sm text-pretty text-muted">
+        הקופה עובדת בלי רשת. כתובת השרת לבד לא מחברת אותה לענן. צריך גם קישור שיוך או קוד QR שהבעלים יוצר במשרד האחורי, ופותחים אותו במכשיר הזה.
       </p>
       <label className="block text-sm">
         <span className="mb-1 block text-muted">כתובת השרת</span>
@@ -42,7 +42,17 @@ export function CloudLinkCard() {
           onClick={() => {
             const saved = writeCloudUrl(url);
             setUrl(saved);
-            setNote(saved ? "הכתובת נשמרה במכשיר." : "צריך כתובת שמתחילה ב-https.");
+            if (!saved) {
+              setNote("צריך כתובת שמתחילה ב-https.");
+              return;
+            }
+            if (!readSessionToken()) {
+              useCloudStatus.setState({ phase: "local", detail: UNPAIRED_DETAIL });
+              setNote(UNPAIRED_DETAIL);
+              return;
+            }
+            setNote("הכתובת נשמרה. מתחילים סנכרון.");
+            void syncNow();
           }}
         >
           שמירת כתובת
@@ -51,7 +61,9 @@ export function CloudLinkCard() {
           סנכרון עכשיו
         </button>
       </div>
-      <p className="text-xs text-muted">{linked ? "המכשיר מחובר לענן." : "עדיין בלי חיבור. המכירות נשארות במכשיר."}</p>
+      <p className="text-sm text-pretty text-muted">
+        {linked ? "המכשיר משויך. שמירת כתובת מתחילה סנכרון מיד." : "המכשיר לא משויך. שמירת הכתובת לא מספיקה — עדיין צריך קישור או קוד QR מהמשרד האחורי."}
+      </p>
       {note ? <p className="text-sm">{note}</p> : null}
     </section>
   );
