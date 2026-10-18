@@ -4,6 +4,7 @@ import { can, canSeeStore } from "@/lib/pos/access";
 import { applyDocs, catalogDoc, changesToDocs, deviceDoc, mergeOutbox, settingsDoc, snapshotDocs, staffDoc, type CloudDoc } from "@/lib/pos/docs";
 import { normalizeKioskSettings } from "@/lib/pos/kiosk";
 import { computeTotals, roundMoney } from "@/lib/pos/money";
+import { activeVariants, changeStock, cleanGroups, cleanVariants, demandOf, groupsFor, hasEnough, splitStockKey, stockOnHand } from "@/lib/pos/options";
 import { isCredit, quoteRefund, refundMethodsFor, settleSale, tendersOf, zFigures, type RefundPick, type TenderInput } from "@/lib/pos/tender";
 import {
   buildDemoSales,
@@ -45,6 +46,7 @@ type PosState = BranchFields & {
   receiptToPrint: Sale | null;
   zToPrint: ZReport | null;
   addProductToCart: (product: Product) => boolean;
+  addCartLine: (line: CartLine) => boolean;
   addCustomItem: (name: string, price: number) => void;
   setQty: (key: string, qty: number) => void;
   removeLine: (key: string) => void;
@@ -73,7 +75,7 @@ type PosState = BranchFields & {
   updateSettings: (patch: Partial<Settings>) => void;
   saveMember: (member: ClubMember) => void;
   rememberBusinessSettings: (businessId: string, patch: Partial<Settings>) => void;
-  adjustStock: (productId: string, qty: number, reason: StockReason, note: string) => void;
+  adjustStock: (productId: string, qty: number, reason: StockReason, note: string, variantId?: string | null) => void;
   openDrawer: () => void;
   closeZ: (cashCounted: number, leftInDrawer: number) => ZReport | null;
   clearHistory: () => void;
@@ -170,6 +172,15 @@ function fromBranch(branch: Branch): BranchFields {
   };
 }
 
+function sameLine(left: CartLine, right: CartLine): boolean {
+  if ((left.productId ?? null) !== (right.productId ?? null)) return false;
+  if ((left.variantId ?? null) !== (right.variantId ?? null)) return false;
+  if (left.unitPrice !== right.unitPrice) return false;
+  const a = (left.modifiers ?? []).map((item) => item.optionId).sort().join(",");
+  const b = (right.modifiers ?? []).map((item) => item.optionId).sort().join(",");
+  return a === b;
+}
+
 function actorName(state: PosState): string {
   return state.staff.find((user) => user.id === state.sessionUserId)?.name ?? "";
 }
@@ -185,6 +196,9 @@ function normalizeProduct(product: Product): Product {
     shelf: product.shelf === "upper" || product.shelf === "lower" || product.shelf === "off" ? product.shelf : (demoShelf(id) ?? "off"),
     kiosk: typeof product.kiosk === "boolean" ? product.kiosk : demoKiosk(id),
     extras: Array.isArray(product.extras) ? product.extras : demoExtras(id),
+    barcode: typeof product.barcode === "string" ? product.barcode.slice(0, 32) : "",
+    variants: cleanVariants(product.variants),
+    modifierGroups: cleanGroups(product.modifierGroups),
   };
 }
 
@@ -285,6 +299,7 @@ export const usePos = create<PosState>()(
 
         addProductToCart: (product) => {
           if (!product.active) return false;
+          if (activeVariants(product).length || groupsFor(product).some((group) => group.required || group.min > 0)) return false;
           const state = get();
           const existing = state.cart.find((line) => line.productId === product.id);
           const inCart = existing?.qty ?? 0;
@@ -308,6 +323,29 @@ export const usePos = create<PosState>()(
           return true;
         },
 
+        addCartLine: (line) => {
+          if (!line.name.trim() || line.qty <= 0 || line.unitPrice < 0) return false;
+          const state = get();
+          const product = line.productId ? state.products.find((item) => item.id === line.productId) : undefined;
+          if (line.productId && (!product || !product.active)) return false;
+          const variantId = line.variantId ?? null;
+          if (product?.trackStock) {
+            const already = state.cart
+              .filter((item) => item.productId === line.productId && (item.variantId ?? null) === variantId)
+              .reduce((sum, item) => sum + item.qty, 0);
+            if (!hasEnough(product, variantId, already + line.qty)) return false;
+          }
+          const existing = state.cart.find((item) => sameLine(item, line));
+          if (existing) {
+            commit({
+              cart: state.cart.map((item) => (item.key === existing.key ? { ...item, qty: Math.min(999, item.qty + line.qty) } : item)),
+            });
+            return true;
+          }
+          commit({ cart: [...state.cart, { ...line, key: newId(), variantId, modifiers: line.modifiers ?? [], qty: Math.max(1, Math.round(line.qty)) }] });
+          return true;
+        },
+
         addCustomItem: (name, price) => {
           const clean = name.trim();
           const unitPrice = roundMoney(price);
@@ -327,7 +365,10 @@ export const usePos = create<PosState>()(
           const line = state.cart.find((item) => item.key === key);
           if (!line) return;
           const product = line.productId ? state.products.find((item) => item.id === line.productId) : undefined;
-          const cap = product?.trackStock ? product.stock : 999;
+          const others = state.cart
+            .filter((item) => item.key !== line.key && item.productId === line.productId && (item.variantId ?? null) === (line.variantId ?? null))
+            .reduce((sum, item) => sum + item.qty, 0);
+          const cap = product?.trackStock ? Math.max(0, stockOnHand(product, line.variantId) - others) : 999;
           const nextQty = Math.min(cap, Math.round(qty));
           commit({
             cart:
@@ -378,14 +419,11 @@ export const usePos = create<PosState>()(
           const lines = input.lines ?? state.cart;
           if (isWeekLocked(state.lastGoodSync, state.appliedReleaseAt)) return null;
           if (!lines.length) return null;
-          const needed = new Map<string, number>();
-          for (const line of lines) {
-            if (!line.productId) continue;
-            needed.set(line.productId, (needed.get(line.productId) ?? 0) + line.qty);
-          }
-          for (const [productId, qty] of needed) {
+          const needed = demandOf(lines);
+          for (const [key, qty] of needed) {
+            const { productId, variantId } = splitStockKey(key);
             const product = state.products.find((item) => item.id === productId);
-            if (product?.trackStock && product.stock < qty) return null;
+            if (!hasEnough(product, variantId, qty)) return null;
           }
           const discount = channel === "kiosk" ? null : state.discount;
           const totals = computeTotals(lines, discount, state.settings.vatRate);
@@ -416,10 +454,13 @@ export const usePos = create<PosState>()(
             createdAt: new Date().toISOString(),
             lines: lines.map((line) => ({
               productId: line.productId,
+              variantId: line.variantId ?? null,
+              sku: line.sku ?? "",
               name: line.name,
               unitPrice: line.unitPrice,
               qty: line.qty,
               lineTotal: roundMoney(line.unitPrice * line.qty),
+              modifiers: line.modifiers ?? [],
             })),
             discountAmount: totals.discountAmount,
             total: totals.total,
@@ -455,21 +496,26 @@ export const usePos = create<PosState>()(
           };
           const moves: StockMove[] = [];
           const products = state.products.map((product) => {
-            const qty = needed.get(product.id);
-            if (!qty || !product.trackStock) return product;
-            const stock = roundMoney(product.stock - qty);
-            moves.push({
-              id: newId(),
-              at: sale.createdAt,
-              productId: product.id,
-              productName: product.name,
-              qty: -qty,
-              stockAfter: stock,
-              reason: "sale",
-              note: `קבלה ${number}`,
-              by,
-            });
-            return { ...product, stock };
+            let next = product;
+            for (const [key, qty] of needed) {
+              const split = splitStockKey(key);
+              if (split.productId !== product.id || !product.trackStock) continue;
+              const changed = changeStock(next, split.variantId, -qty);
+              moves.push({
+                id: newId(),
+                at: sale.createdAt,
+                productId: product.id,
+                variantId: split.variantId,
+                productName: changed.name,
+                qty: -qty,
+                stockAfter: changed.stockAfter,
+                reason: "sale",
+                note: `קבלה ${number}`,
+                by,
+              });
+              next = changed.product;
+            }
+            return next;
           });
           commit({
             sales: [sale, ...state.sales],
@@ -493,19 +539,20 @@ export const usePos = create<PosState>()(
             if (!line.productId) continue;
             products = products.map((product) => {
               if (product.id !== line.productId || !product.trackStock) return product;
-              const stock = roundMoney(product.stock + line.qty);
+              const changed = changeStock(product, line.variantId, line.qty);
               moves.push({
                 id: newId(),
                 at: new Date().toISOString(),
                 productId: product.id,
-                productName: product.name,
+                variantId: line.variantId ?? null,
+                productName: changed.name,
                 qty: line.qty,
-                stockAfter: stock,
+                stockAfter: changed.stockAfter,
                 reason: "void",
                 note: `ביטול קבלה ${sale.number}`,
                 by,
               });
-              return { ...product, stock };
+              return changed.product;
             });
           }
           commit({
@@ -574,19 +621,20 @@ export const usePos = create<PosState>()(
             if (!line.productId) continue;
             products = products.map((product) => {
               if (product.id !== line.productId || !product.trackStock) return product;
-              const stock = roundMoney(product.stock + line.qty);
+              const changed = changeStock(product, line.variantId, line.qty);
               moves.push({
                 id: newId(),
                 at: now,
                 productId: product.id,
-                productName: product.name,
+                variantId: line.variantId ?? null,
+                productName: changed.name,
                 qty: line.qty,
-                stockAfter: stock,
+                stockAfter: changed.stockAfter,
                 reason: "refund",
                 note: `זיכוי ${number} לקבלה ${sale.number}`,
                 by,
               });
-              return { ...product, stock };
+              return changed.product;
             });
           }
           commit({
@@ -681,28 +729,27 @@ export const usePos = create<PosState>()(
           commit({ settings: { ...withPrintSettings(next), ...normalizeKioskSettings(next) } });
         },
 
-        adjustStock: (productId, qty, reason, note) => {
+        adjustStock: (productId, qty, reason, note, variantId) => {
           const state = get();
           const product = state.products.find((item) => item.id === productId);
           if (!product) return;
           const amount = roundMoney(qty);
           if (!Number.isFinite(amount) || amount === 0) return;
-          const stock = Math.max(0, roundMoney(product.stock + amount));
+          const changed = changeStock({ ...product, trackStock: true }, variantId, amount);
           const move: StockMove = {
             id: newId(),
             at: new Date().toISOString(),
             productId,
-            productName: product.name,
-            qty: roundMoney(stock - product.stock),
-            stockAfter: stock,
+            variantId: variantId ?? null,
+            productName: changed.name,
+            qty: roundMoney(changed.stockAfter - stockOnHand(product, variantId)),
+            stockAfter: changed.stockAfter,
             reason,
             note: note.trim().slice(0, 80),
             by: actorName(state),
           };
           commit({
-            products: state.products.map((item) =>
-              item.id === productId ? { ...item, trackStock: true, stock } : item,
-            ),
+            products: state.products.map((item) => (item.id === productId ? { ...changed.product, trackStock: true } : item)),
             stockMoves: [move, ...state.stockMoves].slice(0, 400),
           });
         },

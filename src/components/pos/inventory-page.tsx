@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { PageHeader } from "@/components/pos/shell";
 import { formatILS, formatWhen, roundMoney } from "@/lib/pos/money";
+import { stockRows } from "@/lib/pos/options";
 import { usePos } from "@/lib/pos/store";
 import { STOCK_REASON_LABEL, type StockReason } from "@/lib/pos/types";
 
@@ -10,32 +11,31 @@ export function InventoryPage() {
   const adjustStock = usePos((state) => state.adjustStock);
   const [lowOnly, setLowOnly] = useState(false);
   const [query, setQuery] = useState("");
-  const [productId, setProductId] = useState<string | null>(null);
+  const [picked, setPicked] = useState<{ productId: string; variantId: string | null; stock: number; name: string } | null>(null);
   const [mode, setMode] = useState<StockReason>("receive");
   const [qty, setQty] = useState("");
   const [note, setNote] = useState("");
 
-  const tracked = products.filter((product) => product.trackStock && product.active);
-  const stockValue = roundMoney(tracked.reduce((sum, product) => sum + product.stock * product.price, 0));
-  const lowCount = tracked.filter((product) => product.stock <= product.lowStock).length;
+  const rows = useMemo(() => stockRows(products), [products]);
+  const stockValue = roundMoney(rows.reduce((sum, row) => sum + row.stock * row.price, 0));
+  const lowCount = rows.filter((row) => row.stock <= row.lowStock).length;
   const visible = useMemo(() => {
     const q = query.trim();
-    return tracked
-      .filter((product) => (lowOnly ? product.stock <= product.lowStock : true))
-      .filter((product) => !q || product.name.includes(q) || product.sku.includes(q))
+    return rows
+      .filter((row) => (lowOnly ? row.stock <= row.lowStock : true))
+      .filter((row) => !q || row.name.includes(q) || row.sku.includes(q))
       .sort((a, b) => a.stock - b.stock);
-  }, [tracked, lowOnly, query]);
-  const selected = products.find((product) => product.id === productId) ?? null;
+  }, [rows, lowOnly, query]);
 
   function apply() {
-    if (!selected) return;
+    if (!picked) return;
     const amount = Number(qty.replace(",", "."));
     if (!Number.isFinite(amount) || amount === 0) return;
-    const delta = mode === "count" ? amount - selected.stock : mode === "waste" ? -Math.abs(amount) : Math.abs(amount);
-    adjustStock(selected.id, delta, mode, note);
+    const delta = mode === "count" ? amount - picked.stock : mode === "waste" ? -Math.abs(amount) : Math.abs(amount);
+    adjustStock(picked.productId, delta, mode, note, picked.variantId);
     setQty("");
     setNote("");
-    setProductId(null);
+    setPicked(null);
   }
 
   return (
@@ -43,7 +43,7 @@ export function InventoryPage() {
       <PageHeader title="מלאי" subtitle="כמות במדף, שווי ופעולות קבלה, ספירה ופחת." />
       <div className="space-y-3 px-3 pb-6">
         <section className="grid grid-cols-3 gap-2">
-          <Stat label="פריטים" value={String(tracked.length)} />
+          <Stat label="פריטים" value={String(rows.length)} />
           <Stat label="מתחת לסף" value={String(lowCount)} accent={lowCount > 0} />
           <Stat label="שווי מלאי" value={formatILS(stockValue)} />
         </section>
@@ -64,27 +64,27 @@ export function InventoryPage() {
           </button>
         </div>
         <ul className="space-y-2">
-          {visible.map((product) => {
-            const low = product.stock <= product.lowStock;
+          {visible.map((row) => {
+            const low = row.stock <= row.lowStock;
             return (
-              <li key={product.id}>
+              <li key={row.key}>
                 <button
                   type="button"
                   onClick={() => {
-                    setProductId(product.id);
+                    setPicked({ productId: row.productId, variantId: row.variantId, stock: row.stock, name: row.name });
                     setMode("receive");
                     setQty("");
                   }}
                   className="flex w-full items-center gap-3 rounded-2xl bg-surface px-3 py-3 text-start ring-1 ring-line"
                 >
-                  {product.image ? <img src={product.image} alt="" className="h-12 w-12 rounded-xl object-cover" /> : <span className="flex h-12 w-12 items-center justify-center rounded-xl bg-pine-soft text-sm font-semibold text-pine">{product.name.slice(0, 1)}</span>}
+                  {row.image ? <img src={row.image} alt="" className="h-12 w-12 rounded-xl object-cover" /> : <span className="flex h-12 w-12 items-center justify-center rounded-xl bg-pine-soft text-sm font-semibold text-pine">{row.name.slice(0, 1)}</span>}
                   <span className="min-w-0 flex-1">
-                    <span className="block truncate font-medium">{product.name}</span>
-                    <span className={`text-sm ${low ? "text-copper" : "text-muted"}`}>{low ? "מתחת לסף" : "במלאי"} · סף {product.lowStock}</span>
+                    <span className="block truncate font-medium">{row.name}</span>
+                    <span className={`text-sm ${low ? "text-copper" : "text-muted"}`}>{low ? "מתחת לסף" : "במלאי"} · סף {row.lowStock}{row.sku ? ` · ${row.sku}` : ""}</span>
                   </span>
                   <span className="text-end">
-                    <span className="block font-semibold tabular-nums">{product.stock}</span>
-                    <span className="text-xs text-muted tabular-nums">{formatILS(product.stock * product.price)}</span>
+                    <span className="block font-semibold tabular-nums">{row.stock}</span>
+                    <span className="text-xs text-muted tabular-nums">{formatILS(row.stock * row.price)}</span>
                   </span>
                 </button>
               </li>
@@ -114,7 +114,7 @@ export function InventoryPage() {
           )}
         </section>
       </div>
-      {selected ? (
+      {picked ? (
         <div className="fixed inset-0 z-40 flex items-end justify-center bg-ink/40 sm:items-center">
           <form
             role="dialog"
@@ -125,8 +125,8 @@ export function InventoryPage() {
             }}
             className="w-full max-w-lg rounded-t-3xl bg-surface p-4 sm:rounded-3xl"
           >
-            <h2 className="text-lg font-semibold">{selected.name}</h2>
-            <p className="text-sm text-muted">עכשיו במלאי: {selected.stock}</p>
+            <h2 className="text-lg font-semibold">{picked.name}</h2>
+            <p className="text-sm text-muted">עכשיו במלאי: {picked.stock}</p>
             <div className="mt-3 grid grid-cols-3 gap-2">
               {(
                 [
@@ -149,7 +149,7 @@ export function InventoryPage() {
               <input value={note} onChange={(event) => setNote(event.target.value)} className="h-12 w-full rounded-xl bg-paper px-3 ring-1 ring-line" />
             </label>
             <div className="mt-4 grid grid-cols-2 gap-2">
-              <button type="button" onClick={() => setProductId(null)} className="h-12 rounded-2xl bg-paper">
+              <button type="button" onClick={() => setPicked(null)} className="h-12 rounded-2xl bg-paper">
                 ביטול
               </button>
               <button type="submit" className="h-12 rounded-2xl bg-pine font-semibold text-pine-ink">

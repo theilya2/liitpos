@@ -222,11 +222,14 @@ export function quoteRefund(sale: Sale, credits: Sale[], picks: RefundPick[]): R
     pickedGross = roundMoney(pickedGross + lineTotal);
     lines.push({
       productId: line.productId,
+      variantId: line.variantId ?? null,
+      sku: line.sku ?? "",
       name: line.name,
       unitPrice: line.unitPrice,
       qty,
       lineTotal,
       sourceIndex: index,
+      modifiers: line.modifiers ?? [],
     });
   }
   if (!lines.length) return null;

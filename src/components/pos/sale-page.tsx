@@ -1,10 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { ArrowLeftRight, Banknote, CreditCard, IdCard, Minus, Pause, Plus, Printer, Search, Smartphone, Ticket, Trash2, Wallet, X } from "lucide-react";
 import { Numpad } from "@/components/pos/numpad";
+import { OptionSheet } from "@/components/pos/option-sheet";
 import { ReceiptView } from "@/components/pos/receipt";
 import { SendReceipt } from "@/components/pos/send-sms";
 import { confirmReceipt, deliverPrint, pulseDrawer } from "@/lib/pos/receipt-io";
 import { computeTotals, formatILS, formatWhen, moneyFromPad, pushMoneyKey, roundCash, roundMoney } from "@/lib/pos/money";
+import { buildConfiguredLine, findByCode, mustChoose, needsPicker, shelfPrice } from "@/lib/pos/options";
 import { foldTenders, previewTender, remainingExact, type TenderInput } from "@/lib/pos/tender";
 import { currentUser, isWeekLocked, usePos } from "@/lib/pos/store";
 import { chargeTerminal, deviceLabel, isSafeIpv4, MAX_PAYMENTS, paymentPlan } from "@/lib/pos/terminal";
@@ -631,12 +633,16 @@ function shelfProducts(products: Product[], query: string, shelf: "upper" | "low
   return products.filter((product) => {
     if (!product.active || product.shelf !== shelf) return false;
     if (!q) return true;
-    return product.name.includes(q) || product.sku.includes(q);
+    return product.name.includes(q) || product.sku.includes(q) || (product.barcode ?? "").includes(q) || (product.variants ?? []).some((variant) => variant.sku.includes(q) || variant.barcode.includes(q));
   });
 }
 
 function ShelfTile({ product, qty, onAdd }: { product: Product; qty: number; onAdd: () => void }) {
-  const remaining = product.trackStock ? product.stock - qty : null;
+  const priced = shelfPrice(product);
+  const onHand = product.variants?.filter((variant) => variant.active).length
+    ? product.variants.filter((variant) => variant.active).reduce((sum, variant) => sum + variant.stock, 0)
+    : product.stock;
+  const remaining = product.trackStock ? onHand - qty : null;
   const out = remaining !== null && remaining <= 0;
   return (
     <button
@@ -657,7 +663,7 @@ function ShelfTile({ product, qty, onAdd }: { product: Product; qty: number; onA
       </span>
       <span className="flex min-w-0 flex-col gap-0.5 px-2 py-2">
         <span className="line-clamp-2 text-sm font-medium leading-snug">{product.name}</span>
-        <span className="text-sm font-semibold tabular-nums text-copper">{formatILS(product.price)}</span>
+        <span className="text-sm font-semibold tabular-nums text-copper">{priced.from ? `מ־${formatILS(priced.amount)}` : formatILS(priced.amount)}</span>
       </span>
     </button>
   );
@@ -674,6 +680,8 @@ export function SalePage() {
   const openDrawer = usePos((state) => state.openDrawer);
   const lock = usePos((state) => state.lock);
   const addProductToCart = usePos((state) => state.addProductToCart);
+  const addCartLine = usePos((state) => state.addCartLine);
+  const [config, setConfig] = useState<{ product: Product; variantId: string | null } | null>(null);
   const addCustomItem = usePos((state) => state.addCustomItem);
   const removeLine = usePos((state) => state.removeLine);
   const setQty = usePos((state) => state.setQty);
@@ -715,10 +723,24 @@ export function SalePage() {
       const q = raw.trim();
       if (!q) return false;
       const active = products.filter((product) => product.active);
-      const bySku = active.find((product) => product.sku === q);
-      if (bySku) {
-        const ok = addProductToCart(bySku);
-        if (!ok) setNote(`${bySku.name} אזל מהמלאי.`);
+      const coded = findByCode(active, q);
+      if (coded) {
+        if (coded.variant) {
+          if (mustChoose(coded.product)) {
+            setConfig({ product: coded.product, variantId: coded.variant.id });
+            return true;
+          }
+          const line = buildConfiguredLine({ product: coded.product, variantId: coded.variant.id, picks: [], qty: 1 });
+          const ok = Boolean(line && addCartLine(line));
+          if (!ok) setNote(`${coded.product.name} אזל מהמלאי.`);
+          return ok;
+        }
+        if (needsPicker(coded.product)) {
+          setConfig({ product: coded.product, variantId: null });
+          return true;
+        }
+        const ok = addProductToCart(coded.product);
+        if (!ok) setNote(`${coded.product.name} אזל מהמלאי.`);
         return ok;
       }
       const matches = active.filter((product) => product.name.includes(q));
@@ -729,7 +751,7 @@ export function SalePage() {
       }
       return false;
     },
-    [products, addProductToCart],
+    [products, addProductToCart, addCartLine],
   );
 
   useEffect(() => {
@@ -841,6 +863,10 @@ export function SalePage() {
           empty="אין מוצרים במדף העליון. במוצרים בוחרים מדף עליון."
           qtyByProduct={qtyByProduct}
           onAdd={(product) => {
+            if (needsPicker(product)) {
+              setConfig({ product, variantId: null });
+              return;
+            }
             if (!addProductToCart(product)) setNote(`${product.name} אזל מהמלאי.`);
           }}
         />
@@ -981,6 +1007,10 @@ export function SalePage() {
           empty="אין מוצרים במדף התחתון. במוצרים בוחרים מדף תחתון."
           qtyByProduct={qtyByProduct}
           onAdd={(product) => {
+            if (needsPicker(product)) {
+              setConfig({ product, variantId: null });
+              return;
+            }
             if (!addProductToCart(product)) setNote(`${product.name} אזל מהמלאי.`);
           }}
         />
@@ -1030,6 +1060,22 @@ export function SalePage() {
       />
     ) : null}
     {done ? <DoneSheet sale={done} onClose={() => setDone(null)} /> : null}
+    {config ? (
+      <OptionSheet
+        product={config.product}
+        presetVariantId={config.variantId}
+        taken={(variantId) =>
+          cart
+            .filter((line) => line.productId === config.product.id && (line.variantId ?? null) === variantId)
+            .reduce((sum, line) => sum + line.qty, 0)
+        }
+        onClose={() => setConfig(null)}
+        onAdd={(line) => {
+          if (!addCartLine(line)) setNote(`${config.product.name} אזל מהמלאי.`);
+          else setConfig(null);
+        }}
+      />
+    ) : null}
     </>
   );
 }

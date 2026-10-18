@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { PageHeader } from "@/components/pos/shell";
 import { can } from "@/lib/pos/access";
 import { formatILS, formatWhen, roundMoney } from "@/lib/pos/money";
+import { soldItems, stockRows } from "@/lib/pos/options";
 import { currentUser, usePos } from "@/lib/pos/store";
 import { isCredit, zFigures } from "@/lib/pos/tender";
 import { METHOD_LABEL, type PaymentMethod } from "@/lib/pos/types";
@@ -65,7 +66,8 @@ export function ReportsPage() {
       .map(([hour, total]) => ({ hour, total: Math.max(0, total) }));
   }, [pool]);
   const maxHour = Math.max(...hours.map((row) => row.total), 1);
-  const shortages = products.filter((product) => product.active && product.trackStock && product.stock <= product.lowStock);
+  const shortages = stockRows(products).filter((row) => row.stock <= row.lowStock);
+  const sold = useMemo(() => soldItems(pool), [pool]);
   const mayClose = !!user && can(user.role, "z");
 
   function submitZ() {
@@ -186,15 +188,30 @@ export function ReportsPage() {
           )}
         </section>
         <section className="rounded-2xl bg-surface p-4 ring-1 ring-line">
+          <h2 className="text-base font-semibold">נמכר</h2>
+          {sold.length === 0 ? (
+            <p className="py-4 text-sm text-muted">אין שורות בטווח הזה.</p>
+          ) : (
+            <ul className="mt-3 space-y-2">
+              {sold.slice(0, 12).map((row) => (
+                <li key={row.key} className="flex items-baseline justify-between gap-3 text-sm">
+                  <span className="min-w-0 break-words">{row.name}</span>
+                  <span className="shrink-0 tabular-nums">{row.qty} · {formatILS(row.total)}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+        <section className="rounded-2xl bg-surface p-4 ring-1 ring-line">
           <h2 className="text-base font-semibold">חוסרים במלאי</h2>
           {shortages.length === 0 ? (
             <p className="py-4 text-sm text-muted">אין פריטים מתחת לסף.</p>
           ) : (
             <ul className="mt-3 space-y-2">
-              {shortages.slice(0, 8).map((product) => (
-                <li key={product.id} className="flex items-baseline justify-between gap-3 text-sm">
-                  <span className="min-w-0 truncate">{product.name}</span>
-                  <span className="shrink-0 font-medium text-copper tabular-nums">{product.stock}</span>
+              {shortages.slice(0, 8).map((row) => (
+                <li key={row.key} className="flex items-baseline justify-between gap-3 text-sm">
+                  <span className="min-w-0 truncate">{row.name}</span>
+                  <span className="shrink-0 font-medium text-copper tabular-nums">{row.stock}</span>
                 </li>
               ))}
             </ul>
