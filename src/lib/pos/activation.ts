@@ -23,15 +23,96 @@ function cleanMaterialPart(value: string): string {
   return value.replace(/[\r\n]/g, "").trim();
 }
 
+/** serial survives factory reset on a device-owner kiosk; android id survives reinstall; random is the last resort. */
+export const ACTIVATION_SOURCES = ["serial", "android", "random"] as const;
+export type ActivationSource = (typeof ACTIVATION_SOURCES)[number];
+
+export function isActivationSource(value: string): value is ActivationSource {
+  return (ACTIVATION_SOURCES as readonly string[]).includes(value);
+}
+
+export function activationSourceLabel(source: ActivationSource): string {
+  if (source === "serial") return "מספר סידורי";
+  if (source === "android") return "מזהה אנדרואיד";
+  return "מזהה שמור";
+}
+
+/** Bytes hashed into one source. Each source is hashed alone so a new source cannot change an existing code. */
+export function activationMaterial(source: ActivationSource, value: string): string {
+  return `v1\n${source}\n${cleanMaterialPart(value)}`;
+}
+
+export type ReportedIdentity = { source: ActivationSource; deviceId: string };
+
+export type StoredIdentity = {
+  deviceId: string;
+  code: string;
+  source: ActivationSource;
+  primaryDeviceId: string;
+  createdAt: number;
+};
+
+/** Keep the source that already registered. Otherwise prefer serial, then ANDROID_ID, then a stored random id. */
+export function chooseActivationSource(stored: ActivationSource | null, available: ActivationSource[]): ActivationSource | null {
+  if (stored && available.includes(stored)) return stored;
+  for (const source of ACTIVATION_SOURCES) {
+    if (available.includes(source)) return source;
+  }
+  return null;
+}
+
+export type IdentityPlan =
+  | { action: "invalid" }
+  | { action: "collision"; code: string; deviceId: string }
+  | { action: "use"; code: string; source: ActivationSource; deviceId: string; link: ReportedIdentity[]; conflict: boolean }
+  | { action: "create"; code: string; source: ActivationSource; deviceId: string; link: ReportedIdentity[] };
+
+function dedupeReported(reported: ReportedIdentity[]): ReportedIdentity[] {
+  const seen = new Set<string>();
+  const clean: ReportedIdentity[] = [];
+  for (const item of reported) {
+    const deviceId = item.deviceId.trim().toLowerCase();
+    if (!isActivationSource(item.source) || !DEVICE_HASH.test(deviceId) || seen.has(deviceId)) continue;
+    seen.add(deviceId);
+    clean.push({ source: item.source, deviceId });
+  }
+  return clean;
+}
+
 /**
- * Bytes that are hashed into the permanent code.
- * Android mixes in a real serial when the platform returns one.
- * The build fingerprint is left out: it changes on a system update and is not unique per device.
+ * The first source that registered owns the code.
+ * Later ids from the same device are linked to that code instead of replacing it.
  */
-export function activationMaterial(source: "android" | "web", primary: string, serial = ""): string {
-  const id = cleanMaterialPart(primary);
-  if (source === "web") return `v1\nweb\n${id}`;
-  return `v1\n${id}\n${cleanMaterialPart(serial)}`;
+export function planIdentity(input: {
+  reported: ReportedIdentity[];
+  known: StoredIdentity[];
+  codeOwners: { code: string; deviceId: string }[];
+}): IdentityPlan {
+  const reported = dedupeReported(input.reported);
+  if (!reported.length) return { action: "invalid" };
+  const known = input.known.filter((row) => isDeviceHash(row.deviceId) && isDeviceHash(row.primaryDeviceId) && Boolean(normalizeActivationCode(row.code)));
+  if (known.length) {
+    const primaries = known.filter((row) => row.deviceId === row.primaryDeviceId);
+    const canonical = [...(primaries.length ? primaries : known)].sort((left, right) => left.createdAt - right.createdAt || left.deviceId.localeCompare(right.deviceId))[0];
+    if (!canonical) return { action: "invalid" };
+    const codes = new Set(known.map((row) => row.code));
+    const link = reported.filter((item) => !known.some((row) => row.deviceId === item.deviceId));
+    return {
+      action: "use",
+      code: canonical.code,
+      source: canonical.source,
+      deviceId: canonical.primaryDeviceId,
+      link,
+      conflict: codes.size > 1 || new Set(known.map((row) => row.primaryDeviceId)).size > 1,
+    };
+  }
+  const source = chooseActivationSource(null, reported.map((item) => item.source));
+  const chosen = reported.find((item) => item.source === source);
+  const code = chosen ? codeFromDeviceHash(chosen.deviceId) : null;
+  if (!chosen || !source || !code) return { action: "invalid" };
+  const foreign = input.codeOwners.some((row) => row.code === code && !reported.some((item) => item.deviceId === row.deviceId));
+  if (foreign) return { action: "collision", code, deviceId: chosen.deviceId };
+  return { action: "create", code, source, deviceId: chosen.deviceId, link: reported };
 }
 
 /** First 6 letters of the device hash, using the unambiguous alphabet. */

@@ -174,7 +174,7 @@ function ActivationAbout() {
       <p className="text-3xl font-semibold tracking-widest" dir="ltr">
         {code || "…"}
       </p>
-      <p className="text-sm text-pretty text-muted">באפליקציה הקוד נקבע לפי המכשיר ונשאר אחרי התקנה מחדש או מחיקת נתונים. הוא משתנה רק באיפוס יצרן. בדפדפן הוא נשמר במכשיר הזה.</p>
+      <p className="text-sm text-pretty text-muted">באפליקציה הקוד נקבע לפי המכשיר ונשאר אחרי התקנה מחדש או מחיקת נתונים. כשהקופה היא בעלת המכשיר, הקוד נקבע לפי המספר הסידורי ונשאר גם אחרי איפוס יצרן. בדפדפן הוא נשמר במכשיר הזה.</p>
     </section>
   );
 }

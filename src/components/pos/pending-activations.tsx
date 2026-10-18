@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { approveActivation, listPendingActivations, rejectActivation } from "@/lib/pos/activation.functions";
-import { normalizeActivationCode } from "@/lib/pos/activation";
+import { activationSourceLabel, normalizeActivationCode } from "@/lib/pos/activation";
 import { formatRegisterTime } from "@/lib/pos/register";
 import type { PanelBusiness } from "@/lib/pos/cloud.functions";
 
@@ -103,6 +103,7 @@ export function PendingActivations({ businesses }: { businesses: PanelBusiness[]
               </span>
               <span className="mt-1 block text-sm text-muted">
                 {row.reinstall ? reinstallLabel(row.reinstall) : row.model || "דגם לא ידוע"}
+                {row.source ? ` · ${activationSourceLabel(row.source)}` : ""}
                 {row.appVersion ? ` · גרסה ${row.appVersion}` : ""}
                 {row.requestedAt ? ` · ${formatRegisterTime(row.requestedAt)}` : ""}
               </span>

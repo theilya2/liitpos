@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { pollActivation, requestActivationCode } from "@/lib/pos/activation-client";
-import { readActivationIdentity, readSessionToken, writeSessionToken } from "@/lib/pos/native";
+import { readActivationIdentity, readSessionToken, rememberActivationChoice, writeSessionToken, type ActivationIdentity } from "@/lib/pos/native";
 import { REVOKED_DETAIL } from "@/lib/pos/register";
 
 const POLL_MS = 4000;
@@ -14,42 +14,48 @@ export function ActivationWait({ disconnected }: { disconnected: boolean }) {
     let stop = false;
     let timer = 0;
     const onOnline = () => void tick();
-    let deviceId = "";
+    let identity: ActivationIdentity | null = null;
     async function tick() {
-      if (stop || !deviceId) return;
-      const polled = await pollActivation(deviceId);
+      if (stop || !identity) return;
+      const latest = await readActivationIdentity();
+      if (stop) return;
+      identity = { ...identity, sources: latest.sources.length ? latest.sources : identity.sources };
+      const polled = await pollActivation(identity.deviceId);
       if (stop) return;
       if (polled.status === "approved" && polled.token) {
         writeSessionToken(polled.token);
-        await pollActivation(deviceId, true);
+        await pollActivation(identity.deviceId, true);
         return;
       }
       if (polled.status === "approved" && readSessionToken()) return;
-      if (polled.status === "pending") {
-        setOffline(false);
-        setNotice("");
-        return;
-      }
       if (polled.status === "offline" || polled.status === "error") {
         setOffline(polled.status === "offline");
         if (polled.status === "error") setNotice(polled.detail);
         return;
       }
       if (polled.status === "rejected") setNotice("המנהל דחה את הבקשה. אותו קוד הפעלה נשאר, ומחכים לאישור מחדש.");
-      const requested = await requestActivationCode(deviceId);
+      const requested = await requestActivationCode(identity);
       if (stop) return;
       if ("code" in requested) {
+        identity = { ...identity, deviceId: requested.deviceId, code: requested.code, source: requested.source };
+        rememberActivationChoice(requested);
+        setCode(requested.code);
         setOffline(false);
         if (polled.status !== "rejected") setNotice("");
+        return;
+      }
+      if (polled.status === "pending") {
+        setOffline(false);
+        if (polled.code) setCode(polled.code);
         return;
       }
       setOffline(requested.offline);
       setNotice(requested.error);
     }
-    void readActivationIdentity().then((identity) => {
+    void readActivationIdentity().then((next) => {
       if (stop) return;
-      deviceId = identity.deviceId;
-      setCode(identity.code);
+      identity = next;
+      setCode(next.code);
       void tick();
       timer = window.setInterval(() => void tick(), POLL_MS);
       window.addEventListener("online", onOnline);

@@ -1,10 +1,23 @@
-import { activationMaterial, codeFromDeviceHash, formatActivationCode, isDeviceHash, isDeviceId, normalizeActivationCode } from "@/lib/pos/activation";
+import {
+  activationMaterial,
+  chooseActivationSource,
+  codeFromDeviceHash,
+  formatActivationCode,
+  isActivationSource,
+  isDeviceId,
+  normalizeActivationCode,
+  type ActivationSource,
+  type ReportedIdentity,
+} from "@/lib/pos/activation";
 import { DEFAULT_CLOUD_ORIGIN } from "@/lib/pos/register";
 
 const CLOUD_KEY = "liitpos-cloud-url";
 const TOKEN_KEY = "grok-auth.bearer-token";
 const DEVICE_KEY = "liitpos-device-id";
 const ACTIVATION_SEED_KEY = "liitpos-activation-seed";
+const ACTIVATION_SOURCE_KEY = "liitpos-activation-source";
+const ACTIVATION_CODE_KEY = "liitpos-activation-code";
+const ACTIVATION_PRIMARY_KEY = "liitpos-activation-primary";
 const UPDATE_REPO = "theilya2/Liitpos";
 
 export type AppUpdate = {
@@ -21,8 +34,9 @@ type NativeBridge = {
   setSessionToken?: (token: string) => void;
   getDeviceId?: () => string;
   setDeviceId?: (id: string) => void;
-  getActivationDeviceId?: () => string;
-  getActivationCode?: () => string;
+  isDeviceOwner?: () => boolean;
+  getHardwareSerial?: () => string;
+  getAndroidId?: () => string;
   getDeviceModel?: () => string;
   getVersionCode?: () => number;
   getVersionName?: () => string;
@@ -174,16 +188,38 @@ export function readDeviceId(preferred = ""): string {
   return next;
 }
 
+let memorySeed = "";
+
 function webActivationSeed(): string {
-  if (typeof window === "undefined") return "";
+  if (typeof window === "undefined") return memorySeed || "anonymous";
   try {
     const saved = window.localStorage.getItem(ACTIVATION_SEED_KEY) ?? "";
     if (saved) return saved;
     const next = typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : `web_${Date.now()}`;
     window.localStorage.setItem(ACTIVATION_SEED_KEY, next);
+    memorySeed = next;
     return next;
   } catch {
+    if (!memorySeed) memorySeed = typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : `web_${Date.now()}`;
+    return memorySeed;
+  }
+}
+
+function storedText(key: string): string {
+  if (typeof window === "undefined") return "";
+  try {
+    return window.localStorage.getItem(key) ?? "";
+  } catch {
     return "";
+  }
+}
+
+function storeText(key: string, value: string) {
+  if (typeof window === "undefined") return;
+  try {
+    if (value) window.localStorage.setItem(key, value);
+  } catch {
+    /* private mode */
   }
 }
 
@@ -192,13 +228,53 @@ async function sha256Hex(value: string): Promise<string> {
   return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, "0")).join("");
 }
 
-/** Permanent activation identity. Native derives it from ANDROID_ID; the browser keeps a random seed. */
-export async function readActivationIdentity(): Promise<{ deviceId: string; code: string }> {
-  const nativeId = (bridge()?.getActivationDeviceId?.() ?? "").trim().toLowerCase();
-  const nativeCode = formatActivationCode(bridge()?.getActivationCode?.() ?? "");
-  if (isDeviceHash(nativeId) && normalizeActivationCode(nativeCode)) return { deviceId: nativeId, code: nativeCode };
-  const deviceId = await sha256Hex(activationMaterial("web", webActivationSeed()));
-  return { deviceId, code: formatActivationCode(codeFromDeviceHash(deviceId) ?? "") };
+function cleanNative(value: string | undefined): string {
+  return (value ?? "").replace(/[\r\n]/g, "").trim();
+}
+
+export type ActivationIdentity = {
+  deviceId: string;
+  code: string;
+  source: ActivationSource;
+  sources: ReportedIdentity[];
+};
+
+/** Remember the source that already owns this register so a better id cannot replace the code. */
+export function rememberActivationChoice(choice: { source: ActivationSource; deviceId: string; code: string }) {
+  storeText(ACTIVATION_SOURCE_KEY, choice.source);
+  storeText(ACTIVATION_PRIMARY_KEY, choice.deviceId);
+  storeText(ACTIVATION_CODE_KEY, normalizeActivationCode(choice.code) ?? "");
+}
+
+/** Permanent activation identity. Device owner prefers the hardware serial, then ANDROID_ID, then a stored random id. */
+export async function readActivationIdentity(): Promise<ActivationIdentity> {
+  const native = bridge();
+  const parts: { source: ActivationSource; value: string }[] = [];
+  if (native) {
+    const serial = cleanNative(native.getHardwareSerial?.());
+    const androidId = cleanNative(native.getAndroidId?.());
+    if (serial) parts.push({ source: "serial", value: serial });
+    if (androidId) parts.push({ source: "android", value: androidId });
+  }
+  if (!parts.length) parts.push({ source: "random", value: webActivationSeed() });
+  const sources: ReportedIdentity[] = [];
+  for (const part of parts) {
+    sources.push({ source: part.source, deviceId: await sha256Hex(activationMaterial(part.source, part.value)) });
+  }
+  const storedSource = isActivationSource(storedText(ACTIVATION_SOURCE_KEY)) ? (storedText(ACTIVATION_SOURCE_KEY) as ActivationSource) : null;
+  const source = chooseActivationSource(storedSource, sources.map((item) => item.source));
+  const chosen = sources.find((item) => item.source === source) ?? sources[0];
+  if (!chosen) return { deviceId: "", code: "", source: "random", sources };
+  if (storedSource && source === storedSource) {
+    return { deviceId: chosen.deviceId, code: formatActivationCode(codeFromDeviceHash(chosen.deviceId) ?? ""), source, sources };
+  }
+  const savedCode = formatActivationCode(storedText(ACTIVATION_CODE_KEY));
+  const savedPrimary = storedText(ACTIVATION_PRIMARY_KEY).trim().toLowerCase();
+  if (storedSource && normalizeActivationCode(savedCode) && savedPrimary) {
+    return { deviceId: savedPrimary, code: savedCode, source: storedSource, sources };
+  }
+  if (!storedSource && source) rememberActivationChoice({ source, deviceId: chosen.deviceId, code: codeFromDeviceHash(chosen.deviceId) ?? "" });
+  return { deviceId: chosen.deviceId, code: formatActivationCode(codeFromDeviceHash(chosen.deviceId) ?? ""), source: source ?? chosen.source, sources };
 }
 
 export function deviceModel(): string {

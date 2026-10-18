@@ -1,5 +1,5 @@
-import { formatActivationCode } from "@/lib/pos/activation";
-import { deviceModel, isNativeApp, nativeVersion, readCloudUrl } from "@/lib/pos/native";
+import { formatActivationCode, isActivationSource, isDeviceHash, type ActivationSource } from "@/lib/pos/activation";
+import { deviceModel, isNativeApp, nativeVersion, readCloudUrl, type ActivationIdentity } from "@/lib/pos/native";
 
 export type ActivationPoll =
   | { status: "pending"; code: string }
@@ -38,15 +38,20 @@ async function post(path: string, body: unknown): Promise<{ ok: boolean; status:
   }
 }
 
-export async function requestActivationCode(deviceId: string): Promise<{ code: string } | { error: string; offline: boolean }> {
+export async function requestActivationCode(
+  identity: ActivationIdentity,
+): Promise<{ code: string; source: ActivationSource; deviceId: string } | { error: string; offline: boolean }> {
   const result = await post("/api/pos/activation/request", {
-    deviceId,
+    deviceId: identity.deviceId,
+    sources: identity.sources,
     model: deviceModel(),
     appVersion: appVersion().slice(0, 40),
   });
   if (result.offline) return { error: "אין רשת. הקוד יופיע כשהחיבור יחזור.", offline: true };
   const code = typeof result.payload?.code === "string" ? formatActivationCode(result.payload.code) : "";
-  if (result.ok && code) return { code };
+  const deviceId = typeof result.payload?.deviceId === "string" ? result.payload.deviceId.trim().toLowerCase() : "";
+  const source = typeof result.payload?.source === "string" && isActivationSource(result.payload.source) ? result.payload.source : identity.source;
+  if (result.ok && code && isDeviceHash(deviceId)) return { code, source, deviceId };
   const error = typeof result.payload?.error === "string" ? result.payload.error : "לא הצלחנו להפיק קוד הפעלה.";
   return { error, offline: false };
 }

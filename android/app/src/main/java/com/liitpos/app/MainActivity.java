@@ -17,8 +17,6 @@ import android.webkit.WebView;
 import androidx.core.content.FileProvider;
 import com.getcapacitor.BridgeActivity;
 import java.io.ByteArrayOutputStream;
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
 import java.util.UUID;
 import java.io.File;
 import java.io.FileOutputStream;
@@ -70,11 +68,19 @@ public class MainActivity extends BridgeActivity {
         return getSharedPreferences(PREFS, MODE_PRIVATE);
     }
 
-    /** Real serial only. ANDROID_ID already survives reinstall; a missing serial stays empty. */
-    @SuppressWarnings("deprecation")
-    private String deviceSerial() {
+    private boolean deviceOwner() {
+        DevicePolicyManager manager = (DevicePolicyManager) getSystemService(DEVICE_POLICY_SERVICE);
+        return manager != null && manager.isDeviceOwnerApp(getPackageName());
+    }
+
+    /**
+     * Hardware serial is readable by the device owner from Android 10.
+     * It is the preferred activation source because it survives a factory reset.
+     */
+    private String hardwareSerial() {
+        if (!deviceOwner() || Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) return "";
         try {
-            String serial = Build.VERSION.SDK_INT >= Build.VERSION_CODES.O ? Build.getSerial() : Build.SERIAL;
+            String serial = Build.getSerial();
             if (serial == null) return "";
             String trimmed = serial.trim();
             if (trimmed.isEmpty() || trimmed.equalsIgnoreCase("unknown")) return "";
@@ -84,39 +90,10 @@ public class MainActivity extends BridgeActivity {
         }
     }
 
-    /**
-     * Same bytes as activationMaterial("android") in the web app.
-     * The build fingerprint is not mixed in: a system update would change the code.
-     */
-    private String activationMaterial() {
+    private String androidId() {
         String androidId = Settings.Secure.getString(getContentResolver(), Settings.Secure.ANDROID_ID);
-        if (androidId == null) androidId = "";
-        androidId = androidId.replace("\n", "").replace("\r", "").trim();
-        return "v1\n" + androidId + "\n" + deviceSerial();
-    }
-
-    private byte[] sha256(String value) {
-        try {
-            return MessageDigest.getInstance("SHA-256").digest(value.getBytes(StandardCharsets.UTF_8));
-        } catch (Exception error) {
-            return new byte[32];
-        }
-    }
-
-    private String hex(byte[] hash) {
-        StringBuilder out = new StringBuilder(hash.length * 2);
-        for (byte value : hash) out.append(String.format("%02x", value & 0xff));
-        return out.toString();
-    }
-
-    private String activationCode(byte[] hash) {
-        String alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
-        StringBuilder code = new StringBuilder(7);
-        for (int index = 0; index < 6; index++) {
-            if (index == 3) code.append('-');
-            code.append(alphabet.charAt(hash[index] & 31));
-        }
-        return code.toString();
+        if (androidId == null) return "";
+        return androidId.replace("\n", "").replace("\r", "").trim();
     }
 
     private void applyLockTask(boolean enabled) {
@@ -177,13 +154,18 @@ public class MainActivity extends BridgeActivity {
         }
 
         @JavascriptInterface
-        public String getActivationDeviceId() {
-            return hex(sha256(activationMaterial()));
+        public boolean isDeviceOwner() {
+            return deviceOwner();
         }
 
         @JavascriptInterface
-        public String getActivationCode() {
-            return activationCode(sha256(activationMaterial()));
+        public String getHardwareSerial() {
+            return hardwareSerial();
+        }
+
+        @JavascriptInterface
+        public String getAndroidId() {
+            return androidId();
         }
 
         @JavascriptInterface

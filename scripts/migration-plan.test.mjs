@@ -60,7 +60,7 @@ test("app migrations are applied from migrations/ and the auth/ source is not a 
   const migrationsDir = join(projectRoot(), "migrations");
   assert.deepEqual(
     pendingMigrations(readdirSync(migrationsDir), []).map((item) => item.name),
-    ["0001_auth.sql", "0002_pos_cloud.sql", "0003_admin_devices.sql", "0004_receipt_token.sql", "0005_registers.sql", "0006_activations.sql", "0007_activation_devices.sql"],
+    ["0001_auth.sql", "0002_pos_cloud.sql", "0003_admin_devices.sql", "0004_receipt_token.sql", "0005_registers.sql", "0006_activations.sql", "0007_activation_devices.sql", "0008_activation_sources.sql"],
   );
   assert.ok(readdirSync(join(migrationsDir, "auth")).includes("0001_auth.sql"));
 });
