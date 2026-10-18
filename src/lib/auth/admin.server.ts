@@ -8,8 +8,8 @@ import {
   type AdminCredentials,
 } from "./admin-credentials";
 import { OWNER_ID } from "./owner";
-import { pairingLink, type DeviceTokenView } from "./pairing";
-import { cleanRegisterName, nextRegisterNo, registerCaption, type RegisterClaim } from "@/lib/pos/register";
+import type { DeviceTokenView } from "./pairing";
+import { cleanRegisterName, type RegisterClaim } from "@/lib/pos/register";
 
 export const ADMIN_COOKIE = "liitpos_admin";
 const SESSION_SECONDS = 60 * 60 * 12;
@@ -17,15 +17,6 @@ const USERNAME_WIDE_IP = "*";
 
 export function adminConfigured(): boolean {
   return credentialsFromEnv(process.env) !== null;
-}
-
-export function cloudOrigin(request: Request): string {
-  const configured = process.env.BETTER_AUTH_URL?.trim().replace(/\/+$/, "") ?? "";
-  if (/^https?:\/\//i.test(configured)) return configured;
-  const url = new URL(request.url);
-  const host = request.headers.get("x-forwarded-host")?.split(",")[0]?.trim() || request.headers.get("host") || url.host;
-  const proto = request.headers.get("x-forwarded-proto")?.split(",")[0]?.trim() || url.protocol.replace(":", "");
-  return `${proto}://${host}`;
 }
 
 export function hashToken(token: string): string {
@@ -179,23 +170,6 @@ export async function ownerForDeviceToken(token: string): Promise<string | null>
   return rows[0]?.id ? OWNER_ID : null;
 }
 
-export async function listDeviceTokens(): Promise<DeviceTokenView[]> {
-  const sql = await getSql();
-  const rows = await sql<{ id: string; label: string; created_at: string; last_seen: string | null; revoked: boolean }>`
-    select id, label, created_at::text as created_at, last_seen::text as last_seen, (revoked_at is not null) as revoked
-    from device_tokens
-    order by created_at desc
-    limit 50
-  `;
-  return rows.map((row) => ({
-    id: row.id,
-    label: row.label,
-    createdAt: row.created_at,
-    lastSeen: row.last_seen,
-    revoked: asBool(row.revoked),
-  }));
-}
-
 export async function listLegacyTokens(): Promise<DeviceTokenView[]> {
   const sql = await getSql();
   const rows = await sql<{ id: string; label: string; created_at: string; last_seen: string | null; revoked: boolean }>`
@@ -212,17 +186,6 @@ export async function listLegacyTokens(): Promise<DeviceTokenView[]> {
     lastSeen: row.last_seen,
     revoked: asBool(row.revoked),
   }));
-}
-
-export async function createDeviceToken(request: Request, label: string): Promise<{ id: string; label: string; link: string }> {
-  const token = randomBytes(32).toString("base64url");
-  const id = `dev_${randomBytes(8).toString("hex")}`;
-  const sql = await getSql();
-  await sql`
-    insert into device_tokens (id, token_hash, label)
-    values (${id}, ${hashToken(token)}, ${label})
-  `;
-  return { id, label, link: pairingLink(token, cloudOrigin(request)) };
 }
 
 export async function revokeDeviceToken(id: string): Promise<void> {
@@ -248,20 +211,6 @@ export type DeviceSession =
   | { status: "ok"; ownerId: string; register: RegisterClaim | null; registerId: string | null }
   | { status: "revoked" }
   | { status: "unauthorized" };
-
-function isUniqueViolation(error: unknown): boolean {
-  return Boolean(error && typeof error === "object" && "code" in error && (error as { code?: string }).code === "23505");
-}
-
-async function businessExists(businessId: string): Promise<boolean> {
-  const sql = await getSql();
-  const rows = await sql<{ ok: boolean }>`
-    select true as ok from pos_docs
-    where user_id = ${OWNER_ID} and business_id = ${businessId} and kind = 'settings' and deleted = false
-    limit 1
-  `;
-  return Boolean(rows[0]?.ok);
-}
 
 export async function listRegisters(): Promise<RegisterView[]> {
   const sql = await getSql();
@@ -319,41 +268,6 @@ export async function listRegisters(): Promise<RegisterView[]> {
   }));
 }
 
-async function issueToken(request: Request, registerId: string, businessId: string, label: string): Promise<string> {
-  const token = randomBytes(32).toString("base64url");
-  const id = `dev_${randomBytes(8).toString("hex")}`;
-  const sql = await getSql();
-  await sql`
-    insert into device_tokens (id, token_hash, label, register_id, business_id)
-    values (${id}, ${hashToken(token)}, ${label}, ${registerId}, ${businessId})
-  `;
-  return pairingLink(token, cloudOrigin(request));
-}
-
-export async function createRegister(request: Request, businessId: string, name: string): Promise<{ id: string; number: number; name: string; link: string }> {
-  if (!(await businessExists(businessId))) throw new Error("העסק לא נמצא.");
-  const cleanName = cleanRegisterName(name);
-  const sql = await getSql();
-  for (let attempt = 0; attempt < 3; attempt += 1) {
-    const numbers = await sql<{ register_no: number }>`
-      select register_no from registers where business_id = ${businessId}
-    `;
-    const registerNo = nextRegisterNo(numbers.map((row) => Number(row.register_no)));
-    const id = `reg_${randomBytes(8).toString("hex")}`;
-    try {
-      await sql`
-        insert into registers (id, business_id, register_no, name)
-        values (${id}, ${businessId}, ${registerNo}, ${cleanName})
-      `;
-      const link = await issueToken(request, id, businessId, registerCaption(registerNo, cleanName));
-      return { id, number: registerNo, name: cleanName, link };
-    } catch (error) {
-      if (!isUniqueViolation(error) || attempt === 2) throw error;
-    }
-  }
-  throw new Error("לא הצלחנו לתת מספר קופה.");
-}
-
 export async function renameRegister(id: string, name: string): Promise<void> {
   const sql = await getSql();
   const rows = await sql<{ id: string }>`
@@ -366,21 +280,6 @@ export async function revokeRegister(id: string): Promise<void> {
   const sql = await getSql();
   await sql`update registers set revoked_at = now() where id = ${id} and revoked_at is null`;
   await sql`update device_tokens set revoked_at = now() where register_id = ${id} and revoked_at is null`;
-}
-
-export async function reissueRegister(request: Request, id: string): Promise<{ id: string; number: number; name: string; link: string }> {
-  const sql = await getSql();
-  const rows = await sql<{ business_id: string; register_no: number; name: string }>`
-    update registers set revoked_at = null where id = ${id}
-    returning business_id, register_no, name
-  `;
-  const row = rows[0];
-  if (!row) throw new Error("הקופה לא נמצאה.");
-  await sql`update device_tokens set revoked_at = now() where register_id = ${id} and revoked_at is null`;
-  const number = Number(row.register_no);
-  const name = row.name ?? "";
-  const link = await issueToken(request, id, row.business_id, registerCaption(number, name));
-  return { id, number, name, link };
 }
 
 export async function markRegisterSynced(registerId: string): Promise<void> {

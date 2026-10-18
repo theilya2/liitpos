@@ -261,7 +261,7 @@ function Panel({ onLogout }: { onLogout: () => void }) {
               עסק חדש
             </button>
           </div>
-          <p className="mt-2 text-sm text-pretty text-muted">קופה חדשה מציגה קוד הפעלה, ומאשרים אותו למעלה. קישור או QR נשארים כאפשרות נוספת ליד כל עסק.</p>
+          <p className="mt-2 text-sm text-pretty text-muted">קופה חדשה מציגה קוד הפעלה. מאשרים אותו למעלה, והיא מתווספת לעסק שנבחר.</p>
           {businesses.length === 0 ? (
             <p className="mt-3 text-sm text-muted">עדיין אין עסקים בענן. יוצרים עסק, ואז מאשרים את קוד ההפעלה שמופיע על הקופה.</p>
           ) : (

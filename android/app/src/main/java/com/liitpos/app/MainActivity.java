@@ -40,7 +40,6 @@ public class MainActivity extends BridgeActivity {
             webView.post(() -> webView.evaluateJavascript(script, null));
         });
         usbPrinters.register();
-        captureLink(getIntent());
     }
 
     @Override
@@ -65,17 +64,6 @@ public class MainActivity extends BridgeActivity {
         }
     }
 
-    @Override
-    protected void onNewIntent(Intent intent) {
-        super.onNewIntent(intent);
-        setIntent(intent);
-        captureLink(intent);
-        WebView webView = getBridge().getWebView();
-        webView.post(() -> webView.evaluateJavascript(
-                "window.__liitposApplySession && window.__liitposApplySession()",
-                null));
-    }
-
     private SharedPreferences prefs() {
         return getSharedPreferences(PREFS, MODE_PRIVATE);
     }
@@ -96,18 +84,6 @@ public class MainActivity extends BridgeActivity {
         } catch (Exception ignored) {
             // Screen pinning is unavailable until the device owner step in ANDROID.md.
         }
-    }
-
-    private void captureLink(Intent intent) {
-        if (intent == null || intent.getData() == null) return;
-        Uri data = intent.getData();
-        if (!"liitpos".equals(data.getScheme()) || !"link".equals(data.getHost())) return;
-        SharedPreferences.Editor editor = prefs().edit();
-        String token = data.getQueryParameter("token");
-        String cloud = data.getQueryParameter("cloud");
-        if (token != null && !token.isEmpty()) editor.putString("token", token);
-        if (cloud != null && !cloud.isEmpty()) editor.putString("cloud", cloud);
-        editor.apply();
     }
 
     private final class Bridge {

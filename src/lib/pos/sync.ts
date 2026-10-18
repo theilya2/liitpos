@@ -26,7 +26,7 @@ let running = false;
 let queued = false;
 let blockedToken = "";
 
-export const UNPAIRED_DETAIL = "המכשיר לא משויך. צריך קישור או קוד QR מהמשרד האחורי, לא רק כתובת שרת.";
+export const UNPAIRED_DETAIL = "המכשיר לא משויך. קוד ההפעלה ממתין לאישור בלוח הבקרה.";
 export const OFFLINE_DETAIL = "אין רשת. המכירות נשמרות במכשיר עד שהחיבור חוזר.";
 
 export function serverErrorDetail(status: number): string {
@@ -151,7 +151,7 @@ async function reportFailure(error: unknown) {
     return;
   }
   if (failure.reason === "no-address") {
-    useCloudStatus.setState({ phase: "local", detail: "חסרה כתובת שרת. אחרי ששומרים אותה צריך גם קישור או קוד QR מהמשרד האחורי." });
+    useCloudStatus.setState({ phase: "local", detail: "חסרה כתובת שרת." });
     return;
   }
   if (failure.reason === "http" && failure.status) {

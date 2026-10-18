@@ -2,10 +2,8 @@ import { useEffect, useState } from "react";
 import { formatWhen } from "@/lib/pos/money";
 import { formatRegisterTime } from "@/lib/pos/register";
 import {
-  createRegister,
   listLegacyTokens,
   listRegisters,
-  reissueRegister,
   renameRegister,
   revokeLegacyToken,
   revokeRegister,
@@ -29,9 +27,6 @@ function statusOf(row: RegisterView): string {
 
 export function RegistersAdmin({ businessId }: { businessId: string }) {
   const [rows, setRows] = useState<RegisterView[]>([]);
-  const [name, setName] = useState("");
-  const [link, setLink] = useState("");
-  const [qr, setQr] = useState("");
   const [renameId, setRenameId] = useState("");
   const [renameValue, setRenameValue] = useState("");
   const [error, setError] = useState("");
@@ -61,25 +56,6 @@ export function RegistersAdmin({ businessId }: { businessId: string }) {
     };
   }, [businessId]);
 
-  useEffect(() => {
-    if (!link) {
-      setQr("");
-      return;
-    }
-    let live = true;
-    void import("qrcode")
-      .then((mod) => mod.toDataURL(link, { margin: 1, width: 240 }))
-      .then((url) => {
-        if (live) setQr(url);
-      })
-      .catch(() => {
-        if (live) setQr("");
-      });
-    return () => {
-      live = false;
-    };
-  }, [link]);
-
   function run(task: () => Promise<void>) {
     setBusy(true);
     setError("");
@@ -91,7 +67,7 @@ export function RegistersAdmin({ businessId }: { businessId: string }) {
   return (
     <div className="mt-4 space-y-3">
       <h3 className="font-medium">קופות</h3>
-      {rows.length === 0 ? <p className="text-sm text-muted">עדיין אין קופה לעסק הזה.</p> : null}
+      {rows.length === 0 ? <p className="text-sm text-pretty text-muted">עדיין אין קופה לעסק הזה. קופה חדשה מופיעה כאן אחרי אישור קוד ההפעלה.</p> : null}
       <ul className="space-y-2">
         {rows.map((row) => (
           <li key={row.id} className="rounded-xl bg-paper px-3 py-3 text-sm ring-1 ring-line">
@@ -142,59 +118,17 @@ export function RegistersAdmin({ businessId }: { businessId: string }) {
                   onClick={() =>
                     run(async () => {
                       await revokeRegister({ data: { id: row.id } });
-                      setLink("");
                       await refresh();
                     })
                   }
                 >
                   ניתוק
                 </button>
-                <button
-                  type="button"
-                  disabled={busy}
-                  className="h-12 rounded-xl bg-surface px-3 ring-1 ring-line disabled:opacity-40"
-                  onClick={() =>
-                    run(async () => {
-                      const issued = await reissueRegister({ data: { id: row.id } });
-                      setLink(issued.link);
-                      await refresh();
-                    })
-                  }
-                >
-                  קוד שיוך חדש
-                </button>
               </div>
             )}
           </li>
         ))}
       </ul>
-      <p className="text-sm text-pretty text-muted">אפשרות נוספת לקופה עם מצלמה: קישור או QR. הדרך הראשית היא קוד ההפעלה.</p>
-      <form
-        className="flex flex-wrap gap-2"
-        onSubmit={(event) => {
-          event.preventDefault();
-          run(async () => {
-            const created = await createRegister({ data: { businessId, name } });
-            setName("");
-            setLink(created.link);
-            await refresh();
-          });
-        }}
-      >
-        <input value={name} onChange={(event) => setName(event.target.value)} maxLength={40} placeholder="שם קופה, לא חובה" aria-label="שם קופה" className="h-12 min-w-0 flex-1 rounded-xl bg-paper px-3 ring-1 ring-line" />
-        <button type="submit" disabled={busy} className="h-12 rounded-xl bg-pine px-4 text-sm font-semibold text-pine-ink disabled:opacity-50">
-          הוספת קופה
-        </button>
-      </form>
-      {link ? (
-        <div className="space-y-3 rounded-xl bg-paper p-3 ring-1 ring-line">
-          <p className="text-sm font-medium">הקישור הזה לא יוצג שוב. פותחים אותו בקופה, או סורקים את הקוד.</p>
-          {qr ? <img src={qr} alt="" className="h-48 w-48 rounded-xl bg-white p-2" /> : null}
-          <p className="break-all text-sm" dir="ltr">
-            {link}
-          </p>
-        </div>
-      ) : null}
       {error ? <p className="text-sm text-copper">{error}</p> : null}
     </div>
   );

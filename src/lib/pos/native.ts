@@ -38,7 +38,6 @@ type NativeBridge = {
 
 type NativeWindow = Window & {
   LiitposNative?: NativeBridge;
-  __liitposApplySession?: () => void;
 };
 
 function bridge(): NativeBridge | null {
@@ -247,13 +246,6 @@ export function prepareNative(): void {
   if (nativePrint) {
     window.print = () => nativePrint();
   }
-  (window as NativeWindow).__liitposApplySession = () => {
-    const next = bridge()?.getSessionToken?.() ?? "";
-    if (next) rememberToken(next);
-    const url = readCloudUrl();
-    if (url) writeCloudUrl(url);
-    window.dispatchEvent(new Event("liitpos-session"));
-  };
 }
 
 function asUpdate(value: unknown): AppUpdate | null {

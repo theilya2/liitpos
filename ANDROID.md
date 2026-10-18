@@ -72,8 +72,8 @@ The register on the phone does not have an account button. Pairing is done from 
 
 1. On Vercel, set `ADMIN_USERNAME` and `ADMIN_PASSWORD` (or `ADMIN_PASSWORD_HASH`). `BETTER_AUTH_URL` must be `https://liitpos.vercel.app` with no slash at the end. `DATABASE_URL` is already the Neon database. If the username is missing, or both the password and the hash are missing, the back office refuses every login.
 2. Open `https://liitpos.vercel.app/admin` in a browser and sign in with that username and password. There is no sign-up. Five wrong tries from the same network, or against the same username, lock login for 15 minutes.
-3. Under **חיבור טלפון**, type a name for the phone and create a link. A QR code and a `liitpos://link?token=…&cloud=https://liitpos.vercel.app` link appear once. Open that link on the phone that has Liitpos installed, or scan the QR with the phone. The app stores the token and the site address.
-4. Sales made offline upload on their own after that. Revoke the phone from the same screen to disconnect it. The register on that phone keeps working offline.
+3. Open the register. It shows an activation code. In the back office, under **קופות ממתינות לאישור**, choose the business and approve that code. The register stores its license and opens the staff screen.
+4. Sales made offline upload on their own after that. Disconnect the register from the same screen. It returns to a new activation code. A register that was already licensed keeps that license.
 
 `ADMIN_PASSWORD_HASH`, if you prefer not to store the password itself, is a `scrypt:` line. Generate it on your computer (do not commit it):
 
