@@ -186,7 +186,7 @@ function KioskTiming() {
   return (
     <section className="space-y-3 rounded-2xl bg-surface p-4 ring-1 ring-line">
       <h2 className="text-base font-semibold">קיוסק</h2>
-      <p className="text-sm text-pretty text-muted">אחרי שקט, הקיוסק שואל אם מישהו עדיין כאן ואז חוזר למסך הפתיחה.</p>
+      <p className="text-sm text-pretty text-muted">אחרי שקט, הקיוסק שואל אם מישהו עדיין כאן ואז חוזר למסך הפתיחה. נעילה מלאה מומלצת כשהטאבלט שייך לקופה. בלי זה אנדרואיד מציע רק קיבוע מסך.</p>
       <label className="block text-sm text-muted">
         שניות עד השאלה
         <input
@@ -214,7 +214,7 @@ function KioskTiming() {
         onClick={() => updateSettings({ kioskLock: !timing.lock })}
         className={`min-h-12 w-full rounded-xl px-3 py-2 text-sm font-medium text-pretty ${timing.lock ? "bg-pine-soft text-pine" : "bg-paper ring-1 ring-line"}`}
       >
-        {timing.lock ? "נעילת קיוסק פעילה. יציאה רק עם קוד מנהל" : "נעילת קיוסק כבויה"}
+        {timing.lock ? "נעילת קיוסק פעילה. יציאה בלחיצה ארוכה על הלוגו בפינה, ואז קוד מנהל" : "נעילת קיוסק כבויה"}
       </button>
     </section>
   );

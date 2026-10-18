@@ -1,5 +1,31 @@
 import type { CartLine, KioskSlide, Product, Sale, Settings, UpsellRule } from "@/lib/pos/types";
 
+export const LIITPOS_LOGO = "/favicon.svg";
+export const KIOSK_EXIT_HOLD_MS = 5000;
+export const KIOSK_EXIT_TAPS = 5;
+export const KIOSK_EXIT_TAP_WINDOW_MS = 4000;
+
+export function companyLogo(logo: string | null | undefined): string {
+  if (logo && logo.startsWith("data:image/") && logo.length <= 150_000) return logo;
+  return LIITPOS_LOGO;
+}
+
+export function holdRatio(startedAt: number, now: number, holdMs = KIOSK_EXIT_HOLD_MS): number {
+  if (now <= startedAt) return 0;
+  return Math.min(1, (now - startedAt) / holdMs);
+}
+
+export function hiddenCornerTaps(
+  stamps: number[],
+  now: number,
+  need = KIOSK_EXIT_TAPS,
+  windowMs = KIOSK_EXIT_TAP_WINDOW_MS,
+): { open: boolean; stamps: number[] } {
+  const fresh = [...stamps, now].filter((stamp) => now - stamp <= windowMs && now - stamp >= 0);
+  if (fresh.length >= need) return { open: true, stamps: [] };
+  return { open: false, stamps: fresh };
+}
+
 export function kioskTiming(settings: Pick<Settings, "kioskIdleSec" | "kioskWarnSec" | "kioskLock">): { idle: number; warn: number; lock: boolean } {
   const idle = clamp(settings.kioskIdleSec, 60, 15, 600);
   const warn = clamp(settings.kioskWarnSec, 15, 5, 90);

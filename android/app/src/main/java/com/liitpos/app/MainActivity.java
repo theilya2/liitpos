@@ -108,6 +108,7 @@ public class MainActivity extends BridgeActivity {
             if (manager != null && manager.isDeviceOwnerApp(getPackageName())) {
                 manager.setLockTaskPackages(admin, new String[] { getPackageName() });
             }
+            // Device owner is the full lock. Otherwise Android offers screen pinning.
             startLockTask();
         } catch (Exception ignored) {
             // Screen pinning is unavailable until the device owner step in ANDROID.md.

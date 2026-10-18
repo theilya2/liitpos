@@ -254,6 +254,7 @@
   min-height: 0;
   flex-direction: column;
   overflow: hidden;
+  padding-top: 4.75rem;
 }
 
 .lock-board {
