@@ -44,15 +44,20 @@ export function RegistersAdmin({ businessId }: { businessId: string }) {
 
   useEffect(() => {
     let live = true;
-    void listRegisters()
-      .then((all) => {
-        if (live) setRows(all.filter((row) => row.businessId === businessId));
-      })
-      .catch((reason: unknown) => {
-        if (live) setError(messageOf(reason));
-      });
+    const load = () => {
+      void listRegisters()
+        .then((all) => {
+          if (live) setRows(all.filter((row) => row.businessId === businessId));
+        })
+        .catch((reason: unknown) => {
+          if (live) setError(messageOf(reason));
+        });
+    };
+    load();
+    window.addEventListener("liitpos-registers", load);
     return () => {
       live = false;
+      window.removeEventListener("liitpos-registers", load);
     };
   }, [businessId]);
 
@@ -163,6 +168,7 @@ export function RegistersAdmin({ businessId }: { businessId: string }) {
           </li>
         ))}
       </ul>
+      <p className="text-sm text-pretty text-muted">אפשרות נוספת לקופה עם מצלמה: קישור או QR. הדרך הראשית היא קוד ההפעלה.</p>
       <form
         className="flex flex-wrap gap-2"
         onSubmit={(event) => {

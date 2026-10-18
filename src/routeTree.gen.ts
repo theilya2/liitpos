@@ -24,6 +24,8 @@ import { Route as ApiAdminLogoutRouteImport } from './routes/api/admin/logout'
 import { Route as ApiAdminSessionRouteImport } from './routes/api/admin/session'
 import { Route as ApiPosSyncRouteImport } from './routes/api/pos/sync'
 import { Route as ApiPosUpdateRouteImport } from './routes/api/pos/update'
+import { Route as ApiPosActivationPollRouteImport } from './routes/api/pos/activation/poll'
+import { Route as ApiPosActivationRequestRouteImport } from './routes/api/pos/activation/request'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -100,6 +102,16 @@ const ApiPosUpdateRoute = ApiPosUpdateRouteImport.update({
   path: '/api/pos/update',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPosActivationPollRoute = ApiPosActivationPollRouteImport.update({
+  id: '/api/pos/activation/poll',
+  path: '/api/pos/activation/poll',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiPosActivationRequestRoute = ApiPosActivationRequestRouteImport.update({
+  id: '/api/pos/activation/request',
+  path: '/api/pos/activation/request',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -117,6 +129,8 @@ export interface FileRoutesByFullPath {
   '/api/admin/session': typeof ApiAdminSessionRoute
   '/api/pos/sync': typeof ApiPosSyncRoute
   '/api/pos/update': typeof ApiPosUpdateRoute
+  '/api/pos/activation/poll': typeof ApiPosActivationPollRoute
+  '/api/pos/activation/request': typeof ApiPosActivationRequestRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -134,6 +148,8 @@ export interface FileRoutesByTo {
   '/api/admin/session': typeof ApiAdminSessionRoute
   '/api/pos/sync': typeof ApiPosSyncRoute
   '/api/pos/update': typeof ApiPosUpdateRoute
+  '/api/pos/activation/poll': typeof ApiPosActivationPollRoute
+  '/api/pos/activation/request': typeof ApiPosActivationRequestRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -152,6 +168,8 @@ export interface FileRoutesById {
   '/api/admin/session': typeof ApiAdminSessionRoute
   '/api/pos/sync': typeof ApiPosSyncRoute
   '/api/pos/update': typeof ApiPosUpdateRoute
+  '/api/pos/activation/poll': typeof ApiPosActivationPollRoute
+  '/api/pos/activation/request': typeof ApiPosActivationRequestRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -171,6 +189,8 @@ export interface FileRouteTypes {
     | '/api/admin/session'
     | '/api/pos/sync'
     | '/api/pos/update'
+    | '/api/pos/activation/poll'
+    | '/api/pos/activation/request'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -188,6 +208,8 @@ export interface FileRouteTypes {
     | '/api/admin/session'
     | '/api/pos/sync'
     | '/api/pos/update'
+    | '/api/pos/activation/poll'
+    | '/api/pos/activation/request'
   id:
     | '__root__'
     | '/'
@@ -205,6 +227,8 @@ export interface FileRouteTypes {
     | '/api/admin/session'
     | '/api/pos/sync'
     | '/api/pos/update'
+    | '/api/pos/activation/poll'
+    | '/api/pos/activation/request'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -223,6 +247,8 @@ export interface RootRouteChildren {
   ApiAdminSessionRoute: typeof ApiAdminSessionRoute
   ApiPosSyncRoute: typeof ApiPosSyncRoute
   ApiPosUpdateRoute: typeof ApiPosUpdateRoute
+  ApiPosActivationPollRoute: typeof ApiPosActivationPollRoute
+  ApiPosActivationRequestRoute: typeof ApiPosActivationRequestRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -332,6 +358,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPosUpdateRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/pos/activation/poll': {
+      id: '/api/pos/activation/poll'
+      path: '/api/pos/activation/poll'
+      fullPath: '/api/pos/activation/poll'
+      preLoaderRoute: typeof ApiPosActivationPollRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/pos/activation/request': {
+      id: '/api/pos/activation/request'
+      path: '/api/pos/activation/request'
+      fullPath: '/api/pos/activation/request'
+      preLoaderRoute: typeof ApiPosActivationRequestRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -351,6 +391,8 @@ const rootRouteChildren: RootRouteChildren = {
   ApiAdminSessionRoute: ApiAdminSessionRoute,
   ApiPosSyncRoute: ApiPosSyncRoute,
   ApiPosUpdateRoute: ApiPosUpdateRoute,
+  ApiPosActivationPollRoute: ApiPosActivationPollRoute,
+  ApiPosActivationRequestRoute: ApiPosActivationRequestRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

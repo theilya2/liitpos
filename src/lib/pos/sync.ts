@@ -3,7 +3,7 @@ import { pairedBaselineUpload } from "@/lib/pos/baseline";
 import { probeCloud, pullCloud, pushCloud, type SyncClient, type SyncFailureReason } from "@/lib/pos/cloud-api";
 import { isDemoMode } from "@/lib/pos/demo";
 import { catalogDoc, mergeOutbox, snapshotDocs, type CloudDoc } from "@/lib/pos/docs";
-import { isNativeApp, nativeVersion, readSessionToken } from "@/lib/pos/native";
+import { clearSessionToken, isNativeApp, nativeVersion, readSessionToken } from "@/lib/pos/native";
 import { REVOKED_DETAIL, type RegisterClaim } from "@/lib/pos/register";
 import { usePos } from "@/lib/pos/store";
 
@@ -138,7 +138,10 @@ async function reportFailure(error: unknown) {
   const failure = failureOf(error);
   if (failure.reason === "revoked") {
     blockedToken = readSessionToken();
+    clearSessionToken();
     usePos.getState().markRegisterRevoked();
+    usePos.getState().lock();
+    usePos.getState().setCloudCursor(null);
     useCloudStatus.setState({ phase: "revoked", detail: REVOKED_DETAIL });
     return;
   }
@@ -171,15 +174,11 @@ async function runSync() {
   const token = readSessionToken();
   const pending = () => usePos.getState().outbox.length;
   try {
-    if (blockedToken && token === blockedToken) {
+    if ((blockedToken && token === blockedToken) || (usePos.getState().registerRevoked && !token)) {
       useCloudStatus.setState({ phase: "revoked", detail: REVOKED_DETAIL });
       return;
     }
-    if (usePos.getState().registerRevoked) {
-      useCloudStatus.setState({ phase: "revoked", detail: REVOKED_DETAIL });
-    } else {
-      useCloudStatus.setState({ phase: "syncing", detail: pending() ? `${pending()} ממתינות` : "" });
-    }
+    useCloudStatus.setState({ phase: "syncing", detail: pending() ? `${pending()} ממתינות` : "" });
     const state = usePos.getState();
     let releaseAt: string | null = null;
     if (!state.cloudCursor) {

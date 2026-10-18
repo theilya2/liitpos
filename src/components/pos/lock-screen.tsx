@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { ActivationWait } from "@/components/pos/activation-wait";
 import { canSeeStore } from "@/lib/pos/access";
 import { canUseBusiness, isDemoMode } from "@/lib/pos/demo";
 import { tapKey } from "@/lib/pos/haptics";
@@ -20,6 +21,7 @@ export function LockScreen() {
   const registerNo = usePos((state) => state.registerNo);
   const registerName = usePos((state) => state.registerName);
   const registerBusinessId = usePos((state) => state.registerBusinessId);
+  const registerRevoked = usePos((state) => state.registerRevoked);
   const activeLogo = usePos((state) => state.settings.logo);
   const phase = useCloudStatus((state) => state.phase);
   const detail = useCloudStatus((state) => state.detail);
@@ -123,14 +125,7 @@ export function LockScreen() {
                 <p className="truncate text-sm text-muted">{view.kind === "unpaired" ? "ממתינים לחיבור" : view.kind === "loading" ? "טוענים את העסק…" : "החיבור לעסק נכשל"}</p>
               </div>
             </div>
-            {view.kind === "unpaired" ? (
-              <>
-                <p className="mt-4 text-lg font-semibold text-pretty">הקופה עדיין לא מחוברת לעסק</p>
-                <p className="lock-note mt-3 text-sm text-pretty text-muted">
-                  הבעלים מוסיף את הקופה מהמשרד האחורי דרך «הוספת קופה», ופותח את הקישור או את קוד ה-QR במכשיר הזה.
-                </p>
-              </>
-            ) : null}
+            {view.kind === "unpaired" ? <ActivationWait disconnected={registerRevoked} /> : null}
             {view.kind === "loading" ? <p className="mt-4 text-lg font-semibold text-pretty">טוענים את העסק…</p> : null}
             {view.kind === "failed" ? (
               <>

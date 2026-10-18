@@ -17,6 +17,7 @@ import android.webkit.WebView;
 import androidx.core.content.FileProvider;
 import com.getcapacitor.BridgeActivity;
 import java.io.ByteArrayOutputStream;
+import java.util.UUID;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.InputStream;
@@ -123,6 +124,37 @@ public class MainActivity extends BridgeActivity {
         @JavascriptInterface
         public String getSessionToken() {
             return prefs().getString("token", "");
+        }
+
+        @JavascriptInterface
+        public void setSessionToken(String token) {
+            prefs().edit().putString("token", token == null ? "" : token).apply();
+        }
+
+        @JavascriptInterface
+        public String getDeviceId() {
+            String id = prefs().getString("deviceId", "");
+            if (id == null || id.isEmpty()) {
+                id = UUID.randomUUID().toString();
+                prefs().edit().putString("deviceId", id).apply();
+            }
+            return id;
+        }
+
+        @JavascriptInterface
+        public void setDeviceId(String id) {
+            if (id == null || id.isEmpty()) return;
+            String current = prefs().getString("deviceId", "");
+            if (current != null && !current.isEmpty()) return;
+            prefs().edit().putString("deviceId", id).apply();
+        }
+
+        @JavascriptInterface
+        public String getDeviceModel() {
+            String maker = Build.MANUFACTURER == null ? "" : Build.MANUFACTURER;
+            String model = Build.MODEL == null ? "" : Build.MODEL;
+            String label = (maker + " " + model).trim();
+            return label.length() > 80 ? label.substring(0, 80) : label;
         }
 
         @JavascriptInterface

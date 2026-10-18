@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { PendingActivations } from "@/components/pos/pending-activations";
 import { LegacyTokens, RegistersAdmin } from "@/components/pos/registers-admin";
 import {
   deleteCloudBusiness,
@@ -245,6 +246,7 @@ function Panel({ onLogout }: { onLogout: () => void }) {
             <p className="mt-3 text-sm text-muted">עדיין אין דיווח מקופה מחוברת. אחרי סנכרון תופיע כאן.</p>
           )}
         </section>
+        <PendingActivations businesses={businesses} />
         <section className="rounded-2xl bg-surface p-4 ring-1 ring-line">
           <div className="flex items-center justify-between gap-3">
             <h2 className="text-base font-semibold">עסקים</h2>
@@ -259,9 +261,9 @@ function Panel({ onLogout }: { onLogout: () => void }) {
               עסק חדש
             </button>
           </div>
-          <p className="mt-2 text-sm text-pretty text-muted">רק מכאן מוסיפים קופה. בקופה עצמה אין שדה לכתובת שרת, ואין דרך לשייך מכשיר.</p>
+          <p className="mt-2 text-sm text-pretty text-muted">קופה חדשה מציגה קוד הפעלה, ומאשרים אותו למעלה. קישור או QR נשארים כאפשרות נוספת ליד כל עסק.</p>
           {businesses.length === 0 ? (
-            <p className="mt-3 text-sm text-muted">עדיין אין עסקים בענן. יוצרים עסק כאן, ואז מוסיפים קופה ופותחים את הקישור במכשיר.</p>
+            <p className="mt-3 text-sm text-muted">עדיין אין עסקים בענן. יוצרים עסק, ואז מאשרים את קוד ההפעלה שמופיע על הקופה.</p>
           ) : (
             <ul className="mt-3 space-y-2">
               {businesses.map((business) => (

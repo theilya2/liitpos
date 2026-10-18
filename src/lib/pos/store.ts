@@ -28,6 +28,7 @@ import {
 } from "@/lib/pos/seed";
 import { type Branch, type CartLine, type CashMove, type Category, type ClubMember, type Discount, type DrawerOpen, type HeldOrder, type PaymentMethod, type Product, type Role, type Sale, type Settings, type StaffUser, type StockMove, type StockReason, type TerminalKind, type ZReport } from "@/lib/pos/types";
 import { canUseBusiness, isDemoMode } from "@/lib/pos/demo";
+import { readDeviceId } from "@/lib/pos/native";
 import { registerStamp, type RegisterClaim } from "@/lib/pos/register";
 import { withPrintSettings } from "@/lib/pos/printer";
 import { isReceiptToken, newReceiptToken } from "@/lib/pos/receipt-link";
@@ -1197,7 +1198,8 @@ export function ensureReady(): void {
     if (gated && !canUseBusiness(gated.id, gated.settings.code)) gateStoreId = null;
     if (sessionUserId && !canUseBusiness(active.id, active.settings.code)) sessionUserId = null;
   }
-  if (!current.deviceId) usePos.setState({ deviceId: newId() });
+  const stableDeviceId = readDeviceId(current.deviceId);
+  if (stableDeviceId !== current.deviceId) usePos.setState({ deviceId: stableDeviceId });
   if (!current.seeded) {
     const sales = buildDemoSales(active.settings);
     active = {
