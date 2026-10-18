@@ -6,8 +6,9 @@ import { OptionSheet } from "@/components/pos/option-sheet";
 import { ReceiptView } from "@/components/pos/receipt";
 import { SendReceipt } from "@/components/pos/send-sms";
 import { confirmReceipt, deliverPrint, pulseDrawer } from "@/lib/pos/receipt-io";
-import { computeTotals, formatILS, formatWhen, moneyFromPad, pushMoneyKey, roundCash, roundMoney } from "@/lib/pos/money";
+import { formatILS, formatWhen, moneyFromPad, pushMoneyKey, roundCash, roundMoney } from "@/lib/pos/money";
 import { buildConfiguredLine, findByCode, mustChoose, needsPicker, shelfPrice } from "@/lib/pos/options";
+import { pricedOrPlain } from "@/lib/pos/promo";
 import { foldTenders, previewTender, remainingExact, type TenderInput } from "@/lib/pos/tender";
 import { currentUser, isWeekLocked, usePos } from "@/lib/pos/store";
 import { chargeTerminal, deviceLabel, isSafeIpv4, MAX_PAYMENTS, paymentPlan } from "@/lib/pos/terminal";
@@ -77,12 +78,14 @@ function CartPanel({
   const discount = usePos((state) => state.discount);
   const held = usePos((state) => state.held);
   const vatRate = usePos((state) => state.settings.vatRate);
+  const products = usePos((state) => state.products);
+  const promos = usePos((state) => state.settings.promos);
   const setQty = usePos((state) => state.setQty);
   const removeLine = usePos((state) => state.removeLine);
   const setDiscount = usePos((state) => state.setDiscount);
   const holdCart = usePos((state) => state.holdCart);
   const clearCart = usePos((state) => state.clearCart);
-  const totals = computeTotals(cart, discount, vatRate);
+  const totals = pricedOrPlain(cart, products, promos, discount, vatRate);
   const count = cart.reduce((sum, line) => sum + line.qty, 0);
 
   return (
@@ -174,6 +177,12 @@ function CartPanel({
           </button>
         </div>
         <div className="space-y-1 text-sm">
+          {totals.promoAmount > 0 ? (
+            <div className="flex justify-between gap-3 text-pine">
+              <span className="min-w-0 truncate">מבצע{totals.promoLabel ? ` · ${totals.promoLabel}` : ""}</span>
+              <span className="shrink-0 tabular-nums">{formatILS(totals.promoAmount)}</span>
+            </div>
+          ) : null}
           {totals.discountAmount > 0 ? (
             <div className="flex justify-between text-muted">
               <span>הנחה</span>
@@ -230,8 +239,9 @@ function PaySheet({ onClose, onDone }: { onClose: () => void; onDone: (sale: Sal
   const nextReceipt = usePos((state) => state.nextReceipt);
   const lastGoodSync = usePos((state) => state.lastGoodSync);
   const appliedReleaseAt = usePos((state) => state.appliedReleaseAt);
+  const products = usePos((state) => state.products);
   const checkout = usePos((state) => state.checkout);
-  const totals = computeTotals(cart, discount, settings.vatRate);
+  const totals = pricedOrPlain(cart, products, settings.promos, discount, settings.vatRate);
   const [method, setMethod] = useState<PaymentMethod>("cash");
   const [pad, setPad] = useState("");
   const [payments, setPayments] = useState(1);
@@ -345,6 +355,7 @@ function PaySheet({ onClose, onDone }: { onClose: () => void; onDone: (sale: Sal
       <p className="text-center text-sm text-muted">יתרה · כולל מע״מ {settings.vatRate}%</p>
       <p className="mt-1 text-center text-4xl font-semibold tabular-nums text-copper">{formatILS(remaining)}</p>
       <p className="mt-1 text-center text-sm text-muted">סכום החשבון {formatILS(totals.total)}</p>
+      {totals.promoAmount > 0 ? <p className="mt-1 text-center text-sm text-pine">מבצע {totals.promoLabel} · {formatILS(totals.promoAmount)}</p> : null}
       {taken.length ? (
         <ul className="mt-3 space-y-2">
           {taken.map((line, index) => (
@@ -587,6 +598,8 @@ function CustomSheet({ onClose }: { onClose: () => void }) {
 function HeldSheet({ onClose }: { onClose: () => void }) {
   const held = usePos((state) => state.held);
   const vatRate = usePos((state) => state.settings.vatRate);
+  const products = usePos((state) => state.products);
+  const promos = usePos((state) => state.settings.promos);
   const resumeHeld = usePos((state) => state.resumeHeld);
   const discardHeld = usePos((state) => state.discardHeld);
 
@@ -597,7 +610,7 @@ function HeldSheet({ onClose }: { onClose: () => void }) {
       ) : (
         <ul className="space-y-3">
           {held.map((order) => {
-            const totals = computeTotals(order.lines, order.discount, vatRate);
+            const totals = pricedOrPlain(order.lines, products, promos, order.discount, vatRate);
             return (
               <li key={order.id} className="rounded-2xl bg-paper p-3 ring-1 ring-line">
                 <div className="flex items-baseline justify-between gap-3">
@@ -675,6 +688,7 @@ export function SalePage() {
   const cart = usePos((state) => state.cart);
   const discount = usePos((state) => state.discount);
   const vatRate = usePos((state) => state.settings.vatRate);
+  const promos = usePos((state) => state.settings.promos);
   const businessName = usePos((state) => state.settings.businessName);
   const sales = usePos((state) => state.sales);
   const user = usePos(currentUser);
@@ -700,7 +714,7 @@ export function SalePage() {
   const [done, setDone] = useState<Sale | null>(null);
   const [note, setNote] = useState("");
 
-  const totals = computeTotals(cart, discount, vatRate);
+  const totals = pricedOrPlain(cart, products, promos, discount, vatRate);
   const count = cart.reduce((sum, line) => sum + line.qty, 0);
   const dateLabel = new Date().toLocaleDateString("he-IL", { weekday: "long", day: "numeric", month: "long" });
 
@@ -930,7 +944,7 @@ export function SalePage() {
                 onClick={() => resumeHeld(order.id)}
                 className="h-12 shrink-0 rounded-full bg-pine-soft px-3 text-xs font-medium text-pine"
               >
-                מוקפא {index + 1} · {formatILS(computeTotals(order.lines, order.discount, vatRate).total)}
+                מוקפא {index + 1} · {formatILS(pricedOrPlain(order.lines, products, promos, order.discount, vatRate).total)}
               </button>
             ))}
           </div>
@@ -998,6 +1012,7 @@ export function SalePage() {
               );
             })}
           </div>
+          {totals.promoAmount > 0 ? <p className="truncate text-xs text-pine">מבצע {totals.promoLabel} · {formatILS(totals.promoAmount)}</p> : null}
           <div className="flex items-baseline justify-between">
             <span className="text-xs text-muted">לתשלום · מע״מ {vatRate}%</span>
             <span className="text-lg font-semibold tabular-nums text-copper">{formatILS(totals.total)}</span>

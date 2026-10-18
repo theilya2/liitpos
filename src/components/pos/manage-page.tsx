@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { KioskAdmin } from "@/components/pos/kiosk-admin";
+import { PromoAdmin } from "@/components/pos/promo-admin";
 import { PageHeader } from "@/components/pos/shell";
 import { usePos } from "@/lib/pos/store";
 import { ROLE_LABEL, type Role, type StaffUser } from "@/lib/pos/types";
@@ -89,6 +90,7 @@ export function ManagePage() {
           </Link>
         </section>
         <KioskAdmin />
+        <PromoAdmin />
         <section className="rounded-2xl bg-surface p-4 ring-1 ring-line">
           <div className="flex items-center justify-between gap-3">
             <h2 className="text-base font-semibold">צוות</h2>

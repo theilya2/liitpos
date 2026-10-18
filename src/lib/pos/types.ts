@@ -26,6 +26,31 @@ export type TerminalEndpoint = {
 
 export type Discount = { kind: "percent" | "amount"; value: number } | null;
 
+export type PromoKind = "bogo" | "bxgy" | "bundle" | "percent" | "amount";
+
+/** Automatic cart promotion. Missing fields on old registers are filled in on read. */
+export type Promo = {
+  id: string;
+  name: string;
+  active: boolean;
+  kind: PromoKind;
+  stackable: boolean;
+  productId: string;
+  categoryId: string;
+  rewardProductId: string;
+  buyQty: number;
+  getQty: number;
+  bundlePrice: number;
+  percent: number;
+  amount: number;
+  /** 0 is Sunday. Empty means every day. */
+  days: number[];
+  startTime: string;
+  endTime: string;
+  startDate: string;
+  endDate: string;
+};
+
 export type Category = { id: string; name: string };
 
 export type Extra = {
@@ -160,6 +185,9 @@ export type Sale = {
   createdAt: string;
   lines: SaleLine[];
   discountAmount: number;
+  /** Automatic promotion taken off before the manual discount. Missing on older sales. */
+  promoAmount?: number;
+  promoLabel?: string;
   total: number;
   vatRate: number;
   vatAmount: number;
@@ -215,6 +243,8 @@ export type Settings = BusinessSnapshot & {
   kioskLock?: boolean;
   kioskSlides?: KioskSlide[];
   upsellRules?: UpsellRule[];
+  /** Automatic promotions. Missing on registers that have not set any. */
+  promos?: Promo[];
 };
 
 export type KioskSlide = {
@@ -302,6 +332,8 @@ export type ZReport = {
   paidIn?: number;
   /** Pay-outs during the shift. */
   paidOut?: number;
+  /** Promotions given on the sales in this report. Older reports omit it. */
+  promoTotal?: number;
   leftInDrawer: number;
   drawerOpens: number;
 };

@@ -124,6 +124,7 @@ export function receiptPrintLines(sale: Sale): PrintLine[] {
     lines.push({ text: `${clip(line.name, 28)} × ${line.qty}\t${formatILS(line.lineTotal)}`, align: "split" });
   }
   lines.push({ text: "", align: "center", size: "sm" });
+  if ((sale.promoAmount ?? 0) > 0) lines.push({ text: `מבצע${sale.promoLabel ? ` ${sale.promoLabel}` : ""}\t${formatILS(sale.promoAmount ?? 0)}`, align: "split" });
   if (sale.discountAmount > 0) lines.push({ text: `הנחה\t${formatILS(sale.discountAmount)}`, align: "split" });
   lines.push({
     text: `${credit ? "זיכוי" : "לתשלום"}\t${formatILS(sale.total)}`,
