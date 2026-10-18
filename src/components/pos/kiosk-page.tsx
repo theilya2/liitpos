@@ -184,7 +184,7 @@ function extraSum(extras: Extra[], ids: string[]) {
 function Sheet({ title, onClose, children }: { title: string; onClose: () => void; children: ReactNode }) {
   return (
     <div className="fixed inset-0 z-40 flex items-end justify-center bg-ink/40 sm:items-center">
-      <div role="dialog" aria-modal="true" className="scroll-pane max-h-full min-h-0 w-full max-w-lg rounded-t-3xl bg-surface p-4 text-ink sm:max-w-xl sm:rounded-3xl">
+      <div role="dialog" aria-modal="true" className="kiosk-sheet scroll-pane max-h-full min-h-0 w-full max-w-lg rounded-t-3xl bg-surface p-4 text-ink sm:max-w-xl sm:rounded-3xl">
         <div className="mb-3 flex items-center justify-between gap-3">
           <h2 className="text-lg font-semibold">{title}</h2>
           <button type="button" onClick={onClose} aria-label="סגירה" className="flex h-12 w-12 items-center justify-center rounded-full bg-paper">
