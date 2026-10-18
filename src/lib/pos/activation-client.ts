@@ -1,5 +1,5 @@
 import { formatActivationCode } from "@/lib/pos/activation";
-import { deviceModel, isNativeApp, nativeVersion, readCloudUrl, readDeviceId } from "@/lib/pos/native";
+import { deviceModel, isNativeApp, nativeVersion, readCloudUrl } from "@/lib/pos/native";
 
 export type ActivationPoll =
   | { status: "pending"; code: string }
@@ -38,7 +38,7 @@ async function post(path: string, body: unknown): Promise<{ ok: boolean; status:
   }
 }
 
-export async function requestActivationCode(deviceId = readDeviceId()): Promise<{ code: string } | { error: string; offline: boolean }> {
+export async function requestActivationCode(deviceId: string): Promise<{ code: string } | { error: string; offline: boolean }> {
   const result = await post("/api/pos/activation/request", {
     deviceId,
     model: deviceModel(),

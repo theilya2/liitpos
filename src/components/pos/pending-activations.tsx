@@ -4,6 +4,12 @@ import { normalizeActivationCode } from "@/lib/pos/activation";
 import { formatRegisterTime } from "@/lib/pos/register";
 import type { PanelBusiness } from "@/lib/pos/cloud.functions";
 
+function reinstallLabel(row: { number: number; name: string; revoked: boolean }): string {
+  const name = row.name ? ` · ${row.name}` : "";
+  if (row.revoked) return `קופה ${row.number}${name} נותקה ומבקשת חיבור מחדש`;
+  return `קופה ${row.number}${name} הותקנה מחדש`;
+}
+
 function messageOf(error: unknown) {
   if (error && typeof error === "object" && "message" in error && typeof (error as { message: unknown }).message === "string") {
     const message = (error as { message: string }).message;
@@ -44,9 +50,15 @@ export function PendingActivations({ businesses }: { businesses: PanelBusiness[]
     };
   }, []);
 
+  const selected = rows.find((row) => normalizeActivationCode(row.code) === normalizeActivationCode(code)) ?? null;
+
   useEffect(() => {
+    if (selected?.reinstall) {
+      setBusinessId(selected.reinstall.businessId);
+      return;
+    }
     if (!businessId && businesses[0]) setBusinessId(businesses[0].id);
-  }, [businessId, businesses]);
+  }, [businessId, businesses, selected]);
 
   async function run(action: "approve" | "reject") {
     setBusy(true);
@@ -73,7 +85,7 @@ export function PendingActivations({ businesses }: { businesses: PanelBusiness[]
   return (
     <section className="rounded-2xl bg-surface p-4 ring-1 ring-line">
       <h2 className="text-base font-semibold">קופות ממתינות לאישור</h2>
-      <p className="mt-1 text-sm text-pretty text-muted">הקוד מופיע על מסך הקופה. בוחרים עסק ומאשרים, והקופה מקבלת רישיון.</p>
+      <p className="mt-1 text-sm text-pretty text-muted">הקוד קבוע לקופה. קופה חדשה מקבלת מספר, וקופה שהותקנה מחדש חוזרת לאותו מספר אחרי אישור.</p>
       {rows.length === 0 ? <p className="mt-3 text-sm text-muted">אין קופות שממתינות.</p> : null}
       <ul className="mt-3 space-y-2">
         {rows.map((row) => (
@@ -90,7 +102,7 @@ export function PendingActivations({ businesses }: { businesses: PanelBusiness[]
                 {row.code}
               </span>
               <span className="mt-1 block text-sm text-muted">
-                {row.model || "דגם לא ידוע"}
+                {row.reinstall ? reinstallLabel(row.reinstall) : row.model || "דגם לא ידוע"}
                 {row.appVersion ? ` · גרסה ${row.appVersion}` : ""}
                 {row.requestedAt ? ` · ${formatRegisterTime(row.requestedAt)}` : ""}
               </span>
@@ -111,7 +123,8 @@ export function PendingActivations({ businesses }: { businesses: PanelBusiness[]
           value={businessId}
           onChange={(event) => setBusinessId(event.target.value)}
           aria-label="עסק"
-          className="h-12 rounded-xl bg-paper px-3 ring-1 ring-line"
+          disabled={Boolean(selected?.reinstall)}
+          className="h-12 rounded-xl bg-paper px-3 ring-1 ring-line disabled:opacity-70"
         >
           <option value="">בחירת עסק</option>
           {businesses.map((business) => (
@@ -124,7 +137,7 @@ export function PendingActivations({ businesses }: { businesses: PanelBusiness[]
           value={name}
           onChange={(event) => setName(event.target.value)}
           maxLength={40}
-          placeholder="שם קופה, לא חובה"
+          placeholder={selected?.reinstall ? "שם חדש, לא חובה" : "שם קופה, לא חובה"}
           aria-label="שם קופה לאישור"
           className="h-12 rounded-xl bg-paper px-3 ring-1 ring-line"
         />

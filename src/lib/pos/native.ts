@@ -1,9 +1,10 @@
-import { isDeviceId } from "@/lib/pos/activation";
+import { activationMaterial, codeFromDeviceHash, formatActivationCode, isDeviceHash, isDeviceId, normalizeActivationCode } from "@/lib/pos/activation";
 import { DEFAULT_CLOUD_ORIGIN } from "@/lib/pos/register";
 
 const CLOUD_KEY = "liitpos-cloud-url";
 const TOKEN_KEY = "grok-auth.bearer-token";
 const DEVICE_KEY = "liitpos-device-id";
+const ACTIVATION_SEED_KEY = "liitpos-activation-seed";
 const UPDATE_REPO = "theilya2/Liitpos";
 
 export type AppUpdate = {
@@ -20,6 +21,8 @@ type NativeBridge = {
   setSessionToken?: (token: string) => void;
   getDeviceId?: () => string;
   setDeviceId?: (id: string) => void;
+  getActivationDeviceId?: () => string;
+  getActivationCode?: () => string;
   getDeviceModel?: () => string;
   getVersionCode?: () => number;
   getVersionName?: () => string;
@@ -169,6 +172,33 @@ export function readDeviceId(preferred = ""): string {
   rememberDeviceId(next);
   bridge()?.setDeviceId?.(next);
   return next;
+}
+
+function webActivationSeed(): string {
+  if (typeof window === "undefined") return "";
+  try {
+    const saved = window.localStorage.getItem(ACTIVATION_SEED_KEY) ?? "";
+    if (saved) return saved;
+    const next = typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : `web_${Date.now()}`;
+    window.localStorage.setItem(ACTIVATION_SEED_KEY, next);
+    return next;
+  } catch {
+    return "";
+  }
+}
+
+async function sha256Hex(value: string): Promise<string> {
+  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(value));
+  return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, "0")).join("");
+}
+
+/** Permanent activation identity. Native derives it from ANDROID_ID; the browser keeps a random seed. */
+export async function readActivationIdentity(): Promise<{ deviceId: string; code: string }> {
+  const nativeId = (bridge()?.getActivationDeviceId?.() ?? "").trim().toLowerCase();
+  const nativeCode = formatActivationCode(bridge()?.getActivationCode?.() ?? "");
+  if (isDeviceHash(nativeId) && normalizeActivationCode(nativeCode)) return { deviceId: nativeId, code: nativeCode };
+  const deviceId = await sha256Hex(activationMaterial("web", webActivationSeed()));
+  return { deviceId, code: formatActivationCode(codeFromDeviceHash(deviceId) ?? "") };
 }
 
 export function deviceModel(): string {
