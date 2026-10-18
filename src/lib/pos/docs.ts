@@ -1,5 +1,6 @@
 import { mergeRemoteCatalog } from "@/lib/pos/merge";
 import { cloneSettings, codeForStore, demoExtras, demoKiosk, demoPhoto, demoShelf, emptyBranch } from "@/lib/pos/seed";
+import { normalizeKioskSettings } from "@/lib/pos/kiosk";
 import { normalizePrintSettings } from "@/lib/pos/printer";
 import { saleCloudId } from "@/lib/pos/receipt-link";
 import { cleanEndpoint } from "@/lib/pos/terminal";
@@ -170,6 +171,7 @@ function asSettings(doc: unknown): Settings | null {
     pinpad: cleanEndpoint(doc.pinpad, base.pinpad),
     logo: asLogo(doc.logo),
     ...normalizePrintSettings(doc),
+    ...normalizeKioskSettings(doc),
   };
 }
 

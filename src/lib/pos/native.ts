@@ -23,6 +23,7 @@ type NativeBridge = {
   pulseDrawerUsb?: (json: string) => void;
   shareCachedFile?: (name: string, base64: string, mime: string, text: string, title: string) => void;
   sendSms?: (number: string, body: string) => void;
+  setLockTask?: (enabled: boolean) => void;
   downloadAndInstall?: (url: string, token: string) => void;
   checkUpdate?: (cloudUrl: string) => string;
 };
@@ -147,6 +148,10 @@ export function shareCachedFile(name: string, base64: string, mime: string, text
 
 export function sendSms(number: string, body: string) {
   bridge()?.sendSms?.(number, body);
+}
+
+export function setKioskLock(enabled: boolean) {
+  bridge()?.setLockTask?.(enabled);
 }
 
 export function installUpdate(update: AppUpdate) {

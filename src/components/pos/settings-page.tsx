@@ -4,6 +4,7 @@ import { CloudLinkCard } from "@/components/pos/cloud-link";
 import { PageHeader } from "@/components/pos/shell";
 import { ClubPanel } from "@/components/pos/club-panel";
 import { PrinterSettings } from "@/components/pos/printer-settings";
+import { kioskTiming } from "@/lib/pos/kiosk";
 import { compressImage } from "@/lib/pos/image";
 import { usePos } from "@/lib/pos/store";
 import { deviceLabel, isSafeIpv4, pingTerminal } from "@/lib/pos/terminal";
@@ -74,6 +75,7 @@ export function SettingsPage() {
           </label>
         </section>
         <PrinterSettings />
+        <KioskTiming />
         <ClubPanel />
         <section className="space-y-3 rounded-2xl bg-surface p-4 ring-1 ring-line">
           <h2 className="text-base font-semibold">מספרים</h2>
@@ -151,6 +153,47 @@ export function SettingsPage() {
         </section>
       </div>
     </div>
+  );
+}
+
+function KioskTiming() {
+  const settings = usePos((state) => state.settings);
+  const updateSettings = usePos((state) => state.updateSettings);
+  const timing = kioskTiming(settings);
+  return (
+    <section className="space-y-3 rounded-2xl bg-surface p-4 ring-1 ring-line">
+      <h2 className="text-base font-semibold">קיוסק</h2>
+      <p className="text-sm text-pretty text-muted">אחרי שקט, הקיוסק שואל אם מישהו עדיין כאן ואז חוזר למסך הפתיחה.</p>
+      <label className="block text-sm text-muted">
+        שניות עד השאלה
+        <input
+          value={timing.idle}
+          onChange={(event) => updateSettings({ kioskIdleSec: Number(event.target.value) })}
+          inputMode="numeric"
+          dir="ltr"
+          className="mt-1 h-12 w-full rounded-xl bg-paper px-3 text-ink ring-1 ring-line tabular-nums"
+        />
+      </label>
+      <label className="block text-sm text-muted">
+        שניות בספירה לאחור
+        <input
+          value={timing.warn}
+          onChange={(event) => updateSettings({ kioskWarnSec: Number(event.target.value) })}
+          inputMode="numeric"
+          dir="ltr"
+          className="mt-1 h-12 w-full rounded-xl bg-paper px-3 text-ink ring-1 ring-line tabular-nums"
+        />
+      </label>
+      <button
+        type="button"
+        role="switch"
+        aria-checked={timing.lock}
+        onClick={() => updateSettings({ kioskLock: !timing.lock })}
+        className={`min-h-12 w-full rounded-xl px-3 py-2 text-sm font-medium text-pretty ${timing.lock ? "bg-pine-soft text-pine" : "bg-paper ring-1 ring-line"}`}
+      >
+        {timing.lock ? "נעילת קיוסק פעילה. יציאה רק עם קוד מנהל" : "נעילת קיוסק כבויה"}
+      </button>
+    </section>
   );
 }
 

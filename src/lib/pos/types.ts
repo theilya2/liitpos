@@ -161,6 +161,27 @@ export type Settings = BusinessSnapshot & {
   printerName: string;
   /** Kick the cash drawer when a payment includes cash. */
   openDrawer: boolean;
+  /** Seconds of quiet before the kiosk asks if anyone is still there. */
+  kioskIdleSec?: number;
+  /** Countdown after that question, then the cart is cleared. */
+  kioskWarnSec?: number;
+  /** Pin the Android app so a customer cannot leave it. */
+  kioskLock?: boolean;
+  kioskSlides?: KioskSlide[];
+  upsellRules?: UpsellRule[];
+};
+
+export type KioskSlide = {
+  id: string;
+  image: string;
+  caption: string;
+};
+
+export type UpsellRule = {
+  id: string;
+  productId: string;
+  categoryId: string;
+  suggestIds: string[];
 };
 
 export type ClubMember = {

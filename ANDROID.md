@@ -156,6 +156,18 @@ When you want the Play Store:
 4. Build an Android App Bundle in Android Studio: Build → Generate Signed Bundle / APK → Android App Bundle, using this keystore. Play Console wants an `.aab`, not the sideload APK.
 5. The sideload APK and the Play build must share the application id and the signing relationship Play expects. Phones that installed the sideload APK can usually update from Play only if Play uses the same signing key. If Play generates a different app-signing key, those phones need one uninstall. Uninstalling deletes the sales stored on the phone, so sync them first.
 
+## Pin the kiosk so customers cannot leave
+
+The kiosk has a setting, **נעילת קיוסק**. When it is on, the Android app calls Lock Task Mode. A customer cannot switch apps, open the home screen, or pull down the status shade. Leaving the kiosk asks for a manager PIN. Cashiers and shift leads cannot dismiss it.
+
+The first time, Android may only offer screen pinning and still show the system unpin gesture. To lock it for real, the tablet has to treat Liitpos as the device owner. That is a one-time setup on a tablet with no other accounts (factory reset is the usual way). Connect it to a computer with USB debugging on, then:
+
+```bash
+adb shell dpm set-device-owner com.liitpos.app/.LiitposAdmin
+```
+
+Open the kiosk with the setting on. The app whitelists itself and starts lock task. To undo the device owner later, wipe the tablet. Turning the setting off calls `stopLockTask` so the staff can leave without a wipe.
+
 ## Scripts
 
 | Script | What it does |

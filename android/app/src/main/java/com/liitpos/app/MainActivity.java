@@ -1,6 +1,8 @@
 package com.liitpos.app;
 
+import android.app.admin.DevicePolicyManager;
 import android.content.ClipData;
+import android.content.ComponentName;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.PackageInfo;
@@ -26,6 +28,7 @@ import org.json.JSONObject;
 public class MainActivity extends BridgeActivity {
     private static final String PREFS = "liitpos";
     private UsbPrinters usbPrinters;
+    private boolean lockWanted;
 
     @Override
     public void onCreate(android.os.Bundle savedInstanceState) {
@@ -52,6 +55,13 @@ public class MainActivity extends BridgeActivity {
         webView.removeJavascriptInterface("LiitposNative");
         webView.addJavascriptInterface(new Bridge(), "LiitposNative");
         webView.getSettings().setMixedContentMode(android.webkit.WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE);
+        if (lockWanted) {
+            try {
+                startLockTask();
+            } catch (Exception ignored) {
+                // Pinning can fail until the device-owner step in ANDROID.md.
+            }
+        }
     }
 
     @Override
@@ -67,6 +77,24 @@ public class MainActivity extends BridgeActivity {
 
     private SharedPreferences prefs() {
         return getSharedPreferences(PREFS, MODE_PRIVATE);
+    }
+
+    private void applyLockTask(boolean enabled) {
+        lockWanted = enabled;
+        try {
+            if (!enabled) {
+                stopLockTask();
+                return;
+            }
+            DevicePolicyManager manager = (DevicePolicyManager) getSystemService(DEVICE_POLICY_SERVICE);
+            ComponentName admin = new ComponentName(this, LiitposAdmin.class);
+            if (manager != null && manager.isDeviceOwnerApp(getPackageName())) {
+                manager.setLockTaskPackages(admin, new String[] { getPackageName() });
+            }
+            startLockTask();
+        } catch (Exception ignored) {
+            // Screen pinning is unavailable until the device owner step in ANDROID.md.
+        }
     }
 
     private void captureLink(Intent intent) {
@@ -143,6 +171,11 @@ public class MainActivity extends BridgeActivity {
                     }
                 }
             });
+        }
+
+        @JavascriptInterface
+        public void setLockTask(boolean enabled) {
+            runOnUiThread(() -> applyLockTask(enabled));
         }
 
         @JavascriptInterface
