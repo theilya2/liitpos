@@ -68,6 +68,34 @@ public class MainActivity extends BridgeActivity {
         return getSharedPreferences(PREFS, MODE_PRIVATE);
     }
 
+    private boolean deviceOwner() {
+        DevicePolicyManager manager = (DevicePolicyManager) getSystemService(DEVICE_POLICY_SERVICE);
+        return manager != null && manager.isDeviceOwnerApp(getPackageName());
+    }
+
+    /**
+     * Hardware serial is readable by the device owner from Android 10.
+     * It is the preferred activation source because it survives a factory reset.
+     */
+    private String hardwareSerial() {
+        if (!deviceOwner() || Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) return "";
+        try {
+            String serial = Build.getSerial();
+            if (serial == null) return "";
+            String trimmed = serial.trim();
+            if (trimmed.isEmpty() || trimmed.equalsIgnoreCase("unknown")) return "";
+            return trimmed.replace("\n", "").replace("\r", "");
+        } catch (Throwable ignored) {
+            return "";
+        }
+    }
+
+    private String androidId() {
+        String androidId = Settings.Secure.getString(getContentResolver(), Settings.Secure.ANDROID_ID);
+        if (androidId == null) return "";
+        return androidId.replace("\n", "").replace("\r", "").trim();
+    }
+
     private void applyLockTask(boolean enabled) {
         lockWanted = enabled;
         try {
@@ -80,6 +108,7 @@ public class MainActivity extends BridgeActivity {
             if (manager != null && manager.isDeviceOwnerApp(getPackageName())) {
                 manager.setLockTaskPackages(admin, new String[] { getPackageName() });
             }
+            // Device owner is the full lock. Otherwise Android offers screen pinning.
             startLockTask();
         } catch (Exception ignored) {
             // Screen pinning is unavailable until the device owner step in ANDROID.md.
@@ -123,6 +152,21 @@ public class MainActivity extends BridgeActivity {
             String current = prefs().getString("deviceId", "");
             if (current != null && !current.isEmpty()) return;
             prefs().edit().putString("deviceId", id).apply();
+        }
+
+        @JavascriptInterface
+        public boolean isDeviceOwner() {
+            return deviceOwner();
+        }
+
+        @JavascriptInterface
+        public String getHardwareSerial() {
+            return hardwareSerial();
+        }
+
+        @JavascriptInterface
+        public String getAndroidId() {
+            return androidId();
         }
 
         @JavascriptInterface

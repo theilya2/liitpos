@@ -158,9 +158,13 @@ When you want the Play Store:
 
 ## Pin the kiosk so customers cannot leave
 
-The kiosk has a setting, **נעילת קיוסק**. When it is on, the Android app calls Lock Task Mode. A customer cannot switch apps, open the home screen, or pull down the status shade. Leaving the kiosk asks for a manager PIN. Cashiers and shift leads cannot dismiss it.
+The kiosk has a setting, **נעילת קיוסק**. When it is on, the Android app calls Lock Task Mode. A customer cannot switch apps, open the home screen, or pull down the status shade. Cashiers and shift leads cannot dismiss it.
 
-The first time, Android may only offer screen pinning and still show the system unpin gesture. To lock it for real, the tablet has to treat Liitpos as the device owner. That is a one-time setup on a tablet with no other accounts (factory reset is the usual way). Connect it to a computer with USB debugging on, then:
+The recommended setup is full lock: the tablet treats Liitpos as the device owner, so the system has no unpin gesture. Without that, Android falls back to screen pinning and may still show its own unpin hint. Either way, the Home button is not delivered to the app while lock task is on, so do not use it as the way out.
+
+The company logo sits in the top corner of the kiosk and the lock screen. It is the logo set in Back Office, or the Liitpos mark when none is set. Press and hold that logo for about five seconds. A thin ring fills around it, then the manager PIN pad opens. The correct manager PIN leaves lock task. Five quick taps in the opposite top corner open the same pad.
+
+Device owner is a one-time setup on a tablet with no other accounts (factory reset is the usual way). Connect it to a computer with USB debugging on, then:
 
 ```bash
 adb shell dpm set-device-owner com.liitpos.app/.LiitposAdmin

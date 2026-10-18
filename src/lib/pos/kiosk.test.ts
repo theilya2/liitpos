@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { attractImages, kioskTiming, upsellSuggestions } from "@/lib/pos/kiosk.ts";
+import { attractImages, companyLogo, hiddenCornerTaps, holdRatio, kioskTiming, upsellSuggestions } from "@/lib/pos/kiosk.ts";
 import type { Product, Sale } from "@/lib/pos/types.ts";
 
 function product(id: string, categoryId: string, favorite = false): Product {
@@ -21,6 +21,28 @@ function product(id: string, categoryId: string, favorite = false): Product {
     extras: [],
   };
 }
+
+test("a missing company logo falls back to the Liitpos mark", () => {
+  assert.equal(companyLogo(null), "/favicon.svg");
+  assert.equal(companyLogo("https://example.com/logo.png"), "/favicon.svg");
+  assert.equal(companyLogo("data:image/png;base64,abc"), "data:image/png;base64,abc");
+});
+
+test("the kiosk exit needs a five second hold, or five taps in the other corner", () => {
+  assert.equal(holdRatio(0, 0), 0);
+  assert.equal(holdRatio(0, 2500), 0.5);
+  assert.equal(holdRatio(0, 5000), 1);
+  assert.equal(holdRatio(0, 9000), 1);
+  let stamps: number[] = [];
+  for (const at of [0, 400, 800, 1200]) {
+    const next = hiddenCornerTaps(stamps, at);
+    assert.equal(next.open, false);
+    stamps = next.stamps;
+  }
+  const opened = hiddenCornerTaps(stamps, 1600);
+  assert.equal(opened.open, true);
+  assert.deepEqual(hiddenCornerTaps([0], 5000).stamps, [5000]);
+});
 
 test("kiosk idle defaults stay at 60 and 15 when settings are old", () => {
   assert.deepEqual(kioskTiming({}), { idle: 60, warn: 15, lock: false });

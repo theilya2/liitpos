@@ -3,6 +3,7 @@ import { useNavigate } from "@tanstack/react-router";
 import { X } from "lucide-react";
 import { OptionSheet } from "@/components/pos/option-sheet";
 import { canSeeStore } from "@/lib/pos/access";
+import { KioskExitMark } from "@/components/pos/kiosk-exit";
 import { attractImages, kioskTiming, upsellSuggestions } from "@/lib/pos/kiosk";
 import { formatILS, roundCash, roundMoney } from "@/lib/pos/money";
 import { setKioskLock } from "@/lib/pos/native";
@@ -90,19 +91,16 @@ export function KioskPage() {
 
   return (
     <main className="kiosk-board relative flex min-h-0 flex-1 flex-col bg-paper text-ink" onPointerDown={bump}>
-      <header className="relative z-40 flex shrink-0 items-center gap-3 border-b border-line bg-surface px-4 py-3">
-        {settings.logo ? (
-          <img src={settings.logo} alt="" className="h-12 w-12 rounded-2xl object-cover" />
-        ) : (
-          <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-pine text-lg font-bold text-pine-ink">₪</span>
-        )}
+      <header className="relative z-40 flex shrink-0 items-center gap-3 border-b border-line bg-surface px-4 py-3 pe-20">
         <div className="min-w-0 flex-1">
           <h1 className="truncate text-xl font-semibold">{settings.businessName}</h1>
           <p className="text-sm text-muted">הזמנה עצמית · מחירים כוללים מע״מ</p>
         </div>
-        <button type="button" onClick={() => setExitOpen(true)} className="h-12 rounded-xl px-3 text-sm text-muted">
-          יציאה
-        </button>
+        {timing.lock ? null : (
+          <button type="button" onClick={() => setExitOpen(true)} className="h-12 rounded-xl px-3 text-sm text-muted">
+            יציאה
+          </button>
+        )}
       </header>
       <div className="scroll-pane min-h-0 flex-1 p-3">
         {menu.length === 0 ? (
@@ -260,6 +258,14 @@ export function KioskPage() {
           </button>
         </Sheet>
       ) : null}
+      <KioskExitMark
+        logo={settings.logo}
+        onUnlocked={() => {
+          setKioskLock(false);
+          lock();
+          void navigate({ to: "/" });
+        }}
+      />
       {exitOpen ? (
         <ExitGate
           lock={timing.lock}

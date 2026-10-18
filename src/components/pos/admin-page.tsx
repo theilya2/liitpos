@@ -481,10 +481,10 @@ function Panel({ onLogout }: { onLogout: () => void }) {
               {businessDraft.logo ? (
                 <img src={businessDraft.logo} alt="" className="h-14 w-14 rounded-xl object-cover" />
               ) : (
-                <span className="flex h-14 w-14 items-center justify-center rounded-xl bg-pine text-lg font-bold text-pine-ink">₪</span>
+                <img src="/favicon.svg" alt="" className="h-14 w-14 rounded-xl" />
               )}
               <div>
-                <p className="text-sm text-muted">לוגו לכניסה ולמסך המכירה</p>
+                <p className="text-sm text-muted">לוגו לכניסה, למסך המכירה ולפינת הקיוסק. בלי לוגו מוצג הסמל של קופהקל.</p>
                 <div className="mt-1 flex gap-2">
                   <label className="flex h-12 cursor-pointer items-center rounded-xl bg-paper px-3 text-sm text-ink ring-1 ring-line">
                     העלאה

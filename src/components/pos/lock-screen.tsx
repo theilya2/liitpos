@@ -1,10 +1,11 @@
 import { useEffect, useState } from "react";
 import { ActivationWait } from "@/components/pos/activation-wait";
+import { KioskExitMark } from "@/components/pos/kiosk-exit";
 import { canSeeStore } from "@/lib/pos/access";
 import { canUseBusiness, isDemoMode } from "@/lib/pos/demo";
 import { tapKey } from "@/lib/pos/haptics";
 import { lockView } from "@/lib/pos/lock-mode";
-import { readSessionToken } from "@/lib/pos/native";
+import { readSessionToken, setKioskLock } from "@/lib/pos/native";
 import { registerCaption } from "@/lib/pos/register";
 import { isWeekLocked, usePos } from "@/lib/pos/store";
 import { syncNow, useCloudStatus } from "@/lib/pos/sync";
@@ -137,6 +138,7 @@ export function LockScreen() {
             ) : null}
           </section>
         </div>
+        <KioskExitMark logo={null} onUnlocked={() => setKioskLock(false)} />
       </main>
     );
   }
@@ -230,6 +232,7 @@ export function LockScreen() {
           </section>
         )}
       </div>
+      <KioskExitMark logo={logo || null} onUnlocked={() => setKioskLock(false)} />
     </main>
   );
 }
