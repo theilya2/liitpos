@@ -265,6 +265,7 @@ export function emptyBranch(id: string, settings: Settings, products: Product[] 
     nextZ: 1,
     stockMoves: [],
     drawerOpens: [],
+    cashMoves: [],
     members: [],
   };
 }

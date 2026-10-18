@@ -261,6 +261,19 @@ export type DrawerOpen = {
   by: string;
 };
 
+/** Cash put into the drawer or taken out, apart from a sale. */
+export type CashMove = {
+  id: string;
+  at: string;
+  direction: "in" | "out";
+  amount: number;
+  reason: string;
+  by: string;
+  employeeId: string;
+  /** Set when the shift Z closes, so the next shift starts clean. */
+  zId: string | null;
+};
+
 export type ZReport = {
   id: string;
   number: number;
@@ -285,6 +298,10 @@ export type ZReport = {
   cashExpected: number;
   cashCounted: number;
   variance: number;
+  /** Pay-ins during the shift. Missing on reports from before cash moves. */
+  paidIn?: number;
+  /** Pay-outs during the shift. */
+  paidOut?: number;
   leftInDrawer: number;
   drawerOpens: number;
 };
@@ -305,6 +322,8 @@ export type Branch = {
   nextZ: number;
   stockMoves: StockMove[];
   drawerOpens: DrawerOpen[];
+  /** Pay-ins and pay-outs. Older registers load this as an empty list. */
+  cashMoves: CashMove[];
   members: ClubMember[];
 };
 
