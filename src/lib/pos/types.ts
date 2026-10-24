@@ -267,6 +267,70 @@ export type Settings = BusinessSnapshot & {
   promos?: Promo[];
   /** Ordered top shelf. Missing means products still use their own shelf flag. */
   topShelf?: ShelfRef[];
+  /**
+   * How a finished sale asks for the receipt.
+   * Missing on older registers: they keep printing when autoPrint is on.
+   */
+  receiptDelivery?: ReceiptDelivery;
+  /** Customer-facing second screen. Missing means on, and it stays quiet without a second display. */
+  customerScreen?: boolean;
+  /** Idle slideshow for the customer screen. Configured in Back Office. */
+  customerSlides?: KioskSlide[];
+};
+
+export type ReceiptDelivery = "print" | "ask" | "digital";
+
+export type PunchKind = "in" | "out" | "break-start" | "break-end";
+
+export type PunchEdit = {
+  at: string;
+  byId: string;
+  byName: string;
+  why: string;
+  previousAt: string;
+};
+
+/** One clock event. Corrections keep `originalAt` and append `edits`. */
+export type TimePunch = {
+  id: string;
+  staffId: string;
+  staffName: string;
+  kind: PunchKind;
+  at: string;
+  originalAt: string;
+  registerNo: number | null;
+  registerName: string;
+  storeId: string;
+  voided: boolean;
+  edits: PunchEdit[];
+  /** Set when a manager added a punch that the employee never made. */
+  added?: { at: string; byId: string; byName: string; why: string };
+};
+
+export type StoreCreditRedemption = {
+  at: string;
+  amount: number;
+  saleId: string;
+  saleNumber: number;
+  registerNo: number | null;
+};
+
+/** Store credit issued from a voucher refund. The short `number` is what a scanner reads. */
+export type StoreCredit = {
+  id: string;
+  number: string;
+  token: string;
+  issuedAt: string;
+  expiresAt: string;
+  original: number;
+  balance: number;
+  saleId: string;
+  saleNumber: number;
+  voided: boolean;
+  redemptions: StoreCreditRedemption[];
+  registerNo: number | null;
+  registerName: string;
+  businessName: string;
 };
 
 export type KioskSlide = {
@@ -386,6 +450,10 @@ export type Branch = {
   members: ClubMember[];
   /** Shared supplier list. Older registers load this as an empty list. */
   suppliers: Supplier[];
+  /** Clock punches. Older registers load this as an empty list. */
+  punches: TimePunch[];
+  /** Store-credit notes. Older registers load this as an empty list. */
+  credits: StoreCredit[];
 };
 
 export type Role = "cashier" | "shift" | "manager";

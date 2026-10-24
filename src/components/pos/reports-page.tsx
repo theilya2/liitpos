@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { AttendanceReport } from "@/components/pos/attendance-report";
 import { CashSheet } from "@/components/pos/cash-sheet";
 import { PageHeader } from "@/components/pos/shell";
 import { can } from "@/lib/pos/access";
@@ -7,6 +8,7 @@ import { formatILS, formatWhen, roundMoney } from "@/lib/pos/money";
 import { soldItems, stockRows } from "@/lib/pos/options";
 import { registerCaption } from "@/lib/pos/register";
 import { currentUser, usePos } from "@/lib/pos/store";
+import { selectPunches } from "@/lib/pos/timeclock";
 import { isCredit, zFigures } from "@/lib/pos/tender";
 import { METHOD_LABEL, type PaymentMethod } from "@/lib/pos/types";
 
@@ -40,6 +42,11 @@ export function ReportsPage() {
   const cashMoves = usePos((state) => state.cashMoves);
   const [cashOpen, setCashOpen] = useState(false);
   const user = usePos(currentUser);
+  const punches = usePos((state) => selectPunches(state.punches));
+  const staff = usePos((state) => state.staff);
+  const correctPunch = usePos((state) => state.correctPunch);
+  const addPunch = usePos((state) => state.addPunch);
+  const voidPunch = usePos((state) => state.voidPunch);
   const closeZ = usePos((state) => state.closeZ);
   const queueZPrint = usePos((state) => state.queueZPrint);
   const registerNo = usePos((state) => state.registerNo);
@@ -279,6 +286,14 @@ export function ReportsPage() {
             </ul>
           )}
         </section>
+        <AttendanceReport
+          punches={punches}
+          staff={staff}
+          canEdit={Boolean(user && can(user.role, "manage"))}
+          onCorrect={(id, atIso, why) => correctPunch(id, atIso, why)}
+          onAdd={(staffId, kind, atIso, why) => addPunch(staffId, kind, atIso, why)}
+          onVoid={(id, why) => voidPunch(id, why)}
+        />
         <section className="rounded-2xl bg-surface p-4 ring-1 ring-line">
           <h2 className="text-base font-semibold">דוחות Z</h2>
           {zReports.length === 0 ? (

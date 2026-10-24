@@ -5,6 +5,9 @@ import { Numpad } from "@/components/pos/numpad";
 import { OptionSheet } from "@/components/pos/option-sheet";
 import { ReceiptView } from "@/components/pos/receipt";
 import { SendReceipt } from "@/components/pos/send-sms";
+import { creditBlocker, findCredit, lookupCredit, normalizeCreditCode, selectCredits } from "@/lib/pos/credits";
+import { setCustomerPhase } from "@/lib/pos/customer-display";
+import { receiptDeliveryOf, saleHasCash } from "@/lib/pos/printer";
 import { confirmReceipt, deliverPrint, pulseDrawer } from "@/lib/pos/receipt-io";
 import { formatILS, formatWhen, moneyFromPad, pushMoneyKey, roundCash, roundMoney } from "@/lib/pos/money";
 import { buildConfiguredLine, findByCode, mustChoose, needsPicker, shelfPrice } from "@/lib/pos/options";
@@ -229,7 +232,7 @@ function CartPanel({
   );
 }
 
-function PaySheet({ onClose, onDone }: { onClose: () => void; onDone: (sale: Sale) => void }) {
+function PaySheet({ onClose, onDone, seed }: { onClose: () => void; onDone: (sale: Sale) => void; seed?: { code: string } | null }) {
   const cart = usePos((state) => state.cart);
   const discount = usePos((state) => state.discount);
   const settings = usePos((state) => state.settings);
@@ -238,9 +241,13 @@ function PaySheet({ onClose, onDone }: { onClose: () => void; onDone: (sale: Sal
   const appliedReleaseAt = usePos((state) => state.appliedReleaseAt);
   const products = usePos((state) => state.products);
   const checkout = usePos((state) => state.checkout);
+  const credits = usePos((state) => selectCredits(state.credits));
+  const seeded = seed ? findCredit(credits, seed.code) : null;
   const totals = pricedOrPlain(cart, products, settings.promos, discount, settings.vatRate);
-  const [method, setMethod] = useState<PaymentMethod>("cash");
+  const [method, setMethod] = useState<PaymentMethod>(seeded ? "voucher" : "cash");
   const [pad, setPad] = useState("");
+  const [voucherCode, setVoucherCode] = useState(seeded?.number ?? "");
+  const seededOnce = useRef(false);
   const [payments, setPayments] = useState(1);
   const [device, setDevice] = useState<TerminalKind>("android");
   const [phase, setPhase] = useState<"idle" | "wait" | "fail">("idle");
@@ -268,7 +275,24 @@ function PaySheet({ onClose, onDone }: { onClose: () => void; onDone: (sale: Sal
     return () => abortRef.current?.abort();
   }, []);
 
+  useEffect(() => {
+    if (!seeded || seededOnce.current) return;
+    seededOnce.current = true;
+    const cap = Math.min(seeded.balance, totals.total);
+    if (cap > 0) setPad(cap.toFixed(2));
+  }, [seeded, totals.total]);
+
+  useEffect(() => {
+    const status = phase === "wait" ? "ממתינים למסוף" : phase === "fail" ? message || "התשלום לא עבר" : METHOD_LABEL[method];
+    setCustomerPhase({ mode: "pay", status });
+  }, [message, method, phase]);
+
   function closeWith(next: TenderInput[]) {
+    const block = creditBlocker(selectCredits(usePos.getState().credits), next, Date.now());
+    if (block) {
+      setMessage(block);
+      return;
+    }
     const sale = checkout({ tenders: next });
     if (!sale) {
       setMessage("היתרה עוד לא כוסתה.");
@@ -278,11 +302,23 @@ function PaySheet({ onClose, onDone }: { onClose: () => void; onDone: (sale: Sal
   }
 
   function pushDraft(extra?: Partial<TenderInput>) {
+    let tendered = slice;
+    let code = "";
+    if (method === "voucher") {
+      code = normalizeCreditCode(extra?.voucherCode || voucherCode);
+      if (!code) {
+        setMessage("צריך קוד שובר");
+        return;
+      }
+      const credit = findCredit(credits, code);
+      if (credit) tendered = Math.min(slice, credit.balance);
+    }
     const input: TenderInput = {
       method,
-      tendered: slice,
+      tendered,
       payments,
       terminal: method === "card" || method === "club" ? device : null,
+      ...(code ? { voucherCode: code } : {}),
       ...extra,
     };
     const nextInputs = [...inputs, input];
@@ -535,6 +571,12 @@ function PaySheet({ onClose, onDone }: { onClose: () => void; onDone: (sale: Sal
         </div>
       ) : (
         <div className="mt-4 space-y-3">
+          {method === "voucher" ? (
+            <label className="block text-sm">
+              <span className="mb-1 block text-muted">קוד שובר</span>
+              <input value={voucherCode} onChange={(event) => setVoucherCode(event.target.value.toUpperCase())} dir="ltr" className="h-12 w-full rounded-xl bg-paper px-3 ring-1 ring-line tabular-nums" />
+            </label>
+          ) : null}
           <p className="text-center text-sm text-muted">שדה ריק מחייב את כל היתרה, {formatILS(remaining)}.</p>
           <Numpad onKey={(key) => setPad((current) => pushMoneyKey(current, key))} />
           {message ? <p className="text-center text-sm text-copper">{message}</p> : null}
@@ -548,22 +590,61 @@ function PaySheet({ onClose, onDone }: { onClose: () => void; onDone: (sale: Sal
 }
 
 function DoneSheet({ sale, onClose }: { sale: Sale; onClose: () => void }) {
+  const delivery = usePos((state) => receiptDeliveryOf(state.settings));
+  const [choice, setChoice] = useState<"print" | "digital" | null>(delivery === "ask" ? null : delivery);
+
   useEffect(() => {
-    void confirmReceipt(sale);
-  }, [sale]);
+    if (delivery === "print") {
+      void confirmReceipt(sale);
+      return;
+    }
+    if (saleHasCash(sale) && usePos.getState().settings.openDrawer !== false) {
+      usePos.getState().openDrawer();
+      void pulseDrawer();
+    }
+  }, [delivery, sale]);
+
+  async function printChosen() {
+    setChoice("print");
+    const cash = saleHasCash(sale) && usePos.getState().settings.openDrawer !== false;
+    if (cash) usePos.getState().openDrawer();
+    await deliverPrint(sale, { kick: cash });
+  }
 
   return (
     <Overlay title={`קבלה ${sale.number}`} onClose={onClose}>
       <ReceiptView sale={sale} />
-      <button
-        type="button"
-        onClick={() => void deliverPrint(sale)}
-        className="mt-4 flex min-h-12 w-full items-center justify-center gap-2 rounded-2xl bg-paper px-3 py-2 text-sm font-medium ring-1 ring-line"
-      >
-        <Printer className="size-4 shrink-0" />
-        הדפסה
-      </button>
-      <SendReceipt sale={sale} />
+      {delivery === "ask" && !choice ? (
+        <div className="mt-4">
+          <p className="text-center text-base font-semibold">קבלה מודפסת או דיגיטלית?</p>
+          <div className="mt-3 grid grid-cols-2 gap-2">
+            <button type="button" onClick={() => void printChosen()} className="min-h-14 rounded-2xl bg-pine text-sm font-semibold text-pine-ink">
+              מודפסת
+            </button>
+            <button type="button" onClick={() => setChoice("digital")} className="min-h-14 rounded-2xl bg-paper text-sm font-semibold ring-1 ring-line">
+              דיגיטלית
+            </button>
+          </div>
+        </div>
+      ) : (
+        <>
+          {choice !== "digital" ? (
+            <button
+              type="button"
+              onClick={() => void deliverPrint(sale)}
+              className="mt-4 flex min-h-12 w-full items-center justify-center gap-2 rounded-2xl bg-paper px-3 py-2 text-sm font-medium ring-1 ring-line"
+            >
+              <Printer className="size-4 shrink-0" />
+              הדפסה
+            </button>
+          ) : (
+            <button type="button" onClick={() => void printChosen()} className="mt-4 min-h-12 w-full rounded-2xl bg-paper px-3 text-sm ring-1 ring-line">
+              הדפסה בכל זאת
+            </button>
+          )}
+          {choice === "digital" || delivery === "digital" || delivery === "print" ? <SendReceipt sale={sale} /> : null}
+        </>
+      )}
       <button type="button" onClick={onClose} className="mt-2 min-h-14 w-full rounded-2xl bg-pine px-3 text-lg font-semibold text-pine-ink">
         מכירה חדשה
       </button>
@@ -736,6 +817,7 @@ export function SalePage() {
   const [pad, setPad] = useState("");
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
   const [payOpen, setPayOpen] = useState(false);
+  const [paySeed, setPaySeed] = useState<{ code: string } | null>(null);
   const [cashOpen, setCashOpen] = useState(false);
   const [done, setDone] = useState<Sale | null>(null);
   const [note, setNote] = useState("");
@@ -764,6 +846,21 @@ export function SalePage() {
     (raw: string) => {
       const q = raw.trim();
       if (!q) return false;
+      const scanned = lookupCredit(selectCredits(usePos.getState().credits), q, Date.now());
+      if (scanned.credit) {
+        if (scanned.blocked) {
+          setNote(scanned.blocked);
+          return true;
+        }
+        if (!usePos.getState().cart.length) {
+          setNote("קודם מוסיפים פריטים לסל, ואז סורקים את השובר.");
+          return true;
+        }
+        setPaySeed({ code: scanned.credit.number });
+        setPayOpen(true);
+        setNote(`שובר ${scanned.credit.number} · יתרה ${formatILS(scanned.credit.balance)}`);
+        return true;
+      }
       const active = products.filter((product) => product.active);
       const coded = findByCode(active, q);
       if (coded) {
@@ -850,6 +947,13 @@ export function SalePage() {
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [drawer, lastReceipt, count]);
+
+  useEffect(() => {
+    if (done) setCustomerPhase({ mode: "thanks", saleId: done.id });
+    else if (!payOpen) setCustomerPhase({ mode: "selling" });
+  }, [done, payOpen]);
+
+  useEffect(() => () => setCustomerPhase({ mode: "selling" }), []);
 
   const amount = moneyFromPad(pad);
 
@@ -1110,9 +1214,15 @@ export function SalePage() {
     </div>
     {payOpen ? (
       <PaySheet
-        onClose={() => setPayOpen(false)}
+        key={paySeed?.code ?? "pay"}
+        seed={paySeed}
+        onClose={() => {
+          setPayOpen(false);
+          setPaySeed(null);
+        }}
         onDone={(sale) => {
           setPayOpen(false);
+          setPaySeed(null);
           setDone(sale);
         }}
       />

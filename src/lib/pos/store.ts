@@ -1,6 +1,8 @@
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
 import { can, canSeeStore } from "@/lib/pos/access";
+import { cleanCredits, issueCreditsForTenders, newCreditCode, redeemCredits } from "@/lib/pos/credits";
+import { cleanCustomerSlides } from "@/lib/pos/customer-screen";
 import { drawerExpected, drawerVariance, paidIn, paidOut } from "@/lib/pos/cash";
 import { outboxWithoutDropped, pruneDemoSeed } from "@/lib/pos/baseline";
 import { applyDocs, catalogDoc, changesToDocs, deviceDoc, mergeOutbox, settingsDoc, snapshotDocs, staffDoc, type CloudDoc } from "@/lib/pos/docs";
@@ -29,12 +31,13 @@ import {
   kioskBranch,
   mainBranch,
 } from "@/lib/pos/seed";
-import { type Branch, type CartLine, type CashMove, type Category, type ClubMember, type Discount, type DrawerOpen, type HeldOrder, type PaymentMethod, type Product, type Role, type Sale, type Settings, type StaffUser, type StockMove, type StockReason, type TerminalKind, type ZReport } from "@/lib/pos/types";
+import { type Branch, type CartLine, type CashMove, type Category, type ClubMember, type Discount, type DrawerOpen, type HeldOrder, type PaymentMethod, type Product, type PunchKind, type Role, type Sale, type Settings, type StaffUser, type StockMove, type StockReason, type TerminalKind, type ZReport } from "@/lib/pos/types";
 import { canUseBusiness, isDemoMode } from "@/lib/pos/demo";
 import { readDeviceId } from "@/lib/pos/native";
 import { registerStamp, type RegisterClaim } from "@/lib/pos/register";
 import { withPrintSettings } from "@/lib/pos/printer";
 import { isReceiptToken, newReceiptToken } from "@/lib/pos/receipt-link";
+import { applyPunchEdit, cleanPunches, clockByPin, manualPunch, voidPunchRecord } from "@/lib/pos/timeclock";
 import { cleanEndpoint } from "@/lib/pos/terminal";
 
 type BranchFields = Omit<Branch, "id">;
@@ -67,6 +70,10 @@ type PosState = BranchFields & {
   holdCart: () => boolean;
   resumeHeld: (id: string) => void;
   discardHeld: (id: string) => void;
+  clockPunch: (pin: string, kind: PunchKind) => { ok: boolean; message: string };
+  correctPunch: (id: string, atIso: string, why: string) => { ok: boolean; message: string };
+  addPunch: (staffId: string, kind: PunchKind, atIso: string, why: string) => { ok: boolean; message: string };
+  voidPunch: (id: string, why: string) => { ok: boolean; message: string };
   checkout: (input: {
     method?: PaymentMethod;
     tendered?: number;
@@ -170,6 +177,8 @@ function toBranch(state: BranchFields & { activeStoreId: string }): Branch {
     cashMoves: state.cashMoves ?? [],
     members: state.members,
     suppliers: state.suppliers ?? [],
+    punches: state.punches ?? [],
+    credits: state.credits ?? [],
   };
 }
 
@@ -191,6 +200,8 @@ function fromBranch(branch: Branch): BranchFields {
     cashMoves: branch.cashMoves ?? [],
     members: branch.members,
     suppliers: branch.suppliers ?? [],
+    punches: branch.punches ?? [],
+    credits: branch.credits ?? [],
   };
 }
 
@@ -205,6 +216,12 @@ function sameLine(left: CartLine, right: CartLine): boolean {
 
 function actorName(state: PosState): string {
   return state.staff.find((user) => user.id === state.sessionUserId)?.name ?? "";
+}
+
+function managerActor(state: PosState): { byId: string; byName: string } | null {
+  const user = state.staff.find((item) => item.id === state.sessionUserId);
+  if (!user || !can(user.role, "manage")) return null;
+  return { byId: user.id, byName: user.name };
 }
 
 function promoLinesOf(sales: Sale[]): { name: string; amount: number }[] {
@@ -262,6 +279,8 @@ function normalizeBranch(branch: Branch): Branch {
     categories: branch.categories ?? cloneCategories(),
     members: Array.isArray(branch.members) ? branch.members : branch.id === "store-main" ? demoMembers() : [],
     suppliers: cleanSuppliers(branch.suppliers),
+    punches: cleanPunches(branch.punches),
+    credits: cleanCredits(branch.credits),
   };
 }
 
@@ -463,6 +482,72 @@ export const usePos = create<PosState>()(
 
         discardHeld: (id) => commit({ held: get().held.filter((item) => item.id !== id) }),
 
+        clockPunch: (pin, kind) => {
+          const state = get();
+          const stamp = registerStamp(state);
+          const result = clockByPin({
+            punches: state.punches ?? [],
+            staff: state.staff,
+            storeId: state.activeStoreId,
+            pin,
+            kind,
+            at: new Date().toISOString(),
+            registerNo: stamp?.registerNo ?? null,
+            registerName: stamp?.registerName ?? "",
+            id: newId,
+          });
+          if (result.ok) commit({ punches: result.punches });
+          return { ok: result.ok, message: result.message };
+        },
+
+        correctPunch: (id, atIso, why) => {
+          const state = get();
+          const editor = managerActor(state);
+          if (!editor) return { ok: false, message: "רק מנהל מתקן נוכחות" };
+          const punch = (state.punches ?? []).find((item) => item.id === id);
+          if (!punch) return { ok: false, message: "הרישום לא נמצא" };
+          const next = applyPunchEdit(punch, { atIso, why, ...editor, editedAt: new Date().toISOString() });
+          if (!next) return { ok: false, message: "צריך שעה תקינה וסיבה" };
+          commit({ punches: (state.punches ?? []).map((item) => (item.id === id ? next : item)) });
+          return { ok: true, message: "התיקון נשמר. השעה המקורית נשארת ביומן." };
+        },
+
+        addPunch: (staffId, kind, atIso, why) => {
+          const state = get();
+          const editor = managerActor(state);
+          if (!editor) return { ok: false, message: "רק מנהל מתקן נוכחות" };
+          const staff = state.staff.find((item) => item.id === staffId);
+          if (!staff) return { ok: false, message: "העובד לא נמצא" };
+          const stamp = registerStamp(state);
+          const punch = manualPunch({
+            staff,
+            kind,
+            atIso,
+            why,
+            ...editor,
+            editedAt: new Date().toISOString(),
+            registerNo: stamp?.registerNo ?? null,
+            registerName: stamp?.registerName ?? "",
+            storeId: state.activeStoreId,
+            id: newId(),
+          });
+          if (!punch) return { ok: false, message: "צריך שעה תקינה וסיבה" };
+          commit({ punches: [...(state.punches ?? []), punch] });
+          return { ok: true, message: "הרישום החסר נוסף, עם שם המנהל והסיבה." };
+        },
+
+        voidPunch: (id, why) => {
+          const state = get();
+          const editor = managerActor(state);
+          if (!editor) return { ok: false, message: "רק מנהל מתקן נוכחות" };
+          const punch = (state.punches ?? []).find((item) => item.id === id);
+          if (!punch) return { ok: false, message: "הרישום לא נמצא" };
+          const next = voidPunchRecord(punch, { why, ...editor, editedAt: new Date().toISOString() });
+          if (!next) return { ok: false, message: "צריך סיבה" };
+          commit({ punches: (state.punches ?? []).map((item) => (item.id === id ? next : item)) });
+          return { ok: true, message: "הרישום בוטל ונשאר ביומן." };
+        },
+
         checkout: (input) => {
           const state = get();
           const channel = input.channel ?? "register";
@@ -548,6 +633,13 @@ export const usePos = create<PosState>()(
               receiptFooter: state.settings.receiptFooter,
             },
           };
+          const redeemed = redeemCredits(
+            state.credits ?? [],
+            settled.tenders,
+            { at: sale.createdAt, saleId: sale.id, saleNumber: number, registerNo: sale.registerNo ?? null },
+            Date.parse(sale.createdAt),
+          );
+          if (!redeemed.ok) return null;
           const moves: StockMove[] = [];
           const products = state.products.map((product) => {
             let next = product;
@@ -577,6 +669,7 @@ export const usePos = create<PosState>()(
             products,
             stockMoves: [...moves, ...state.stockMoves].slice(0, 400),
             ...(input.lines ? {} : { cart: [], discount: null }),
+            ...(redeemed.credits === (state.credits ?? []) ? {} : { credits: redeemed.credits }),
           });
           return sale;
         },
@@ -632,11 +725,13 @@ export const usePos = create<PosState>()(
           const number = state.nextCredit ?? 1;
           const by = actorName(state);
           const now = new Date().toISOString();
-          const tenders = settled.tenders.map((line) =>
-            line.method === "voucher" && !line.voucherCode
-              ? { ...line, voucherCode: `Z${Math.floor(100000 + Math.random() * 900000)}` }
-              : line,
-          );
+          const usedCodes = (state.credits ?? []).map((credit) => credit.number);
+          const tenders = settled.tenders.map((line) => {
+            if (line.method !== "voucher" || line.voucherCode) return line;
+            const voucherCode = newCreditCode(usedCodes);
+            usedCodes.push(voucherCode);
+            return { ...line, voucherCode };
+          });
           const card = tenders.find((line) => line.method === "card" || line.method === "club");
           const note: Sale = {
             id: newId(),
@@ -692,11 +787,23 @@ export const usePos = create<PosState>()(
               return changed.product;
             });
           }
+          const issued = issueCreditsForTenders({
+            tenders,
+            at: now,
+            saleId: note.id,
+            saleNumber: number,
+            registerNo: note.registerNo ?? null,
+            registerName: note.registerName ?? "",
+            businessName: note.business.businessName,
+            token: newReceiptToken,
+            id: newId,
+          });
           commit({
             sales: [note, ...state.sales],
             nextCredit: number + 1,
             products,
             stockMoves: [...moves, ...state.stockMoves].slice(0, 400),
+            ...(issued.length ? { credits: [...(state.credits ?? []), ...issued] } : {}),
           });
           return note;
         },
@@ -787,6 +894,8 @@ export const usePos = create<PosState>()(
           next.pinpad = cleanEndpoint(next.pinpad, state.settings.pinpad ?? cloneSettings().pinpad);
           if (patch.promos !== undefined) next.promos = cleanPromos(patch.promos);
           if (patch.topShelf !== undefined) next.topShelf = cleanTopShelf(patch.topShelf);
+          if (patch.customerSlides !== undefined) next.customerSlides = cleanCustomerSlides(patch.customerSlides);
+          if (patch.customerScreen !== undefined) next.customerScreen = patch.customerScreen !== false;
           if (patch.logo !== undefined) {
             const logo = patch.logo;
             next.logo = logo && logo.startsWith("data:image/") && logo.length <= 150_000 ? logo : null;

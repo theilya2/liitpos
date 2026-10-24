@@ -299,6 +299,8 @@ export function emptyBranch(id: string, settings: Settings, products: Product[] 
     cashMoves: [],
     members: [],
     suppliers: [],
+    punches: [],
+    credits: [],
   };
 }
 

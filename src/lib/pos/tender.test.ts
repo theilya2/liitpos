@@ -187,7 +187,22 @@ describe("register refund permission", () => {
       stockMoves: [],
       nextCredit: 1,
     });
-    const product = usePos.getState().products.find((item) => item.trackStock && item.active && item.stock >= 2 && Math.round(item.price * 10) === item.price * 10);
+    const promoIds = new Set(
+      (usePos.getState().settings.promos ?? [])
+        .flatMap((promo) => [promo.productId, promo.rewardProductId, ...promo.productIds])
+        .filter(Boolean),
+    );
+    const product = usePos
+      .getState()
+      .products.find(
+        (item) =>
+          item.trackStock &&
+          item.active &&
+          item.stock >= 2 &&
+          item.price * 2 < 80 &&
+          Math.round(item.price * 10) === item.price * 10 &&
+          !promoIds.has(item.id),
+      );
     assert.ok(product);
     const before = product.stock;
     assert.equal(usePos.getState().addProductToCart(product), true);

@@ -6,6 +6,7 @@ import { CloudSync, RegisterMark, SyncIndicator } from "@/components/pos/cloud-b
 import { areaForPath, can } from "@/lib/pos/access";
 import { canUseBusiness } from "@/lib/pos/demo";
 import { prepareNative } from "@/lib/pos/native";
+import { CustomerMirror } from "@/components/pos/customer-mirror";
 import { LockScreen } from "@/components/pos/lock-screen";
 import { ReceiptView } from "@/components/pos/receipt";
 import { ZReportView } from "@/components/pos/z-report";
@@ -107,7 +108,7 @@ export function PosFrame({ children }: { children: ReactNode }) {
     };
   }, []);
 
-  if (pathname.startsWith("/r/")) {
+  if (pathname.startsWith("/r/") || pathname.startsWith("/c/")) {
     return <div className="public-sheet scroll-pane bg-paper text-ink">{children}</div>;
   }
 
@@ -123,6 +124,7 @@ export function PosFrame({ children }: { children: ReactNode }) {
     return (
       <>
         <AppUpdateBanner />
+        <CustomerMirror />
         <CloudSync />
         <div className="shell-safe">
           <div className="scroll-pane min-h-0 flex-1">{children}</div>
@@ -136,7 +138,8 @@ export function PosFrame({ children }: { children: ReactNode }) {
       return (
         <>
           <AppUpdateBanner />
-          <CloudSync />
+          <CustomerMirror />
+        <CloudSync />
           <div className="shell-safe">
             <LockScreen />
           </div>
@@ -146,6 +149,7 @@ export function PosFrame({ children }: { children: ReactNode }) {
     return (
       <>
         <AppUpdateBanner />
+        <CustomerMirror />
         <CloudSync />
         <div className="shell-safe">{isWeekLocked(lastGoodSync, appliedReleaseAt, now) ? <WeekLock /> : <div className="flex min-h-0 flex-1 flex-col overflow-hidden">{children}</div>}</div>
       </>
@@ -156,6 +160,7 @@ export function PosFrame({ children }: { children: ReactNode }) {
     return (
       <>
         <AppUpdateBanner />
+        <CustomerMirror />
         <CloudSync />
         <div className="shell-safe">
           <LockScreen />
@@ -168,6 +173,7 @@ export function PosFrame({ children }: { children: ReactNode }) {
     return (
       <>
         <AppUpdateBanner />
+        <CustomerMirror />
         <CloudSync />
         <div className="shell-safe">
           <WeekLock />
@@ -181,6 +187,7 @@ export function PosFrame({ children }: { children: ReactNode }) {
   return (
     <>
       <AppUpdateBanner />
+      <CustomerMirror />
       <CloudSync />
       <div className="pos-frame shell-safe flex-row overflow-hidden">
         <nav className="no-print hidden w-24 shrink-0 flex-col gap-2 border-e border-line bg-surface p-2 lg:flex">
