@@ -104,7 +104,7 @@ export function ProductsPage() {
       trackStock: draft.trackStock,
       stock: Number.isFinite(stock) ? Math.max(0, stock) : 0,
       lowStock: Number.isFinite(lowStock) ? Math.max(0, lowStock) : 0,
-      shelf: draft.shelf,
+      shelf: draft.shelf === "lower" ? "upper" : draft.shelf,
       kiosk: draft.kiosk,
       extras,
       variants: cleanVariants(draft.variants),
@@ -210,7 +210,7 @@ export function ProductsPage() {
                   <span className="text-sm text-muted">
                     {categoryName(product.categoryId)}
                     {product.sku ? ` · ${product.sku}` : ""}
-                    {product.shelf === "upper" ? " · מדף עליון" : product.shelf === "lower" ? " · מדף תחתון" : ""}
+                    {product.shelf === "off" ? "" : " · מדף עליון"}
                     {product.kiosk ? " · קיוסק" : ""}
                     {product.active ? "" : " · מוסתר"}
                     {product.variants?.length ? ` · ${product.variants.length} אפשרויות` : ""}
@@ -298,11 +298,10 @@ export function ProductsPage() {
                   ))}
                 </select>
               </label>
-              <div className="grid grid-cols-3 gap-2">
+              <div className="grid grid-cols-2 gap-2">
                 {(
                   [
-                    ["upper", "עליון"],
-                    ["lower", "תחתון"],
+                    ["upper", "במדף העליון"],
                     ["off", "לא במסך"],
                   ] as const
                 ).map(([shelf, label]) => (
@@ -310,13 +309,13 @@ export function ProductsPage() {
                     key={shelf}
                     type="button"
                     onClick={() => setDraft({ ...draft, shelf })}
-                    className={`h-12 rounded-xl text-sm font-medium ${draft.shelf === shelf ? "bg-pine text-pine-ink" : "bg-paper ring-1 ring-line"}`}
+                    className={`h-12 rounded-xl text-sm font-medium ${(draft.shelf === "lower" ? "upper" : draft.shelf) === shelf ? "bg-pine text-pine-ink" : "bg-paper ring-1 ring-line"}`}
                   >
                     {label}
                   </button>
                 ))}
               </div>
-              <p className="text-xs text-muted">עליון ותחתון הם שני הריבועים בצד ימין של מסך המכירה.</p>
+              <p className="text-xs text-muted">המדף העליון הוא רשת המוצרים. המדף התחתון מציג מבצעים מהניהול.</p>
               <button
                 type="button"
                 role="switch"

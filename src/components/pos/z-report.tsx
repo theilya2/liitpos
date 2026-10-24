@@ -33,7 +33,11 @@ export function ZReportView({ report }: { report: ZReport }) {
         {typeof report.grossTurnover === "number" ? <Row label="מחזור מכירות" value={formatILS(report.grossTurnover)} /> : null}
         {typeof report.creditTotal === "number" && report.creditTotal > 0 ? <Row label="זיכויים" value={formatILS(report.creditTotal)} /> : null}
         <Row label={typeof report.creditCount === "number" ? "מחזור נטו" : "מחזור"} value={formatILS(report.turnover)} strong />
-        {typeof report.promoTotal === "number" && report.promoTotal > 0 ? <Row label="מבצעים" value={formatILS(report.promoTotal)} /> : null}
+        {(report.promoLines ?? []).map((line) => (
+          <Row key={line.name} label={`מבצע · ${line.name}`} value={formatILS(line.amount)} />
+        ))}
+        {typeof report.promoTotal === "number" && report.promoTotal > 0 && !(report.promoLines ?? []).length ? <Row label="מבצעים" value={formatILS(report.promoTotal)} /> : null}
+        {typeof report.promoTotal === "number" && (report.promoLines ?? []).length > 1 ? <Row label="סה״כ מבצעים" value={formatILS(report.promoTotal)} /> : null}
         <Row label="מע״מ" value={formatILS(report.vat)} />
         <Row label="לפני מע״מ" value={formatILS(report.net)} />
       </div>

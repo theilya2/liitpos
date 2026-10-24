@@ -201,6 +201,18 @@ function actorName(state: PosState): string {
   return state.staff.find((user) => user.id === state.sessionUserId)?.name ?? "";
 }
 
+function promoLinesOf(sales: Sale[]): { name: string; amount: number }[] {
+  const totals = new Map<string, number>();
+  for (const sale of sales) {
+    if (sale.voided || isCredit(sale)) continue;
+    for (const hit of sale.promoHits ?? []) {
+      if (!hit?.name || !(hit.amount > 0)) continue;
+      totals.set(hit.name, roundMoney((totals.get(hit.name) ?? 0) + hit.amount));
+    }
+  }
+  return [...totals].map(([name, amount]) => ({ name, amount }));
+}
+
 function normalizeProduct(product: Product): Product {
   const id = product.id;
   return {
@@ -493,6 +505,7 @@ export const usePos = create<PosState>()(
             discountAmount: totals.discountAmount,
             promoAmount: totals.promoAmount,
             promoLabel: totals.promoLabel,
+            promoHits: totals.hits,
             total: totals.total,
             vatRate: state.settings.vatRate,
             vatAmount: totals.vat,
@@ -853,6 +866,7 @@ export const usePos = create<PosState>()(
             promoTotal: roundMoney(
               open.filter((sale) => !sale.voided && !isCredit(sale)).reduce((sum, sale) => sum + (sale.promoAmount ?? 0), 0),
             ),
+            promoLines: promoLinesOf(open),
             openingFloat: state.settings.openingFloat,
             cashTaken,
             cashExpected: expected,

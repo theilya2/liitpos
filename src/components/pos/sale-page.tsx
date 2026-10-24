@@ -8,12 +8,12 @@ import { SendReceipt } from "@/components/pos/send-sms";
 import { confirmReceipt, deliverPrint, pulseDrawer } from "@/lib/pos/receipt-io";
 import { formatILS, formatWhen, moneyFromPad, pushMoneyKey, roundCash, roundMoney } from "@/lib/pos/money";
 import { buildConfiguredLine, findByCode, mustChoose, needsPicker, shelfPrice } from "@/lib/pos/options";
-import { pricedOrPlain } from "@/lib/pos/promo";
+import { pricedOrPlain, promoHeadline, promoOpen, promoPlan, selectPromos, type PricedCart } from "@/lib/pos/promo";
 import { registerCaption } from "@/lib/pos/register";
 import { foldTenders, previewTender, remainingExact, type TenderInput } from "@/lib/pos/tender";
 import { currentUser, isWeekLocked, usePos } from "@/lib/pos/store";
 import { chargeTerminal, deviceLabel, isSafeIpv4, MAX_PAYMENTS, paymentPlan } from "@/lib/pos/terminal";
-import { METHOD_LABEL, PAYMENT_METHODS, type PaymentMethod, type Product, type Sale, type TerminalKind } from "@/lib/pos/types";
+import { METHOD_LABEL, PAYMENT_METHODS, type Category, type PaymentMethod, type Product, type Promo, type Sale, type TerminalKind } from "@/lib/pos/types";
 
 const METHOD_ICON = {
   cash: Banknote,
@@ -178,12 +178,7 @@ function CartPanel({
           </button>
         </div>
         <div className="space-y-1 text-sm">
-          {totals.promoAmount > 0 ? (
-            <div className="flex justify-between gap-3 text-pine">
-              <span className="min-w-0 truncate">מבצע{totals.promoLabel ? ` · ${totals.promoLabel}` : ""}</span>
-              <span className="shrink-0 tabular-nums">{formatILS(totals.promoAmount)}</span>
-            </div>
-          ) : null}
+          <PromoRows totals={totals} />
           {totals.discountAmount > 0 ? (
             <div className="flex justify-between text-muted">
               <span>הנחה</span>
@@ -356,7 +351,17 @@ function PaySheet({ onClose, onDone }: { onClose: () => void; onDone: (sale: Sal
       <p className="text-center text-sm text-muted">יתרה · כולל מע״מ {settings.vatRate}%</p>
       <p className="mt-1 text-center text-4xl font-semibold tabular-nums text-copper">{formatILS(remaining)}</p>
       <p className="mt-1 text-center text-sm text-muted">סכום החשבון {formatILS(totals.total)}</p>
-      {totals.promoAmount > 0 ? <p className="mt-1 text-center text-sm text-pine">מבצע {totals.promoLabel} · {formatILS(totals.promoAmount)}</p> : null}
+      {totals.hits.length ? (
+        <div className="mt-1 space-y-1">
+          {totals.hits.map((hit) => (
+            <p key={hit.id} className="text-center text-sm text-pine">
+              מבצע {hit.name} · {formatILS(hit.amount)}
+            </p>
+          ))}
+        </div>
+      ) : totals.promoAmount > 0 ? (
+        <p className="mt-1 text-center text-sm text-pine">מבצע {totals.promoLabel} · {formatILS(totals.promoAmount)}</p>
+      ) : null}
       {taken.length ? (
         <ul className="mt-3 space-y-2">
           {taken.map((line, index) => (
@@ -643,13 +648,33 @@ function HeldSheet({ onClose }: { onClose: () => void }) {
   );
 }
 
-function shelfProducts(products: Product[], query: string, shelf: "upper" | "lower") {
+function shelfProducts(products: Product[], query: string) {
   const q = query.trim();
-  return products.filter((product) => {
-    if (!product.active || product.shelf !== shelf) return false;
-    if (!q) return true;
-    return product.name.includes(q) || product.sku.includes(q) || (product.barcode ?? "").includes(q) || (product.variants ?? []).some((variant) => variant.sku.includes(q) || variant.barcode.includes(q));
-  });
+  return products
+    .filter((product) => {
+      if (!product.active || product.shelf === "off") return false;
+      if (!q) return true;
+      return product.name.includes(q) || product.sku.includes(q) || (product.barcode ?? "").includes(q) || (product.variants ?? []).some((variant) => variant.sku.includes(q) || variant.barcode.includes(q));
+    })
+    .sort((a, b) => Number(a.shelf !== "upper") - Number(b.shelf !== "upper"));
+}
+
+function PromoRows({ totals }: { totals: PricedCart }) {
+  if (totals.hits.length) {
+    return totals.hits.map((hit) => (
+      <div key={hit.id} className="flex justify-between gap-3 text-pine">
+        <span className="min-w-0 truncate">מבצע · {hit.name}</span>
+        <span className="shrink-0 tabular-nums">{formatILS(hit.amount)}</span>
+      </div>
+    ));
+  }
+  if (totals.promoAmount <= 0) return null;
+  return (
+    <div className="flex justify-between gap-3 text-pine">
+      <span className="min-w-0 truncate">מבצע{totals.promoLabel ? ` · ${totals.promoLabel}` : ""}</span>
+      <span className="shrink-0 tabular-nums">{formatILS(totals.promoAmount)}</span>
+    </div>
+  );
 }
 
 function ShelfTile({ product, qty, onAdd }: { product: Product; qty: number; onAdd: () => void }) {
@@ -689,7 +714,8 @@ export function SalePage() {
   const cart = usePos((state) => state.cart);
   const discount = usePos((state) => state.discount);
   const vatRate = usePos((state) => state.settings.vatRate);
-  const promos = usePos((state) => state.settings.promos);
+  const promos = usePos((state) => selectPromos(state.settings.promos));
+  const categories = usePos((state) => state.categories);
   const businessName = usePos((state) => state.settings.businessName);
   const registerNo = usePos((state) => state.registerNo);
   const registerName = usePos((state) => state.registerName);
@@ -703,7 +729,8 @@ export function SalePage() {
   const lock = usePos((state) => state.lock);
   const addProductToCart = usePos((state) => state.addProductToCart);
   const addCartLine = usePos((state) => state.addCartLine);
-  const [config, setConfig] = useState<{ product: Product; variantId: string | null } | null>(null);
+  const [config, setConfig] = useState<{ product: Product; variantId: string | null; qty?: number } | null>(null);
+  const [offer, setOffer] = useState<Promo | null>(null);
   const addCustomItem = usePos((state) => state.addCustomItem);
   const removeLine = usePos((state) => state.removeLine);
   const setQty = usePos((state) => state.setQty);
@@ -734,8 +761,8 @@ export function SalePage() {
     return map;
   }, [cart]);
 
-  const upper = useMemo(() => shelfProducts(products, query, "upper"), [products, query]);
-  const lower = useMemo(() => shelfProducts(products, query, "lower"), [products, query]);
+  const upper = useMemo(() => shelfProducts(products, query), [products, query]);
+  const livePromos = promos.filter((promo) => promoOpen(promo, new Date()));
   const incoming = useMemo(
     () => sales.filter((sale) => sale.channel === "kiosk" && sale.kioskStatus === "new" && !sale.voided).slice(0, 3),
     [sales],
@@ -1020,7 +1047,11 @@ export function SalePage() {
               );
             })}
           </div>
-          {totals.promoAmount > 0 ? <p className="truncate text-xs text-pine">מבצע {totals.promoLabel} · {formatILS(totals.promoAmount)}</p> : null}
+          {totals.promoAmount > 0 ? (
+            <div className="space-y-0.5 text-xs">
+              <PromoRows totals={totals} />
+            </div>
+          ) : null}
           <div className="flex items-baseline justify-between">
             <span className="text-xs text-muted">לתשלום · מע״מ {vatRate}%</span>
             <span className="text-lg font-semibold tabular-nums text-copper">{formatILS(totals.total)}</span>
@@ -1028,20 +1059,27 @@ export function SalePage() {
         </div>
       </section>
 
-      <section aria-label="מדף תחתון" className="register-panel register-lower bg-paper ring-1 ring-line">
-        <h2 className="shrink-0 px-2 pt-2 text-sm font-semibold">מדף תחתון</h2>
-        <ShelfGrid
-          products={lower}
-          empty="אין מוצרים במדף התחתון. במוצרים בוחרים מדף תחתון."
-          qtyByProduct={qtyByProduct}
-          onAdd={(product) => {
-            if (needsPicker(product)) {
-              setConfig({ product, variantId: null });
-              return;
-            }
-            if (!addProductToCart(product)) setNote(`${product.name} אזל מהמלאי.`);
-          }}
-        />
+      <section aria-label="מדף מבצעים" className="register-panel register-lower bg-paper ring-1 ring-line">
+        <h2 className="shrink-0 px-2 pt-2 text-sm font-semibold">מדף מבצעים</h2>
+        <div className="scroll-pane min-h-0 flex-1 p-2">
+          {livePromos.length === 0 ? (
+            <p className="py-6 text-center text-xs text-muted">אין מבצעים פעילים עכשיו. מנהל מוסיף אותם בניהול.</p>
+          ) : (
+            <div className="shelf-grid">
+              {livePromos.map((promo) => (
+                <button
+                  key={promo.id}
+                  type="button"
+                  onClick={() => setOffer(promo)}
+                  className="flex min-h-24 flex-col justify-between rounded-2xl bg-pine-soft p-3 text-start ring-1 ring-line transition-transform duration-150 active:scale-95"
+                >
+                  <span className="text-lg font-semibold leading-tight text-pine">{promoHeadline(promo)}</span>
+                  <span className="mt-2 line-clamp-2 text-sm">{promo.name}</span>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
       </section>
 
       <section aria-label="סכום עצמאי ותשלום" className="register-panel register-keypad bg-surface ring-1 ring-line">
@@ -1090,8 +1128,10 @@ export function SalePage() {
     {done ? <DoneSheet sale={done} onClose={() => setDone(null)} /> : null}
     {config ? (
       <OptionSheet
+        key={`${config.product.id}-${config.variantId ?? ""}-${config.qty ?? 1}`}
         product={config.product}
         presetVariantId={config.variantId}
+        initialQty={config.qty ?? 1}
         taken={(variantId) =>
           cart
             .filter((line) => line.productId === config.product.id && (line.variantId ?? null) === variantId)
@@ -1102,6 +1142,24 @@ export function SalePage() {
           if (!addCartLine(line)) setNote(`${config.product.name} אזל מהמלאי.`);
           else setConfig(null);
         }}
+      />
+    ) : null}
+    {offer ? (
+      <PromoSheet
+        promo={offer}
+        products={products}
+        categories={categories}
+        onClose={() => setOffer(null)}
+        onAdd={(product, qty) => {
+          if (needsPicker(product)) {
+            setOffer(null);
+            setConfig({ product, variantId: null, qty });
+            return;
+          }
+          const line = buildConfiguredLine({ product, picks: [], qty });
+          if (!line || !addCartLine(line)) setNote(`${product.name} אזל מהמלאי.`);
+        }}
+        onDone={() => setOffer(null)}
       />
     ) : null}
     {cashOpen ? <CashSheet onClose={() => setCashOpen(false)} /> : null}
@@ -1132,5 +1190,105 @@ function ShelfGrid({
         </div>
       )}
     </div>
+  );
+}
+
+function PromoSheet({
+  promo,
+  products,
+  categories,
+  onClose,
+  onAdd,
+  onDone,
+}: {
+  promo: Promo;
+  products: Product[];
+  categories: Category[];
+  onClose: () => void;
+  onAdd: (product: Product, qty: number) => void;
+  onDone: () => void;
+}) {
+  const plan = promoPlan(promo);
+  const categoryName = categories.find((category) => category.id === ("categoryId" in plan && plan.mode === "choose" ? plan.categoryId : promo.categoryId))?.name;
+  const choices = plan.mode === "choose" ? products.filter((product) => product.active && product.categoryId === plan.categoryId) : [];
+  const rows =
+    plan.mode === "set"
+      ? plan.items.flatMap((item) => {
+          const product = products.find((entry) => entry.id === item.productId);
+          return product ? [{ product, qty: item.qty }] : [];
+        })
+      : [];
+
+  return (
+    <Overlay title={promoHeadline(promo)} onClose={onClose}>
+      <p className="text-base font-semibold">{promo.name}</p>
+      {categoryName ? <p className="mt-1 text-sm text-muted">קטגוריה · {categoryName}</p> : null}
+      {plan.mode === "info" ? <p className="mt-3 text-sm">{plan.detail}</p> : null}
+      {plan.mode === "set" ? (
+        <ul className="mt-3 space-y-2">
+          {rows.map((row) => (
+            <li key={row.product.id} className="flex items-center justify-between gap-3 rounded-2xl bg-paper px-3 py-2 ring-1 ring-line">
+              <span className="min-w-0">
+                <span className="block truncate font-medium">{row.product.name}</span>
+                <span className="text-sm text-muted">× {row.qty}</span>
+              </span>
+              <button type="button" onClick={() => onAdd(row.product, row.qty)} className="h-12 shrink-0 rounded-xl bg-pine px-3 text-sm font-semibold text-pine-ink">
+                הוספה
+              </button>
+            </li>
+          ))}
+        </ul>
+      ) : null}
+      {plan.mode === "choose" ? (
+        <ul className="mt-3 space-y-2">
+          {choices.map((product) => (
+            <li key={product.id}>
+              <button
+                type="button"
+                onClick={() => {
+                  onAdd(product, plan.qty);
+                  for (const item of plan.extra) {
+                    const reward = products.find((entry) => entry.id === item.productId && entry.active);
+                    if (reward) onAdd(reward, item.qty);
+                  }
+                }}
+                className="flex min-h-12 w-full items-center justify-between gap-3 rounded-2xl bg-paper px-3 text-start ring-1 ring-line"
+              >
+                <span className="min-w-0 truncate">{product.name}</span>
+                <span className="shrink-0 text-sm text-pine">הוספה × {plan.qty}</span>
+              </button>
+            </li>
+          ))}
+          {choices.length === 0 ? <li className="text-sm text-muted">אין מוצרים פעילים בקטגוריה.</li> : null}
+        </ul>
+      ) : null}
+      {plan.mode === "set" && rows.length ? (
+        <button
+          type="button"
+          onClick={() => {
+            for (const row of rows) onAdd(row.product, row.qty);
+            onDone();
+          }}
+          className="mt-4 h-14 w-full rounded-2xl bg-pine text-lg font-semibold text-pine-ink"
+        >
+          הוספת המבצע לסל
+        </button>
+      ) : null}
+      {plan.mode === "choose" && plan.extra.length ? (
+        <div className="mt-4 space-y-2">
+          <p className="text-sm text-muted">ובנוסף</p>
+          {plan.extra.map((item) => {
+            const product = products.find((entry) => entry.id === item.productId);
+            if (!product) return null;
+            return (
+              <button key={item.productId} type="button" onClick={() => onAdd(product, item.qty)} className="flex h-12 w-full items-center justify-between rounded-xl bg-paper px-3 ring-1 ring-line">
+                <span>{product.name}</span>
+                <span className="text-sm text-pine">× {item.qty}</span>
+              </button>
+            );
+          })}
+        </div>
+      ) : null}
+    </Overlay>
   );
 }

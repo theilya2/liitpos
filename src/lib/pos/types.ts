@@ -26,7 +26,7 @@ export type TerminalEndpoint = {
 
 export type Discount = { kind: "percent" | "amount"; value: number } | null;
 
-export type PromoKind = "bogo" | "bxgy" | "bundle" | "percent" | "amount";
+export type PromoKind = "bogo" | "bxgy" | "bundle" | "percent" | "amount" | "nth" | "combo" | "threshold";
 
 /** Automatic cart promotion. Missing fields on old registers are filled in on read. */
 export type Promo = {
@@ -43,6 +43,12 @@ export type Promo = {
   bundlePrice: number;
   percent: number;
   amount: number;
+  /** Percent off the reward units in buy-X-get-Y. 100 means those units are free. */
+  rewardPercent: number;
+  /** Products that make up a combo. Empty for every other kind. */
+  productIds: string[];
+  /** Spend that unlocks a cart-threshold deal. 0 for every other kind. */
+  minSpend: number;
   /** 0 is Sunday. Empty means every day. */
   days: number[];
   startTime: string;
@@ -188,6 +194,8 @@ export type Sale = {
   /** Automatic promotion taken off before the manual discount. Missing on older sales. */
   promoAmount?: number;
   promoLabel?: string;
+  /** One row per promotion that applied. Missing on older sales, which keep the single label. */
+  promoHits?: { id: string; name: string; amount: number }[];
   total: number;
   vatRate: number;
   vatAmount: number;
@@ -340,6 +348,8 @@ export type ZReport = {
   paidOut?: number;
   /** Promotions given on the sales in this report. Older reports omit it. */
   promoTotal?: number;
+  /** Same promotions, one line per name. Older reports omit it. */
+  promoLines?: { name: string; amount: number }[];
   leftInDrawer: number;
   drawerOpens: number;
 };

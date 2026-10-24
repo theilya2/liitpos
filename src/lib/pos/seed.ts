@@ -1,5 +1,5 @@
 import { computeTotals, roundCash, roundMoney } from "@/lib/pos/money";
-import type { Branch, Category, ClubMember, Extra, PaymentMethod, Product, Sale, Settings, Shelf, StaffUser } from "@/lib/pos/types";
+import type { Branch, Category, ClubMember, Extra, PaymentMethod, Product, Promo, Sale, Settings, Shelf, StaffUser } from "@/lib/pos/types";
 
 export const defaultCategories: Category[] = [
   { id: "hot", name: "משקאות חמים" },
@@ -28,7 +28,38 @@ export const defaultSettings: Settings = {
   paperWidth: 80,
   printerName: "Default",
   openDrawer: true,
+  promos: demoPromos(),
 };
+
+function demoPromos(): Promo[] {
+  const base = {
+    active: true,
+    stackable: false,
+    productId: "",
+    categoryId: "",
+    rewardProductId: "",
+    buyQty: 1,
+    getQty: 1,
+    bundlePrice: 0,
+    percent: 0,
+    amount: 0,
+    rewardPercent: 100,
+    productIds: [] as string[],
+    minSpend: 0,
+    days: [] as number[],
+    startTime: "",
+    endTime: "",
+    startDate: "",
+    endDate: "",
+  };
+  return [
+    { ...base, id: "promo-cola", name: "קולה 3 ב-20", kind: "bundle", productId: "p-cola", buyQty: 3, bundlePrice: 20 },
+    { ...base, id: "promo-borek", name: "בורקס 1+1", kind: "bogo", productId: "p-borek-c" },
+    { ...base, id: "promo-second", name: "אספרסו שני בחצי", kind: "nth", productId: "p-espresso", buyQty: 2, percent: 50 },
+    { ...base, id: "promo-combo", name: "קפה ומאפה", kind: "combo", productIds: ["p-cap", "p-borek-c"], bundlePrice: 22 },
+    { ...base, id: "promo-cart", name: "מ-80 הנחה", kind: "threshold", minSpend: 80, percent: 10 },
+  ];
+}
 
 type SeedProduct = Omit<Product, "active" | "image" | "trackStock" | "stock" | "lowStock" | "shelf" | "kiosk" | "extras"> & {
   active?: boolean;
