@@ -101,10 +101,19 @@ export type ChosenModifier = {
 
 export type Shelf = "upper" | "lower" | "off";
 
+/** One slot on the top quick shelf. A category slot expands to that category's products. */
+export type ShelfRef = { kind: "product" | "category"; id: string };
+
+export type Supplier = { id: string; name: string };
+
 export type Product = {
   id: string;
   name: string;
   price: number;
+  /** What the shop paid. Missing on older products. */
+  cost?: number;
+  /** Supplier from the shared list. Empty when none is set. */
+  supplierId?: string;
   categoryId: string;
   sku: string;
   /** Extra scan code. Older products leave this empty and keep using `sku`. */
@@ -256,6 +265,8 @@ export type Settings = BusinessSnapshot & {
   upsellRules?: UpsellRule[];
   /** Automatic promotions. Missing on registers that have not set any. */
   promos?: Promo[];
+  /** Ordered top shelf. Missing means products still use their own shelf flag. */
+  topShelf?: ShelfRef[];
 };
 
 export type KioskSlide = {
@@ -373,6 +384,8 @@ export type Branch = {
   /** Pay-ins and pay-outs. Older registers load this as an empty list. */
   cashMoves: CashMove[];
   members: ClubMember[];
+  /** Shared supplier list. Older registers load this as an empty list. */
+  suppliers: Supplier[];
 };
 
 export type Role = "cashier" | "shift" | "manager";

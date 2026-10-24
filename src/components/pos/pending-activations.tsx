@@ -51,14 +51,16 @@ export function PendingActivations({ businesses }: { businesses: PanelBusiness[]
   }, []);
 
   const selected = rows.find((row) => normalizeActivationCode(row.code) === normalizeActivationCode(code)) ?? null;
+  const reinstallBusinessId = selected?.reinstall?.businessId ?? "";
+  const firstBusinessId = businesses[0]?.id ?? "";
 
   useEffect(() => {
-    if (selected?.reinstall) {
-      setBusinessId(selected.reinstall.businessId);
+    if (reinstallBusinessId) {
+      setBusinessId(reinstallBusinessId);
       return;
     }
-    if (!businessId && businesses[0]) setBusinessId(businesses[0].id);
-  }, [businessId, businesses, selected]);
+    if (!businessId && firstBusinessId) setBusinessId(firstBusinessId);
+  }, [businessId, firstBusinessId, reinstallBusinessId]);
 
   async function run(action: "approve" | "reject") {
     setBusy(true);

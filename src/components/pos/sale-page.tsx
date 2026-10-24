@@ -9,6 +9,7 @@ import { confirmReceipt, deliverPrint, pulseDrawer } from "@/lib/pos/receipt-io"
 import { formatILS, formatWhen, moneyFromPad, pushMoneyKey, roundCash, roundMoney } from "@/lib/pos/money";
 import { buildConfiguredLine, findByCode, mustChoose, needsPicker, shelfPrice } from "@/lib/pos/options";
 import { pricedOrPlain, promoHeadline, promoOpen, promoPlan, selectPromos, type PricedCart } from "@/lib/pos/promo";
+import { expandTopShelf, selectTopShelf } from "@/lib/pos/shelves";
 import { registerCaption } from "@/lib/pos/register";
 import { foldTenders, previewTender, remainingExact, type TenderInput } from "@/lib/pos/tender";
 import { currentUser, isWeekLocked, usePos } from "@/lib/pos/store";
@@ -80,7 +81,7 @@ function CartPanel({
   const held = usePos((state) => state.held);
   const vatRate = usePos((state) => state.settings.vatRate);
   const products = usePos((state) => state.products);
-  const promos = usePos((state) => state.settings.promos);
+  const promos = usePos((state) => selectPromos(state.settings.promos));
   const setQty = usePos((state) => state.setQty);
   const removeLine = usePos((state) => state.removeLine);
   const setDiscount = usePos((state) => state.setDiscount);
@@ -605,7 +606,7 @@ function HeldSheet({ onClose }: { onClose: () => void }) {
   const held = usePos((state) => state.held);
   const vatRate = usePos((state) => state.settings.vatRate);
   const products = usePos((state) => state.products);
-  const promos = usePos((state) => state.settings.promos);
+  const promos = usePos((state) => selectPromos(state.settings.promos));
   const resumeHeld = usePos((state) => state.resumeHeld);
   const discardHeld = usePos((state) => state.discardHeld);
 
@@ -648,16 +649,6 @@ function HeldSheet({ onClose }: { onClose: () => void }) {
   );
 }
 
-function shelfProducts(products: Product[], query: string) {
-  const q = query.trim();
-  return products
-    .filter((product) => {
-      if (!product.active || product.shelf === "off") return false;
-      if (!q) return true;
-      return product.name.includes(q) || product.sku.includes(q) || (product.barcode ?? "").includes(q) || (product.variants ?? []).some((variant) => variant.sku.includes(q) || variant.barcode.includes(q));
-    })
-    .sort((a, b) => Number(a.shelf !== "upper") - Number(b.shelf !== "upper"));
-}
 
 function PromoRows({ totals }: { totals: PricedCart }) {
   if (totals.hits.length) {
@@ -715,6 +706,7 @@ export function SalePage() {
   const discount = usePos((state) => state.discount);
   const vatRate = usePos((state) => state.settings.vatRate);
   const promos = usePos((state) => selectPromos(state.settings.promos));
+  const topShelf = usePos((state) => selectTopShelf(state.settings.topShelf));
   const categories = usePos((state) => state.categories);
   const businessName = usePos((state) => state.settings.businessName);
   const registerNo = usePos((state) => state.registerNo);
@@ -761,7 +753,7 @@ export function SalePage() {
     return map;
   }, [cart]);
 
-  const upper = useMemo(() => shelfProducts(products, query), [products, query]);
+  const upper = useMemo(() => expandTopShelf(products, topShelf.length ? topShelf : undefined, query), [products, query, topShelf]);
   const livePromos = promos.filter((promo) => promoOpen(promo, new Date()));
   const incoming = useMemo(
     () => sales.filter((sale) => sale.channel === "kiosk" && sale.kioskStatus === "new" && !sale.voided).slice(0, 3),
@@ -1059,8 +1051,8 @@ export function SalePage() {
         </div>
       </section>
 
-      <section aria-label="מדף מבצעים" className="register-panel register-lower bg-paper ring-1 ring-line">
-        <h2 className="shrink-0 px-2 pt-2 text-sm font-semibold">מדף מבצעים</h2>
+      <section aria-label="מדף תחתון" className="register-panel register-lower bg-paper ring-1 ring-line">
+        <h2 className="shrink-0 px-2 pt-2 text-sm font-semibold">מדף תחתון</h2>
         <div className="scroll-pane min-h-0 flex-1 p-2">
           {livePromos.length === 0 ? (
             <p className="py-6 text-center text-xs text-muted">אין מבצעים פעילים עכשיו. מנהל מוסיף אותם בניהול.</p>

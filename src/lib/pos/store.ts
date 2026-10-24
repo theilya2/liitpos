@@ -7,7 +7,10 @@ import { applyDocs, catalogDoc, changesToDocs, deviceDoc, mergeOutbox, settingsD
 import { normalizeKioskSettings } from "@/lib/pos/kiosk";
 import { roundMoney } from "@/lib/pos/money";
 import { activeVariants, changeStock, cleanGroups, cleanVariants, demandOf, groupsFor, hasEnough, splitStockKey, stockOnHand } from "@/lib/pos/options";
+import { usableImage } from "@/lib/pos/image";
 import { cleanPromos, priceCart } from "@/lib/pos/promo";
+import { cleanTopShelf } from "@/lib/pos/shelves";
+import { cleanSuppliers } from "@/lib/pos/suppliers";
 import { isCredit, quoteRefund, refundMethodsFor, settleSale, tendersOf, zFigures, type RefundPick, type TenderInput } from "@/lib/pos/tender";
 import {
   buildDemoSales,
@@ -81,6 +84,7 @@ type PosState = BranchFields & {
   markKiosk: (id: string, status: "new" | "done") => void;
   upsertProduct: (product: Product) => void;
   addCategory: (name: string) => string | null;
+  addSupplier: (name: string) => string | null;
   updateSettings: (patch: Partial<Settings>) => void;
   saveMember: (member: ClubMember) => void;
   rememberBusinessSettings: (businessId: string, patch: Partial<Settings>) => void;
@@ -165,6 +169,7 @@ function toBranch(state: BranchFields & { activeStoreId: string }): Branch {
     drawerOpens: state.drawerOpens,
     cashMoves: state.cashMoves ?? [],
     members: state.members,
+    suppliers: state.suppliers ?? [],
   };
 }
 
@@ -185,6 +190,7 @@ function fromBranch(branch: Branch): BranchFields {
     drawerOpens: branch.drawerOpens,
     cashMoves: branch.cashMoves ?? [],
     members: branch.members,
+    suppliers: branch.suppliers ?? [],
   };
 }
 
@@ -217,7 +223,9 @@ function normalizeProduct(product: Product): Product {
   const id = product.id;
   return {
     ...product,
-    image: product.image || demoPhoto(id),
+    image: usableImage(product.image) || demoPhoto(id),
+    cost: Number.isFinite(Number(product.cost)) && Number(product.cost) >= 0 ? roundMoney(Number(product.cost)) : 0,
+    supplierId: typeof product.supplierId === "string" ? product.supplierId.slice(0, 40) : "",
     trackStock: product.trackStock ?? false,
     stock: Number.isFinite(product.stock) ? product.stock : 0,
     lowStock: Number.isFinite(product.lowStock) ? product.lowStock : 5,
@@ -253,6 +261,7 @@ function normalizeBranch(branch: Branch): Branch {
     held: branch.held ?? [],
     categories: branch.categories ?? cloneCategories(),
     members: Array.isArray(branch.members) ? branch.members : branch.id === "store-main" ? demoMembers() : [],
+    suppliers: cleanSuppliers(branch.suppliers),
   };
 }
 
@@ -291,6 +300,7 @@ function stampCode(branch: Branch, used: Set<string>): Branch {
       ...settings,
       code,
       ...(Array.isArray(settings.promos) ? { promos: cleanPromos(settings.promos) } : {}),
+      ...(Array.isArray(settings.topShelf) ? { topShelf: cleanTopShelf(settings.topShelf) } : {}),
     }),
   };
 }
@@ -751,6 +761,16 @@ export const usePos = create<PosState>()(
           return id;
         },
 
+        addSupplier: (name) => {
+          const trimmed = name.trim().slice(0, 40);
+          if (!trimmed) return null;
+          const existing = (get().suppliers ?? []).find((supplier) => supplier.name === trimmed);
+          if (existing) return existing.id;
+          const supplier = { id: newId(), name: trimmed };
+          commit({ suppliers: [...(get().suppliers ?? []), supplier] });
+          return supplier.id;
+        },
+
         updateSettings: (patch) => {
           const state = get();
           const next = { ...state.settings, ...patch };
@@ -766,6 +786,7 @@ export const usePos = create<PosState>()(
           next.androidTerminal = cleanEndpoint(next.androidTerminal, state.settings.androidTerminal ?? cloneSettings().androidTerminal);
           next.pinpad = cleanEndpoint(next.pinpad, state.settings.pinpad ?? cloneSettings().pinpad);
           if (patch.promos !== undefined) next.promos = cleanPromos(patch.promos);
+          if (patch.topShelf !== undefined) next.topShelf = cleanTopShelf(patch.topShelf);
           if (patch.logo !== undefined) {
             const logo = patch.logo;
             next.logo = logo && logo.startsWith("data:image/") && logo.length <= 150_000 ? logo : null;

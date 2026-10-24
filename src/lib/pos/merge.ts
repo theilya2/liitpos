@@ -1,5 +1,6 @@
 import type { CloudDoc } from "@/lib/pos/docs";
-import type { Category, ClubMember, Product, StockMove } from "@/lib/pos/types";
+import { cleanSuppliers } from "@/lib/pos/suppliers";
+import type { Category, ClubMember, Product, StockMove, Supplier } from "@/lib/pos/types";
 
 /**
  * How two registers combine work.
@@ -24,6 +25,7 @@ type CatalogShape = {
   products: Product[];
   categories: Category[];
   members: ClubMember[];
+  suppliers?: Supplier[];
   nextReceipt: number;
   nextZ: number;
   nextCredit?: number;
@@ -73,6 +75,11 @@ function memberList(doc: CloudDoc | null): ClubMember[] {
   return doc.doc.members.filter((item): item is ClubMember => isRecord(item) && typeof item.id === "string");
 }
 
+function supplierList(doc: CloudDoc | null): Supplier[] {
+  if (!doc || !isRecord(doc.doc)) return [];
+  return cleanSuppliers(doc.doc.suppliers);
+}
+
 function nextNumber(doc: CloudDoc | null, key: "nextReceipt" | "nextZ" | "nextCredit", fallback: number): number {
   if (!doc || !isRecord(doc.doc)) return fallback;
   const value = Number(doc.doc[key]);
@@ -105,6 +112,7 @@ export function mergeCatalogDocs(existing: CloudDoc | null, incoming: CloudDoc):
     const nextAt = next.updatedAt ?? (remoteCatalogWins ? incoming.updatedAt : "");
     return later(nextAt, prevAt) ? next : prev;
   });
+  const suppliers = unionById(supplierList(existing), supplierList(incoming), (_prev, next) => next);
   const updatedAt = existing ? maxStamp(existing.updatedAt, incoming.updatedAt) : incoming.updatedAt;
   return {
     newProductIds,
@@ -118,6 +126,7 @@ export function mergeCatalogDocs(existing: CloudDoc | null, incoming: CloudDoc):
         products,
         categories,
         members,
+        suppliers,
         nextReceipt: Math.max(nextNumber(existing, "nextReceipt", 1001), nextNumber(incoming, "nextReceipt", 1001)),
         nextZ: Math.max(nextNumber(existing, "nextZ", 1), nextNumber(incoming, "nextZ", 1)),
         nextCredit: Math.max(nextNumber(existing, "nextCredit", 1), nextNumber(incoming, "nextCredit", 1)),
@@ -240,10 +249,12 @@ export function mergeRemoteCatalog(
   });
   const categories = unionById(local.categories, categoryList(remote), (_prev, next) => next);
   const members = unionById(local.members, memberList(remote), (prev, next) => (later(next.updatedAt, prev.updatedAt) ? next : prev));
+  const suppliers = unionById(local.suppliers ?? [], supplierList(remote), (_prev, next) => next);
   return {
     products,
     categories,
     members,
+    suppliers,
     nextReceipt: Math.max(local.nextReceipt, nextNumber(remote, "nextReceipt", local.nextReceipt)),
     nextZ: Math.max(local.nextZ, nextNumber(remote, "nextZ", local.nextZ)),
     nextCredit: Math.max(local.nextCredit ?? 1, nextNumber(remote, "nextCredit", local.nextCredit ?? 1)),

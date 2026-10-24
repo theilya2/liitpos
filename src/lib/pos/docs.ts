@@ -1,4 +1,6 @@
+import { usableImage } from "@/lib/pos/image";
 import { mergeRemoteCatalog } from "@/lib/pos/merge";
+import { cleanTopShelf } from "@/lib/pos/shelves";
 import { cleanGroups, cleanVariants } from "@/lib/pos/options";
 import { cloneSettings, codeForStore, demoExtras, demoKiosk, demoPhoto, demoShelf, emptyBranch } from "@/lib/pos/seed";
 import { normalizeKioskSettings } from "@/lib/pos/kiosk";
@@ -50,7 +52,10 @@ export function settingsDoc(businessId: string, settings: Settings, updatedAt: s
   return { id: `settings:${businessId}`, kind: "settings", businessId, updatedAt, deleted, doc: deleted ? {} : (settings as unknown as Json) };
 }
 
-export function catalogDoc(branch: Pick<Branch, "id" | "categories" | "products" | "nextReceipt" | "nextZ" | "nextCredit" | "members">, updatedAt: string): CloudDoc {
+export function catalogDoc(
+  branch: Pick<Branch, "id" | "categories" | "products" | "nextReceipt" | "nextZ" | "nextCredit" | "members"> & { suppliers?: Branch["suppliers"] },
+  updatedAt: string,
+): CloudDoc {
   return {
     id: `catalog:${branch.id}`,
     kind: "catalog",
@@ -61,6 +66,7 @@ export function catalogDoc(branch: Pick<Branch, "id" | "categories" | "products"
       categories: branch.categories,
       products: branch.products,
       members: branch.members ?? [],
+      suppliers: branch.suppliers ?? [],
       nextReceipt: branch.nextReceipt,
       nextZ: branch.nextZ,
       nextCredit: branch.nextCredit ?? 1,
@@ -125,7 +131,15 @@ export function changesToDocs(
   const now = new Date().toISOString();
   const docs: CloudDoc[] = [];
   if (partial.settings) docs.push(settingsDoc(after.id, after.settings, now));
-  if (partial.products || partial.categories || partial.members || partial.nextReceipt !== undefined || partial.nextZ !== undefined || partial.nextCredit !== undefined) {
+  if (
+    partial.products ||
+    partial.categories ||
+    partial.members ||
+    partial.suppliers ||
+    partial.nextReceipt !== undefined ||
+    partial.nextZ !== undefined ||
+    partial.nextCredit !== undefined
+  ) {
     docs.push(catalogDoc(after, now));
   }
   if (partial.sales) {
@@ -187,6 +201,7 @@ function asSettings(doc: unknown): Settings | null {
     ...normalizePrintSettings(doc),
     ...normalizeKioskSettings(doc),
     ...(Array.isArray(doc.promos) ? { promos: cleanPromos(doc.promos) } : {}),
+    ...(Array.isArray(doc.topShelf) ? { topShelf: cleanTopShelf(doc.topShelf) } : {}),
   };
 }
 
@@ -242,7 +257,7 @@ function asProduct(value: unknown): Product | null {
     sku: typeof value.sku === "string" ? value.sku.slice(0, 20) : "",
     favorite: Boolean(value.favorite),
     active: value.active !== false,
-    image: typeof value.image === "string" && value.image ? value.image : demoPhoto(value.id),
+    image: usableImage(typeof value.image === "string" ? value.image : null) ?? demoPhoto(value.id),
     trackStock: Boolean(value.trackStock),
     stock: Number.isFinite(Number(value.stock)) ? Number(value.stock) : 0,
     lowStock: Number.isFinite(Number(value.lowStock)) ? Number(value.lowStock) : 5,
@@ -250,6 +265,8 @@ function asProduct(value: unknown): Product | null {
     kiosk: typeof value.kiosk === "boolean" ? value.kiosk : demoKiosk(value.id),
     extras: Array.isArray(value.extras) ? asExtras(value.extras) : demoExtras(value.id),
     barcode: typeof value.barcode === "string" ? value.barcode.slice(0, 32) : "",
+    cost: Number.isFinite(Number(value.cost)) && Number(value.cost) >= 0 ? Math.round(Number(value.cost) * 100) / 100 : 0,
+    supplierId: typeof value.supplierId === "string" ? value.supplierId.slice(0, 40) : "",
     variants: cleanVariants(value.variants),
     modifierGroups: cleanGroups(value.modifierGroups),
     updatedAt: typeof value.updatedAt === "string" ? value.updatedAt : undefined,
