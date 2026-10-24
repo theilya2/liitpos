@@ -1,4 +1,5 @@
 import { formatILS, formatWhen } from "@/lib/pos/money";
+import { promoRows } from "@/lib/pos/promo";
 import { tendersOf } from "@/lib/pos/tender";
 import { deviceLabel } from "@/lib/pos/terminal";
 import { registerCaption } from "@/lib/pos/register";
@@ -32,7 +33,7 @@ export function receiptPlainText(sale: Sale): string {
     "",
     ...sale.lines.map((line) => `${line.name}  x${line.qty}  ${formatILS(line.lineTotal)}`),
     "",
-    (sale.promoAmount ?? 0) > 0 ? `מבצע${sale.promoLabel ? `  ${sale.promoLabel}` : ""}  ${formatILS(sale.promoAmount ?? 0)}` : "",
+    ...promoRows(sale).map((row) => `מבצע  ${row.name}  ${formatILS(row.amount)}`),
     sale.discountAmount > 0 ? `הנחה  ${formatILS(sale.discountAmount)}` : "",
     `${credit ? "זיכוי" : "לתשלום"}  ${formatILS(sale.total)}`,
     `מתוכם מע״מ ${sale.vatRate}%  ${formatILS(sale.vatAmount)}`,
@@ -93,7 +94,9 @@ export function ReceiptView({ sale }: { sale: Sale }) {
       </ul>
       <div className="my-4 border-t border-dashed border-line" />
       <div className="space-y-1">
-        {(sale.promoAmount ?? 0) > 0 ? <Row label={sale.promoLabel ? `מבצע · ${sale.promoLabel}` : "מבצע"} value={formatILS(sale.promoAmount ?? 0)} /> : null}
+        {promoRows(sale).map((row, index) => (
+          <Row key={`${row.name}-${index}`} label={`מבצע · ${row.name}`} value={formatILS(row.amount)} />
+        ))}
         {sale.discountAmount > 0 ? <Row label="הנחה" value={formatILS(sale.discountAmount)} /> : null}
         <Row label={credit ? "זיכוי" : "לתשלום"} value={formatILS(sale.total)} strong />
         <Row label={`מתוכם מע״מ ${sale.vatRate}%`} value={formatILS(sale.vatAmount)} />

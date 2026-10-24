@@ -12,12 +12,14 @@ export function OptionSheet({
   taken,
   onClose,
   onAdd,
+  initialQty = 1,
 }: {
   product: Product;
   presetVariantId?: string | null;
   taken: (variantId: string | null) => number;
   onClose: () => void;
   onAdd: (line: CartLine) => void;
+  initialQty?: number;
 }) {
   const variants = activeVariants(product);
   const groups = groupsFor(product);
@@ -30,7 +32,7 @@ export function OptionSheet({
   const [step, setStep] = useState(0);
   const [variantId, setVariantId] = useState<string | null>(presetVariantId ?? null);
   const [picks, setPicks] = useState<Record<string, string[]>>({});
-  const [qty, setQty] = useState(1);
+  const [qty, setQty] = useState(Math.max(1, Math.round(initialQty)));
   const [error, setError] = useState("");
   const current = steps[step] ?? null;
   const last = step >= steps.length - 1;

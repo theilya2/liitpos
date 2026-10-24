@@ -196,6 +196,17 @@
   }
 }
 
+/* 9" landscape and short portrait: keep both shelves usable without clipping keys. */
+@container register (max-height: 34rem) {
+  .register {
+    grid-template-rows: minmax(8.5rem, 1fr) minmax(8.5rem, 1fr);
+  }
+  .shelf-grid {
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 7.25rem), 1fr));
+    gap: 0.35rem;
+  }
+}
+
 .numpad {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));

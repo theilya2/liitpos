@@ -1,8 +1,9 @@
 import { formatILS, formatWhen } from "@/lib/pos/money";
+import { promoRows } from "@/lib/pos/promo";
 import { tendersOf } from "@/lib/pos/tender";
 import { deviceLabel } from "@/lib/pos/terminal";
 import { registerCaption } from "@/lib/pos/register";
-import { METHOD_LABEL, type PaymentMethod, type Sale, type Settings, type TenderLine } from "@/lib/pos/types";
+import { METHOD_LABEL, type PaymentMethod, type ReceiptDelivery, type Sale, type Settings, type TenderLine } from "@/lib/pos/types";
 
 /** Product name of the USB thermal printer the register looks for first. */
 export const DEFAULT_PRINTER_NAME = "Default";
@@ -39,7 +40,13 @@ type PrintPrefs = {
   paperWidth: PaperWidth;
   printerName: string;
   openDrawer: boolean;
+  receiptDelivery?: ReceiptDelivery;
 };
+
+export function receiptDeliveryOf(settings: { receiptDelivery?: string; autoPrint?: boolean }): ReceiptDelivery {
+  if (settings.receiptDelivery === "print" || settings.receiptDelivery === "ask" || settings.receiptDelivery === "digital") return settings.receiptDelivery;
+  return settings.autoPrint === false ? "digital" : "print";
+}
 
 function readField(raw: object, key: string): unknown {
   return (raw as Record<string, unknown>)[key];
@@ -51,11 +58,15 @@ export function normalizePrintSettings(raw: object | null | undefined): PrintPre
   const paper = readField(source, "paperWidth");
   const name = readField(source, "printerName");
   const trimmed = typeof name === "string" ? name.trim().slice(0, 64) : "";
+  const rawDelivery = readField(source, "receiptDelivery");
+  const receiptDelivery: ReceiptDelivery | undefined = rawDelivery === "print" || rawDelivery === "ask" || rawDelivery === "digital" ? rawDelivery : undefined;
+  const autoPrint = receiptDelivery === "print" ? true : receiptDelivery ? false : readField(source, "autoPrint") !== false;
   return {
-    autoPrint: readField(source, "autoPrint") !== false,
+    autoPrint,
     paperWidth: paper === 58 ? 58 : 80,
     printerName: trimmed || DEFAULT_PRINTER_NAME,
     openDrawer: readField(source, "openDrawer") !== false,
+    ...(receiptDelivery ? { receiptDelivery } : {}),
   };
 }
 
@@ -127,7 +138,7 @@ export function receiptPrintLines(sale: Sale): PrintLine[] {
     lines.push({ text: `${clip(line.name, 28)} × ${line.qty}\t${formatILS(line.lineTotal)}`, align: "split" });
   }
   lines.push({ text: "", align: "center", size: "sm" });
-  if ((sale.promoAmount ?? 0) > 0) lines.push({ text: `מבצע${sale.promoLabel ? ` ${sale.promoLabel}` : ""}\t${formatILS(sale.promoAmount ?? 0)}`, align: "split" });
+  for (const row of promoRows(sale)) lines.push({ text: `מבצע ${row.name}\t${formatILS(row.amount)}`, align: "split" });
   if (sale.discountAmount > 0) lines.push({ text: `הנחה\t${formatILS(sale.discountAmount)}`, align: "split" });
   lines.push({
     text: `${credit ? "זיכוי" : "לתשלום"}\t${formatILS(sale.total)}`,

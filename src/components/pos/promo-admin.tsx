@@ -1,13 +1,17 @@
 import { useState } from "react";
+import { selectPromos } from "@/lib/pos/promo";
 import { usePos } from "@/lib/pos/store";
 import type { Promo, PromoKind } from "@/lib/pos/types";
 
 const KINDS: { id: PromoKind; label: string }[] = [
+  { id: "bundle", label: "כמות במחיר, למשל 3 ב-10" },
+  { id: "nth", label: "הפריט ה-N בהנחה, למשל השני ב-50%" },
+  { id: "bxgy", label: "קנה X קבל Y, חינם או בהנחה" },
   { id: "bogo", label: "1+1" },
-  { id: "bxgy", label: "קנה X קבל Y" },
-  { id: "bundle", label: "כמות במחיר" },
-  { id: "percent", label: "אחוז" },
-  { id: "amount", label: "סכום קבוע" },
+  { id: "percent", label: "אחוז על מוצר או קטגוריה" },
+  { id: "amount", label: "סכום על מוצר או קטגוריה" },
+  { id: "combo", label: "קומבו במחיר קבוע" },
+  { id: "threshold", label: "הנחה כשהסל עובר סכום" },
 ];
 
 const DAYS = ["א", "ב", "ג", "ד", "ה", "ו", "ש"];
@@ -17,16 +21,19 @@ function emptyPromo(): Promo {
     id: `promo_${crypto.randomUUID()}`,
     name: "",
     active: true,
-    kind: "bogo",
+    kind: "bundle",
     stackable: false,
     productId: "",
     categoryId: "",
     rewardProductId: "",
-    buyQty: 2,
+    buyQty: 3,
     getQty: 1,
-    bundlePrice: 0,
-    percent: 10,
+    bundlePrice: 10,
+    percent: 50,
     amount: 0,
+    rewardPercent: 100,
+    productIds: [],
+    minSpend: 0,
     days: [],
     startTime: "",
     endTime: "",
@@ -36,7 +43,7 @@ function emptyPromo(): Promo {
 }
 
 export function PromoAdmin() {
-  const promos = usePos((state) => state.settings.promos ?? []);
+  const promos = usePos((state) => selectPromos(state.settings.promos));
   const products = usePos((state) => state.products);
   const categories = usePos((state) => state.categories);
   const updateSettings = usePos((state) => state.updateSettings);
@@ -54,7 +61,8 @@ export function PromoAdmin() {
       setError("צריך שם למבצע.");
       return;
     }
-    if (!draft.productId && !draft.categoryId) {
+    const targeted = draft.kind !== "threshold" && draft.kind !== "combo";
+    if (targeted && !draft.productId && !draft.categoryId) {
       setError("צריך לבחור מוצר או קטגוריה.");
       return;
     }
@@ -66,8 +74,24 @@ export function PromoAdmin() {
       setError("צריך סכום גדול מאפס.");
       return;
     }
-    if (draft.kind === "bundle" && draft.bundlePrice <= 0) {
+    if ((draft.kind === "bundle" || draft.kind === "combo") && draft.bundlePrice <= 0) {
       setError("צריך מחיר לחבילה.");
+      return;
+    }
+    if (draft.kind === "combo" && draft.productIds.length < 2) {
+      setError("קומבו צריך לפחות שני מוצרים.");
+      return;
+    }
+    if (draft.kind === "nth" && (draft.buyQty < 2 || draft.percent <= 0)) {
+      setError("צריך מספר פריט מ-2 ואחוז הנחה.");
+      return;
+    }
+    if (draft.kind === "bxgy" && draft.rewardPercent <= 0) {
+      setError("צריך אחוז הנחה על מה שמקבלים. 100 זה חינם.");
+      return;
+    }
+    if (draft.kind === "threshold" && (draft.minSpend <= 0 || (draft.percent <= 0 && draft.amount <= 0))) {
+      setError("צריך סכום סל והנחה באחוז או בשקלים.");
       return;
     }
     const next = { ...draft, name: name.slice(0, 40) };
@@ -82,7 +106,7 @@ export function PromoAdmin() {
       <div className="flex items-center justify-between gap-3">
         <div>
           <h2 className="text-base font-semibold">מבצעים</h2>
-          <p className="text-sm text-muted">חלים לבד בקופה ובקיוסק. בלי שילוב נשאר המבצע הגדול ביותר.</p>
+          <p className="text-sm text-muted">מופיעים במדף המבצעים וחלים לבד בסל. בלי שילוב נשמרת העסקה הטובה ללקוח, בלי הנחה כפולה על אותו פריט.</p>
         </div>
         <button
           type="button"
@@ -105,7 +129,13 @@ export function PromoAdmin() {
                 type="button"
                 onClick={() => {
                   setError("");
-                  setDraft(promo);
+                  setDraft({
+                    ...emptyPromo(),
+                    ...promo,
+                    rewardPercent: promo.rewardPercent ?? 100,
+                    productIds: promo.productIds ?? [],
+                    minSpend: promo.minSpend ?? 0,
+                  });
                 }}
                 className="min-h-12 min-w-0 flex-1 text-start"
               >
@@ -147,42 +177,57 @@ export function PromoAdmin() {
               className="h-12 w-full rounded-xl bg-paper px-3 ring-1 ring-line"
             >
               {KINDS.map((kind) => (
-                <option key={kind.id} value={kind.id}>{kind.label}</option>
+                <option key={kind.id} value={kind.id}>
+                  {kind.label}
+                </option>
               ))}
             </select>
           </label>
-          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-            <label className="block">
-              <span className="mb-1 block text-sm text-muted">מוצר</span>
-              <select
-                value={draft.productId}
-                onChange={(event) => setDraft({ ...draft, productId: event.target.value, categoryId: event.target.value ? "" : draft.categoryId })}
-                className="h-12 w-full rounded-xl bg-paper px-3 ring-1 ring-line"
-              >
-                <option value="">בלי מוצר</option>
-                {products.map((product) => (
-                  <option key={product.id} value={product.id}>{product.name}</option>
-                ))}
-              </select>
-            </label>
-            <label className="block">
-              <span className="mb-1 block text-sm text-muted">או קטגוריה</span>
-              <select
-                value={draft.categoryId}
-                onChange={(event) => setDraft({ ...draft, categoryId: event.target.value, productId: event.target.value ? "" : draft.productId })}
-                className="h-12 w-full rounded-xl bg-paper px-3 ring-1 ring-line"
-              >
-                <option value="">בלי קטגוריה</option>
-                {categories.map((category) => (
-                  <option key={category.id} value={category.id}>{category.name}</option>
-                ))}
-              </select>
-            </label>
-          </div>
+          {draft.kind === "combo" ? (
+            <ComboPicker
+              products={products}
+              ids={draft.productIds}
+              onChange={(productIds) => setDraft({ ...draft, productIds })}
+            />
+          ) : (
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+              <label className="block">
+                <span className="mb-1 block text-sm text-muted">{draft.kind === "threshold" ? "מוצר (רשות)" : "מוצר"}</span>
+                <select
+                  value={draft.productId}
+                  onChange={(event) => setDraft({ ...draft, productId: event.target.value, categoryId: event.target.value ? "" : draft.categoryId })}
+                  className="h-12 w-full rounded-xl bg-paper px-3 ring-1 ring-line"
+                >
+                  <option value="">{draft.kind === "threshold" ? "כל הסל" : "בלי מוצר"}</option>
+                  {products.map((product) => (
+                    <option key={product.id} value={product.id}>
+                      {product.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="block">
+                <span className="mb-1 block text-sm text-muted">{draft.kind === "threshold" ? "או קטגוריה (רשות)" : "או קטגוריה"}</span>
+                <select
+                  value={draft.categoryId}
+                  onChange={(event) => setDraft({ ...draft, categoryId: event.target.value, productId: event.target.value ? "" : draft.productId })}
+                  className="h-12 w-full rounded-xl bg-paper px-3 ring-1 ring-line"
+                >
+                  <option value="">בלי קטגוריה</option>
+                  {categories.map((category) => (
+                    <option key={category.id} value={category.id}>
+                      {category.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
+          )}
           {draft.kind === "bxgy" ? (
-            <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
               <NumberField label="קונים" value={draft.buyQty} onChange={(buyQty) => setDraft({ ...draft, buyQty })} />
               <NumberField label="מקבלים" value={draft.getQty} onChange={(getQty) => setDraft({ ...draft, getQty })} />
+              <NumberField label="הנחה על מה שמקבלים, 100 = חינם" value={draft.rewardPercent} onChange={(rewardPercent) => setDraft({ ...draft, rewardPercent })} />
               <label className="block">
                 <span className="mb-1 block text-sm text-muted">פריט מתנה</span>
                 <select
@@ -192,7 +237,9 @@ export function PromoAdmin() {
                 >
                   <option value="">אותו פריט</option>
                   {products.map((product) => (
-                    <option key={product.id} value={product.id}>{product.name}</option>
+                    <option key={product.id} value={product.id}>
+                      {product.name}
+                    </option>
                   ))}
                 </select>
               </label>
@@ -204,8 +251,41 @@ export function PromoAdmin() {
               <NumberField label="מחיר לחבילה" value={draft.bundlePrice} step="0.1" onChange={(bundlePrice) => setDraft({ ...draft, bundlePrice })} />
             </div>
           ) : null}
+          {draft.kind === "nth" ? (
+            <div className="grid grid-cols-2 gap-2">
+              <NumberField label="מספר הפריט, 2 = השני" value={draft.buyQty} onChange={(buyQty) => setDraft({ ...draft, buyQty })} />
+              <NumberField label="אחוז הנחה על הפריט" value={draft.percent} onChange={(percent) => setDraft({ ...draft, percent })} />
+            </div>
+          ) : null}
+          {draft.kind === "combo" ? <NumberField label="מחיר קומבו" value={draft.bundlePrice} step="0.1" onChange={(bundlePrice) => setDraft({ ...draft, bundlePrice })} /> : null}
           {draft.kind === "percent" ? <NumberField label="אחוז הנחה" value={draft.percent} onChange={(percent) => setDraft({ ...draft, percent })} /> : null}
           {draft.kind === "amount" ? <NumberField label="סכום הנחה" value={draft.amount} step="0.1" onChange={(amount) => setDraft({ ...draft, amount })} /> : null}
+          {draft.kind === "threshold" ? (
+            <div className="space-y-2">
+              <NumberField label="החל מסכום" value={draft.minSpend} step="0.1" onChange={(minSpend) => setDraft({ ...draft, minSpend })} />
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setDraft({ ...draft, amount: 0, percent: draft.percent > 0 ? draft.percent : 10 })}
+                  className={`h-12 rounded-xl text-sm ${draft.amount <= 0 ? "bg-pine font-semibold text-pine-ink" : "bg-paper ring-1 ring-line"}`}
+                >
+                  אחוז
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setDraft({ ...draft, percent: 0, amount: draft.amount > 0 ? draft.amount : 10 })}
+                  className={`h-12 rounded-xl text-sm ${draft.amount > 0 ? "bg-pine font-semibold text-pine-ink" : "bg-paper ring-1 ring-line"}`}
+                >
+                  סכום
+                </button>
+              </div>
+              {draft.amount > 0 ? (
+                <NumberField label="סכום הנחה" value={draft.amount} step="0.1" onChange={(amount) => setDraft({ ...draft, amount, percent: 0 })} />
+              ) : (
+                <NumberField label="אחוז הנחה" value={draft.percent} onChange={(percent) => setDraft({ ...draft, percent, amount: 0 })} />
+              )}
+            </div>
+          ) : null}
           <label className="flex min-h-12 items-center justify-between gap-3 rounded-xl bg-paper px-3 ring-1 ring-line">
             <span className="text-sm">ניתן לשילוב עם מבצעים אחרים</span>
             <input type="checkbox" checked={draft.stackable} onChange={(event) => setDraft({ ...draft, stackable: event.target.checked })} className="size-5" />
@@ -270,6 +350,54 @@ export function PromoAdmin() {
         </form>
       ) : null}
     </section>
+  );
+}
+
+function ComboPicker({
+  products,
+  ids,
+  onChange,
+}: {
+  products: { id: string; name: string }[];
+  ids: string[];
+  onChange: (ids: string[]) => void;
+}) {
+  return (
+    <div className="space-y-2">
+      <p className="text-sm text-muted">מוצרים בקומבו. אותו מוצר פעמיים אומר שתיים ממנו.</p>
+      {ids.length ? (
+        <ul className="space-y-1">
+          {ids.map((id, index) => (
+            <li key={`${id}-${index}`} className="flex items-center gap-2">
+              <span className="min-w-0 flex-1 truncate text-sm">{products.find((product) => product.id === id)?.name ?? "מוצר"}</span>
+              <button type="button" onClick={() => onChange(ids.filter((_, item) => item !== index))} className="h-12 shrink-0 rounded-xl bg-paper px-3 text-sm ring-1 ring-line">
+                הסרה
+              </button>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="text-sm text-muted">עדיין אין מוצרים בקומבו.</p>
+      )}
+      <label className="block">
+        <span className="mb-1 block text-sm text-muted">הוספת מוצר</span>
+        <select
+          value=""
+          onChange={(event) => {
+            if (!event.target.value || ids.length >= 12) return;
+            onChange([...ids, event.target.value]);
+          }}
+          className="h-12 w-full rounded-xl bg-paper px-3 ring-1 ring-line"
+        >
+          <option value="">בחרו מוצר</option>
+          {products.map((product) => (
+            <option key={product.id} value={product.id}>
+              {product.name}
+            </option>
+          ))}
+        </select>
+      </label>
+    </div>
   );
 }
 

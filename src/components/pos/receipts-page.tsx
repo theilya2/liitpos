@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Printer } from "lucide-react";
 import { ReceiptView } from "@/components/pos/receipt";
+import { CreditHandoff } from "@/components/pos/credit-handoff";
 import { SendReceipt } from "@/components/pos/send-sms";
 import { PageHeader } from "@/components/pos/shell";
 import { can } from "@/lib/pos/access";
@@ -151,6 +152,7 @@ export function ReceiptsPage() {
   const mayVoid = !!user && can(user.role, "void");
   const mayRefund = !!user && can(user.role, "refund");
   const [refunding, setRefunding] = useState(false);
+  const [creditNote, setCreditNote] = useState<Sale | null>(null);
   const [query, setQuery] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [confirmVoid, setConfirmVoid] = useState(false);
@@ -237,7 +239,10 @@ export function ReceiptsPage() {
                     sales={sales}
                     onClose={(note) => {
                       setRefunding(false);
-                      if (note) void confirmReceipt(note);
+                      if (!note) return;
+                      const voucher = (note.tenders ?? []).some((line) => line.method === "voucher" && line.voucherCode);
+                      if (voucher) setCreditNote(note);
+                      else void confirmReceipt(note);
                     }}
                   />
                 ) : (
@@ -276,6 +281,7 @@ export function ReceiptsPage() {
                 </button>
               )
               ) : null}
+              {creditNote ? <CreditHandoff sale={creditNote} onClose={() => setCreditNote(null)} /> : null}
               </div>
             </div>
           ) : (

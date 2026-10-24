@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { ActivationWait } from "@/components/pos/activation-wait";
+import { ClockPanel } from "@/components/pos/clock-panel";
 import { KioskExitMark } from "@/components/pos/kiosk-exit";
 import { canSeeStore } from "@/lib/pos/access";
 import { canUseBusiness, isDemoMode } from "@/lib/pos/demo";
@@ -32,6 +33,7 @@ export function LockScreen() {
   const [pin, setPin] = useState("");
   const [code, setCode] = useState("");
   const [error, setError] = useState("");
+  const [clocking, setClocking] = useState(false);
 
   useEffect(() => {
     const refresh = () => setToken(readSessionToken());
@@ -149,6 +151,10 @@ export function LockScreen() {
   return (
     <main className="lock-screen min-h-0 flex-1 bg-paper text-ink">
       <div className="lock-board">
+        {clocking && business ? (
+          <ClockPanel storeId={business.id} onExit={() => setClocking(false)} />
+        ) : (
+        <>
         <section className="lock-identity">
           <div className="flex items-center gap-3">
             {logo ? (
@@ -206,6 +212,11 @@ export function LockScreen() {
                   ))}
                 </div>
               )}
+              {showStaff && business && !emptyStaff ? (
+                <button type="button" onClick={() => setClocking(true)} className="mt-3 min-h-12 w-full rounded-2xl bg-surface px-3 text-sm font-semibold ring-1 ring-line">
+                  שעון נוכחות
+                </button>
+              ) : null}
               {emptyStaff ? null : <PinDots filled={pin.length} total={4} />}
               {emptyStaff ? null : error ? <p className="mt-2 text-center text-sm text-pretty text-copper">{error}</p> : <p className="mt-2 text-center text-sm text-muted">קוד בן 4 ספרות</p>}
               {demo && !emptyStaff ? <p className="mt-2 text-center text-xs text-pretty text-muted">במכולת: מנהל 1111 · אחראי 2222 · קופאי 3333. בקיוסק נכנסת המנהלת.</p> : null}
@@ -230,6 +241,8 @@ export function LockScreen() {
               }}
             />
           </section>
+        )}
+        </>
         )}
       </div>
       <KioskExitMark logo={logo || null} onUnlocked={() => setKioskLock(false)} />

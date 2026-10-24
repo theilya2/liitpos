@@ -1,14 +1,19 @@
+import { cleanCredit, creditCloudId, creditSyncMark, punchCloudId } from "@/lib/pos/credits";
+import { cleanCustomerSlides } from "@/lib/pos/customer-screen";
+import { usableImage } from "@/lib/pos/image";
 import { mergeRemoteCatalog } from "@/lib/pos/merge";
+import { cleanTopShelf } from "@/lib/pos/shelves";
 import { cleanGroups, cleanVariants } from "@/lib/pos/options";
 import { cloneSettings, codeForStore, demoExtras, demoKiosk, demoPhoto, demoShelf, emptyBranch } from "@/lib/pos/seed";
 import { normalizeKioskSettings } from "@/lib/pos/kiosk";
 import { normalizePrintSettings } from "@/lib/pos/printer";
 import { cleanPromos } from "@/lib/pos/promo";
 import { saleCloudId } from "@/lib/pos/receipt-link";
+import { cleanPunch, punchSyncMark } from "@/lib/pos/timeclock";
 import { cleanEndpoint } from "@/lib/pos/terminal";
-import type { Branch, CashMove, ClubMember, DrawerOpen, Extra, Product, Sale, Settings, StaffUser, StockMove, ZReport } from "@/lib/pos/types";
+import type { Branch, CashMove, ClubMember, DrawerOpen, Extra, Product, Sale, Settings, StaffUser, StockMove, StoreCredit, TimePunch, ZReport } from "@/lib/pos/types";
 
-export const DOC_KINDS = ["settings", "catalog", "staff", "sale", "move", "z", "drawer", "cash", "release", "device"] as const;
+export const DOC_KINDS = ["settings", "catalog", "staff", "sale", "move", "z", "drawer", "cash", "release", "device", "punch", "credit"] as const;
 export type DocKind = (typeof DOC_KINDS)[number];
 
 export type Json = null | boolean | number | string | Json[] | { [key: string]: Json };
@@ -33,6 +38,8 @@ const KIND_RANK: Record<DocKind, number> = {
   cash: 7,
   release: 8,
   device: 9,
+  punch: 10,
+  credit: 11,
 };
 
 export function isDocKind(value: string): value is DocKind {
@@ -50,7 +57,10 @@ export function settingsDoc(businessId: string, settings: Settings, updatedAt: s
   return { id: `settings:${businessId}`, kind: "settings", businessId, updatedAt, deleted, doc: deleted ? {} : (settings as unknown as Json) };
 }
 
-export function catalogDoc(branch: Pick<Branch, "id" | "categories" | "products" | "nextReceipt" | "nextZ" | "nextCredit" | "members">, updatedAt: string): CloudDoc {
+export function catalogDoc(
+  branch: Pick<Branch, "id" | "categories" | "products" | "nextReceipt" | "nextZ" | "nextCredit" | "members"> & { suppliers?: Branch["suppliers"] },
+  updatedAt: string,
+): CloudDoc {
   return {
     id: `catalog:${branch.id}`,
     kind: "catalog",
@@ -61,6 +71,7 @@ export function catalogDoc(branch: Pick<Branch, "id" | "categories" | "products"
       categories: branch.categories,
       products: branch.products,
       members: branch.members ?? [],
+      suppliers: branch.suppliers ?? [],
       nextReceipt: branch.nextReceipt,
       nextZ: branch.nextZ,
       nextCredit: branch.nextCredit ?? 1,
@@ -97,6 +108,14 @@ function cashDoc(businessId: string, move: CashMove, updatedAt: string): CloudDo
   return { id: `cash:${businessId}:${move.id}`, kind: "cash", businessId, updatedAt, deleted: false, doc: move as unknown as Json };
 }
 
+function punchDoc(businessId: string, punch: TimePunch, updatedAt: string): CloudDoc {
+  return { id: punchCloudId(businessId, punch.id), kind: "punch", businessId, updatedAt, deleted: false, doc: punch as unknown as Json };
+}
+
+function creditDoc(businessId: string, credit: StoreCredit, updatedAt: string): CloudDoc {
+  return { id: creditCloudId(businessId, credit.id), kind: "credit", businessId, updatedAt, deleted: false, doc: credit as unknown as Json };
+}
+
 export function snapshotDocs(stores: Branch[], staff: StaffUser[], updatedAt: string): CloudDoc[] {
   const docs: CloudDoc[] = [];
   for (const branch of stores) {
@@ -108,6 +127,8 @@ export function snapshotDocs(stores: Branch[], staff: StaffUser[], updatedAt: st
     for (const report of branch.zReports) docs.push(zDoc(branch.id, report, report.closedAt || updatedAt));
     for (const event of branch.drawerOpens) docs.push(drawerDoc(branch.id, event, event.at || updatedAt));
     for (const move of branch.cashMoves ?? []) docs.push(cashDoc(branch.id, move, move.at || updatedAt));
+    for (const punch of branch.punches ?? []) docs.push(punchDoc(branch.id, punch, punch.at || updatedAt));
+    for (const credit of branch.credits ?? []) docs.push(creditDoc(branch.id, credit, credit.issuedAt || updatedAt));
   }
   for (const user of staff) docs.push(staffDoc(user, updatedAt));
   return docs;
@@ -118,14 +139,22 @@ function saleSyncMark(sale: Sale): string {
 }
 
 export function changesToDocs(
-  before: { sales: Sale[]; stockMoves: StockMove[]; zReports: ZReport[]; drawerOpens: DrawerOpen[]; cashMoves?: CashMove[] },
+  before: { sales: Sale[]; stockMoves: StockMove[]; zReports: ZReport[]; drawerOpens: DrawerOpen[]; cashMoves?: CashMove[]; punches?: TimePunch[]; credits?: StoreCredit[] },
   after: Branch,
   partial: Partial<Branch>,
 ): CloudDoc[] {
   const now = new Date().toISOString();
   const docs: CloudDoc[] = [];
   if (partial.settings) docs.push(settingsDoc(after.id, after.settings, now));
-  if (partial.products || partial.categories || partial.members || partial.nextReceipt !== undefined || partial.nextZ !== undefined || partial.nextCredit !== undefined) {
+  if (
+    partial.products ||
+    partial.categories ||
+    partial.members ||
+    partial.suppliers ||
+    partial.nextReceipt !== undefined ||
+    partial.nextZ !== undefined ||
+    partial.nextCredit !== undefined
+  ) {
     docs.push(catalogDoc(after, now));
   }
   if (partial.sales) {
@@ -159,6 +188,18 @@ export function changesToDocs(
       if (prev.get(move.id) !== (move.zId ?? "")) docs.push(cashDoc(after.id, move, now));
     }
   }
+  if (partial.punches) {
+    const prev = new Map((before.punches ?? []).map((punch) => [punch.id, punchSyncMark(punch)]));
+    for (const punch of after.punches ?? []) {
+      if (prev.get(punch.id) !== punchSyncMark(punch)) docs.push(punchDoc(after.id, punch, now));
+    }
+  }
+  if (partial.credits) {
+    const prev = new Map((before.credits ?? []).map((credit) => [credit.id, creditSyncMark(credit)]));
+    for (const credit of after.credits ?? []) {
+      if (prev.get(credit.id) !== creditSyncMark(credit)) docs.push(creditDoc(after.id, credit, now));
+    }
+  }
   return docs;
 }
 
@@ -187,6 +228,9 @@ function asSettings(doc: unknown): Settings | null {
     ...normalizePrintSettings(doc),
     ...normalizeKioskSettings(doc),
     ...(Array.isArray(doc.promos) ? { promos: cleanPromos(doc.promos) } : {}),
+    ...(Array.isArray(doc.topShelf) ? { topShelf: cleanTopShelf(doc.topShelf) } : {}),
+    ...(Array.isArray(doc.customerSlides) ? { customerSlides: cleanCustomerSlides(doc.customerSlides) } : {}),
+    ...(doc.customerScreen === false ? { customerScreen: false as const } : doc.customerScreen === true ? { customerScreen: true as const } : {}),
   };
 }
 
@@ -242,7 +286,7 @@ function asProduct(value: unknown): Product | null {
     sku: typeof value.sku === "string" ? value.sku.slice(0, 20) : "",
     favorite: Boolean(value.favorite),
     active: value.active !== false,
-    image: typeof value.image === "string" && value.image ? value.image : demoPhoto(value.id),
+    image: usableImage(typeof value.image === "string" ? value.image : null) ?? demoPhoto(value.id),
     trackStock: Boolean(value.trackStock),
     stock: Number.isFinite(Number(value.stock)) ? Number(value.stock) : 0,
     lowStock: Number.isFinite(Number(value.lowStock)) ? Number(value.lowStock) : 5,
@@ -250,6 +294,8 @@ function asProduct(value: unknown): Product | null {
     kiosk: typeof value.kiosk === "boolean" ? value.kiosk : demoKiosk(value.id),
     extras: Array.isArray(value.extras) ? asExtras(value.extras) : demoExtras(value.id),
     barcode: typeof value.barcode === "string" ? value.barcode.slice(0, 32) : "",
+    cost: Number.isFinite(Number(value.cost)) && Number(value.cost) >= 0 ? Math.round(Number(value.cost) * 100) / 100 : 0,
+    supplierId: typeof value.supplierId === "string" ? value.supplierId.slice(0, 40) : "",
     variants: cleanVariants(value.variants),
     modifierGroups: cleanGroups(value.modifierGroups),
     updatedAt: typeof value.updatedAt === "string" ? value.updatedAt : undefined,
@@ -375,6 +421,22 @@ export function applyDocs(input: {
       const current = branch.cashMoves ?? [];
       const next = current.some((item) => item.id === move.id) ? current.map((item) => (item.id === move.id ? move : item)) : [move, ...current].slice(0, 200);
       stores = stores.map((item) => (item.id === branch.id ? { ...item, cashMoves: next } : item));
+      continue;
+    }
+    if (doc.kind === "punch") {
+      const punch = cleanPunch(doc.doc);
+      if (!punch) continue;
+      const current = branch.punches ?? [];
+      const next = current.some((item) => item.id === punch.id) ? current.map((item) => (item.id === punch.id ? punch : item)) : [...current, punch].slice(-4000);
+      stores = stores.map((item) => (item.id === branch.id ? { ...item, punches: next } : item));
+      continue;
+    }
+    if (doc.kind === "credit") {
+      const credit = cleanCredit(doc.doc);
+      if (!credit) continue;
+      const current = branch.credits ?? [];
+      const next = current.some((item) => item.id === credit.id) ? current.map((item) => (item.id === credit.id ? credit : item)) : [credit, ...current].slice(0, 2000);
+      stores = stores.map((item) => (item.id === branch.id ? { ...item, credits: next } : item));
     }
   }
 

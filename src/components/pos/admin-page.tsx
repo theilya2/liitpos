@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { BackOfficeExtras } from "@/components/pos/back-office-extras";
 import { PendingActivations } from "@/components/pos/pending-activations";
 import { LegacyTokens, RegistersAdmin } from "@/components/pos/registers-admin";
 import {
@@ -401,6 +402,12 @@ function Panel({ onLogout }: { onLogout: () => void }) {
                 מחיקת העסק
               </button>
             )}
+            <BackOfficeExtras
+              businessId={selected.id}
+              settings={selected.settings}
+              staff={users.filter((user) => user.storeIds.length === 0 || user.storeIds.includes(selected.id)).map((user) => ({ id: user.id, name: user.name }))}
+              onSaved={refresh}
+            />
             <DataBrowser businessId={selected.id} />
           </section>
         ) : null}

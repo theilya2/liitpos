@@ -1,20 +1,37 @@
 import { useMemo, useState } from "react";
+import { Plus } from "lucide-react";
+import { ProductFormDialog, draftFromProduct, emptyProductDraft, productFromDraft, type ProductDraft } from "@/components/pos/product-form";
 import { PageHeader } from "@/components/pos/shell";
+import { can } from "@/lib/pos/access";
 import { formatILS, formatWhen, roundMoney } from "@/lib/pos/money";
 import { stockRows } from "@/lib/pos/options";
-import { usePos } from "@/lib/pos/store";
+import { placeOnShelf, selectTopShelf } from "@/lib/pos/shelves";
+import { selectSuppliers } from "@/lib/pos/suppliers";
+import { currentUser, usePos } from "@/lib/pos/store";
 import { STOCK_REASON_LABEL, type StockReason } from "@/lib/pos/types";
 
 export function InventoryPage() {
   const products = usePos((state) => state.products);
+  const categories = usePos((state) => state.categories);
+  const suppliers = usePos((state) => selectSuppliers(state.suppliers));
+  const vatRate = usePos((state) => state.settings.vatRate);
+  const topShelf = usePos((state) => selectTopShelf(state.settings.topShelf));
   const moves = usePos((state) => state.stockMoves);
   const adjustStock = usePos((state) => state.adjustStock);
+  const upsertProduct = usePos((state) => state.upsertProduct);
+  const addSupplier = usePos((state) => state.addSupplier);
+  const updateSettings = usePos((state) => state.updateSettings);
+  const user = usePos(currentUser);
+  const canEdit = Boolean(user && can(user.role, "products"));
   const [lowOnly, setLowOnly] = useState(false);
   const [query, setQuery] = useState("");
   const [picked, setPicked] = useState<{ productId: string; variantId: string | null; stock: number; name: string } | null>(null);
   const [mode, setMode] = useState<StockReason>("receive");
   const [qty, setQty] = useState("");
   const [note, setNote] = useState("");
+  const [draft, setDraft] = useState<ProductDraft | null>(null);
+  const [formError, setFormError] = useState("");
+  const [supplierName, setSupplierName] = useState("");
 
   const rows = useMemo(() => stockRows(products), [products]);
   const stockValue = roundMoney(rows.reduce((sum, row) => sum + row.stock * row.price, 0));
@@ -26,6 +43,22 @@ export function InventoryPage() {
       .filter((row) => !q || row.name.includes(q) || row.sku.includes(q))
       .sort((a, b) => a.stock - b.stock);
   }, [rows, lowOnly, query]);
+
+  function saveProduct() {
+    if (!draft || !canEdit) return;
+    const result = productFromDraft(draft, categories[0]?.id ?? "hot");
+    if ("error" in result) {
+      setFormError(result.error);
+      return;
+    }
+    upsertProduct(result.product);
+    if (topShelf.length) {
+      updateSettings({ topShelf: placeOnShelf(topShelf, result.product.id, result.product.shelf !== "off") });
+    }
+    setDraft(null);
+    setFormError("");
+    setSupplierName("");
+  }
 
   function apply() {
     if (!picked) return;
@@ -47,6 +80,20 @@ export function InventoryPage() {
           <Stat label="מתחת לסף" value={String(lowCount)} accent={lowCount > 0} />
           <Stat label="שווי מלאי" value={formatILS(stockValue)} />
         </section>
+        {canEdit ? (
+          <button
+            type="button"
+            onClick={() => {
+              setFormError("");
+              setSupplierName("");
+              setDraft(emptyProductDraft(categories[0]?.id ?? "hot"));
+            }}
+            className="flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-pine px-4 text-sm font-semibold text-pine-ink"
+          >
+            <Plus className="size-4" />
+            הוספת מוצר
+          </button>
+        ) : null}
         <div className="flex gap-2">
           <input
             value={query}
@@ -87,6 +134,21 @@ export function InventoryPage() {
                     <span className="text-xs text-muted tabular-nums">{formatILS(row.stock * row.price)}</span>
                   </span>
                 </button>
+                {canEdit ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const product = products.find((item) => item.id === row.productId);
+                      if (!product) return;
+                      setFormError("");
+                      setSupplierName("");
+                      setDraft(draftFromProduct(product));
+                    }}
+                    className="mt-1 h-12 w-full rounded-2xl bg-paper text-sm ring-1 ring-line"
+                  >
+                    עריכת {row.name}
+                  </button>
+                ) : null}
               </li>
             );
           })}
@@ -158,6 +220,26 @@ export function InventoryPage() {
             </div>
           </form>
         </div>
+      ) : null}
+      {draft && canEdit ? (
+        <ProductFormDialog
+          draft={draft}
+          setDraft={setDraft}
+          error={formError}
+          categories={categories}
+          suppliers={suppliers}
+          vatRate={vatRate}
+          supplierName={supplierName}
+          onSupplierName={setSupplierName}
+          onClose={() => setDraft(null)}
+          onSubmit={saveProduct}
+          onCreateSupplier={() => {
+            const id = addSupplier(supplierName);
+            if (!id) return;
+            setDraft((current) => (current ? { ...current, supplierId: id } : current));
+            setSupplierName("");
+          }}
+        />
       ) : null}
     </div>
   );

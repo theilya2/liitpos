@@ -33,6 +33,7 @@ public class MainActivity extends BridgeActivity {
 
     @Override
     public void onCreate(android.os.Bundle savedInstanceState) {
+        registerPlugin(CustomerDisplayPlugin.class);
         super.onCreate(savedInstanceState);
         usbPrinters = new UsbPrinters(this, (event, detail) -> {
             WebView webView = getBridge().getWebView();

@@ -1,7 +1,9 @@
 import { useEffect, useState } from "react";
 import { askUsbPermission, printTestReceipt, readUsbPrinters } from "@/lib/pos/receipt-io";
 import { hasUsbPrint } from "@/lib/pos/native";
-import { DEFAULT_PRINTER_NAME, type UsbPrinterInfo } from "@/lib/pos/printer";
+import { detectCustomerDisplay } from "@/lib/pos/customer-display";
+import { DEFAULT_PRINTER_NAME, receiptDeliveryOf, type UsbPrinterInfo } from "@/lib/pos/printer";
+import type { ReceiptDelivery } from "@/lib/pos/types";
 import { usePos } from "@/lib/pos/store";
 
 export function PrinterSettings() {
@@ -10,8 +12,10 @@ export function PrinterSettings() {
   const [printers, setPrinters] = useState<UsbPrinterInfo[]>([]);
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
+  const [secondScreen, setSecondScreen] = useState<boolean | null>(null);
   const native = hasUsbPrint();
-  const auto = settings.autoPrint !== false;
+  const delivery = receiptDeliveryOf(settings);
+  const customerOn = settings.customerScreen !== false;
   const drawer = settings.openDrawer !== false;
   const paper = settings.paperWidth === 58 ? 58 : 80;
   const selected = (settings.printerName || DEFAULT_PRINTER_NAME).trim();
@@ -24,25 +28,52 @@ export function PrinterSettings() {
     refresh();
     const onUsb = () => refresh();
     window.addEventListener("liitpos-usb", onUsb);
+    void detectCustomerDisplay().then(setSecondScreen);
     return () => window.removeEventListener("liitpos-usb", onUsb);
   }, []);
+
+  function chooseDelivery(next: ReceiptDelivery) {
+    updateSettings({ receiptDelivery: next, autoPrint: next === "print" });
+  }
 
   return (
     <section className="space-y-3 rounded-2xl bg-surface p-4 ring-1 ring-line">
       <div>
         <h2 className="text-base font-semibold">הדפסת קבלות</h2>
         <p className="mt-1 text-sm text-pretty text-muted">
-          אחרי כל תשלום, כולל פיצול תשלום ותעודת זיכוי, הקבלה יוצאת מיד. באנדרואיד היא נשלחת למדפסת USB בשם {DEFAULT_PRINTER_NAME}. אם אין מדפסת בשם הזה, נבחרת מדפסת ה-USB הראשונה, ואם אין בכלל — נפתחת הדפסת המערכת.
+          אחרי כל תשלום הקבלה יוצאת לפי הבחירה כאן. באנדרואיד היא נשלחת למדפסת USB בשם {DEFAULT_PRINTER_NAME}. אם אין מדפסת בשם הזה, נבחרת מדפסת ה-USB הראשונה, ואם אין בכלל — נפתחת הדפסת המערכת.
         </p>
+      </div>
+      <div>
+        <p className="mb-2 text-sm font-medium">קבלה מודפסת או דיגיטלית?</p>
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+          {([
+            ["print", "תמיד מודפסת"],
+            ["ask", "תמיד לשאול"],
+            ["digital", "דיגיטלית בלבד"],
+          ] as const).map(([mode, label]) => (
+            <button
+              key={mode}
+              type="button"
+              onClick={() => chooseDelivery(mode)}
+              className={`min-h-12 rounded-xl px-2 text-sm font-medium ${delivery === mode ? "bg-pine text-pine-ink" : "bg-paper ring-1 ring-line"}`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
       </div>
       <button
         type="button"
         role="switch"
-        aria-checked={auto}
-        onClick={() => updateSettings({ autoPrint: !auto })}
-        className={`min-h-12 w-full rounded-xl px-3 py-2 text-sm font-medium text-pretty leading-snug ${auto ? "bg-pine-soft text-pine" : "bg-paper ring-1 ring-line"}`}
+        aria-checked={customerOn}
+        onClick={() => updateSettings({ customerScreen: !customerOn })}
+        className={`min-h-12 w-full rounded-xl px-3 py-2 text-sm font-medium text-pretty leading-snug ${customerOn ? "bg-pine-soft text-pine" : "bg-paper ring-1 ring-line"}`}
       >
-        {auto ? "הדפסה אוטומטית פעילה" : "הדפסה אוטומטית כבויה"}
+        {customerOn ? "מסך לקוח פעיל" : "מסך לקוח כבוי"}
+        <span className="mt-1 block text-xs font-normal">
+          {secondScreen ? "זוהה מסך נוסף" : "בלי מסך נוסף זה פשוט לא מוצג"}
+        </span>
       </button>
       <div className="grid grid-cols-2 gap-2">
         {([58, 80] as const).map((width) => (

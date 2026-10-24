@@ -2,12 +2,14 @@ import { createServerFn } from "@tanstack/react-start";
 import { authMiddleware } from "@/lib/auth/middleware";
 import { getSql } from "@/lib/db";
 import { isDocKind, type CloudDoc, type DocKind, type Json } from "@/lib/pos/docs";
+import { cleanCustomerSlides } from "@/lib/pos/customer-screen";
 import { normalizeKioskSettings } from "@/lib/pos/kiosk";
 import { normalizePrintSettings } from "@/lib/pos/printer";
 import { cleanPromos } from "@/lib/pos/promo";
 import { cloneSettings, codeForStore } from "@/lib/pos/seed";
+import { applyPunchEdit, cleanPunch, cleanPunches, manualPunch, voidPunchRecord } from "@/lib/pos/timeclock";
 import { cleanEndpoint } from "@/lib/pos/terminal";
-import type { Settings, StaffUser } from "@/lib/pos/types";
+import type { PunchKind, Settings, StaffUser, TimePunch } from "@/lib/pos/types";
 
 export type PanelBusiness = {
   id: string;
@@ -131,6 +133,8 @@ function readSettings(doc: unknown): Settings | null {
     ...normalizePrintSettings(raw),
     ...normalizeKioskSettings(raw),
     ...(Array.isArray(raw.promos) ? { promos: cleanPromos(raw.promos) } : {}),
+    ...(Array.isArray(raw.customerSlides) ? { customerSlides: cleanCustomerSlides(raw.customerSlides) } : {}),
+    ...(raw.customerScreen === false ? { customerScreen: false as const } : raw.customerScreen === true ? { customerScreen: true as const } : {}),
   };
 }
 
@@ -553,4 +557,116 @@ export const loadBusinessData = createServerFn({ method: "POST" })
       }
     }
     return { products, sales, moves, reports } satisfies BusinessData;
+  });
+
+type AttendanceInput = {
+  businessId: string;
+  action: "load" | "correct" | "void" | "add";
+  punchId: string;
+  staffId: string;
+  staffName: string;
+  kind: PunchKind;
+  at: string;
+  why: string;
+};
+
+export const saveAttendance = createServerFn({ method: "POST" })
+  .validator((input: AttendanceInput) => {
+    if (!input || typeof input.businessId !== "string" || !/^[A-Za-z0-9_-]{1,40}$/.test(input.businessId)) throw new Error("עסק לא תקין");
+    const action = input.action === "correct" || input.action === "void" || input.action === "add" ? input.action : "load";
+    const kind = input.kind === "out" || input.kind === "break-start" || input.kind === "break-end" || input.kind === "in" ? input.kind : "in";
+    return {
+      businessId: input.businessId,
+      action,
+      punchId: typeof input.punchId === "string" ? input.punchId.slice(0, 80) : "",
+      staffId: typeof input.staffId === "string" ? input.staffId.slice(0, 40) : "",
+      staffName: typeof input.staffName === "string" ? input.staffName.slice(0, 40) : "",
+      kind,
+      at: typeof input.at === "string" ? input.at.slice(0, 40) : "",
+      why: typeof input.why === "string" ? input.why.slice(0, 160) : "",
+    };
+  })
+  .middleware([authMiddleware])
+  .handler(async ({ context, data }) => {
+    const sql = await getSql();
+    const rows = await sql<{ id: string; doc: string }>`
+      select id, doc::text as doc
+      from pos_docs
+      where user_id = ${context.userId} and business_id = ${data.businessId} and kind = 'punch' and deleted = false
+      limit 5000
+    `;
+    const punches: TimePunch[] = [];
+    for (const row of rows) {
+      try {
+        const punch = cleanPunch(JSON.parse(row.doc));
+        if (punch) punches.push(punch);
+      } catch {
+        // Skip a damaged row rather than hiding the rest of the month.
+      }
+    }
+    if (data.action === "load") return { ok: true, message: "", punches: cleanPunches(punches) };
+    const now = new Date().toISOString();
+    const editor = { byId: context.userId.slice(0, 40), byName: "בעלים", editedAt: now };
+    let next: TimePunch | null = null;
+    if (data.action === "add") {
+      next = manualPunch({
+        staff: { id: data.staffId, name: data.staffName || "עובד" },
+        kind: data.kind,
+        atIso: data.at,
+        why: data.why,
+        ...editor,
+        registerNo: null,
+        registerName: "",
+        storeId: data.businessId,
+        id: `punch-${crypto.randomUUID().slice(0, 8)}`,
+      });
+    } else {
+      const current = punches.find((punch) => punch.id === data.punchId);
+      if (!current) return { ok: false, message: "הרישום לא נמצא בענן", punches };
+      next = data.action === "void" ? voidPunchRecord(current, { why: data.why, ...editor }) : applyPunchEdit(current, { atIso: data.at, why: data.why, ...editor });
+    }
+    if (!next) return { ok: false, message: "צריך שעה תקינה וסיבה", punches };
+    await sql`
+      insert into pos_docs (user_id, id, kind, business_id, updated_at, deleted, doc)
+      values (${context.userId}, ${`punch:${data.businessId}:${next.id}`}, 'punch', ${data.businessId}, ${now}::timestamptz, false, ${JSON.stringify(next)}::jsonb)
+      on conflict (user_id, id) do update set
+        updated_at = excluded.updated_at,
+        deleted = false,
+        doc = excluded.doc
+    `;
+    const merged = punches.some((punch) => punch.id === next.id) ? punches.map((punch) => (punch.id === next.id ? next : punch)) : [...punches, next];
+    return { ok: true, message: "התיקון נשמר בענן. השעה המקורית נשארת ביומן.", punches: cleanPunches(merged) };
+  });
+
+export const saveCustomerScreen = createServerFn({ method: "POST" })
+  .validator((input: { businessId: string; enabled: boolean; slides: { id: string; image: string; caption: string }[] }) => {
+    if (!input || typeof input.businessId !== "string" || !/^[A-Za-z0-9_-]{1,40}$/.test(input.businessId)) throw new Error("עסק לא תקין");
+    return {
+      businessId: input.businessId,
+      enabled: input.enabled !== false,
+      slides: cleanCustomerSlides(input.slides),
+    };
+  })
+  .middleware([authMiddleware])
+  .handler(async ({ context, data }) => {
+    const sql = await getSql();
+    const existing = await sql<DocRow>`
+      select id, kind, business_id, updated_at::text as updated_at, deleted, doc::text as doc
+      from pos_docs
+      where user_id = ${context.userId} and id = ${`settings:${data.businessId}`}
+      limit 1
+    `;
+    if (!existing[0]) throw new Error("העסק לא נמצא");
+    const previous = asObject(existing[0].doc);
+    const settings = { ...previous, customerScreen: data.enabled, customerSlides: data.slides };
+    const now = new Date().toISOString();
+    await sql`
+      insert into pos_docs (user_id, id, kind, business_id, updated_at, deleted, doc)
+      values (${context.userId}, ${`settings:${data.businessId}`}, 'settings', ${data.businessId}, ${now}::timestamptz, false, ${JSON.stringify(settings)}::jsonb)
+      on conflict (user_id, id) do update set
+        updated_at = excluded.updated_at,
+        deleted = false,
+        doc = excluded.doc
+    `;
+    return { ok: true };
   });

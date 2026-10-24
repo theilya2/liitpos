@@ -1,13 +1,18 @@
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
 import { can, canSeeStore } from "@/lib/pos/access";
+import { cleanCredits, issueCreditsForTenders, newCreditCode, redeemCredits } from "@/lib/pos/credits";
+import { cleanCustomerSlides } from "@/lib/pos/customer-screen";
 import { drawerExpected, drawerVariance, paidIn, paidOut } from "@/lib/pos/cash";
 import { outboxWithoutDropped, pruneDemoSeed } from "@/lib/pos/baseline";
 import { applyDocs, catalogDoc, changesToDocs, deviceDoc, mergeOutbox, settingsDoc, snapshotDocs, staffDoc, type CloudDoc } from "@/lib/pos/docs";
 import { normalizeKioskSettings } from "@/lib/pos/kiosk";
 import { roundMoney } from "@/lib/pos/money";
 import { activeVariants, changeStock, cleanGroups, cleanVariants, demandOf, groupsFor, hasEnough, splitStockKey, stockOnHand } from "@/lib/pos/options";
+import { usableImage } from "@/lib/pos/image";
 import { cleanPromos, priceCart } from "@/lib/pos/promo";
+import { cleanTopShelf } from "@/lib/pos/shelves";
+import { cleanSuppliers } from "@/lib/pos/suppliers";
 import { isCredit, quoteRefund, refundMethodsFor, settleSale, tendersOf, zFigures, type RefundPick, type TenderInput } from "@/lib/pos/tender";
 import {
   buildDemoSales,
@@ -26,12 +31,13 @@ import {
   kioskBranch,
   mainBranch,
 } from "@/lib/pos/seed";
-import { type Branch, type CartLine, type CashMove, type Category, type ClubMember, type Discount, type DrawerOpen, type HeldOrder, type PaymentMethod, type Product, type Role, type Sale, type Settings, type StaffUser, type StockMove, type StockReason, type TerminalKind, type ZReport } from "@/lib/pos/types";
+import { type Branch, type CartLine, type CashMove, type Category, type ClubMember, type Discount, type DrawerOpen, type HeldOrder, type PaymentMethod, type Product, type PunchKind, type Role, type Sale, type Settings, type StaffUser, type StockMove, type StockReason, type TerminalKind, type ZReport } from "@/lib/pos/types";
 import { canUseBusiness, isDemoMode } from "@/lib/pos/demo";
 import { readDeviceId } from "@/lib/pos/native";
 import { registerStamp, type RegisterClaim } from "@/lib/pos/register";
 import { withPrintSettings } from "@/lib/pos/printer";
 import { isReceiptToken, newReceiptToken } from "@/lib/pos/receipt-link";
+import { applyPunchEdit, cleanPunches, clockByPin, manualPunch, voidPunchRecord } from "@/lib/pos/timeclock";
 import { cleanEndpoint } from "@/lib/pos/terminal";
 
 type BranchFields = Omit<Branch, "id">;
@@ -64,6 +70,10 @@ type PosState = BranchFields & {
   holdCart: () => boolean;
   resumeHeld: (id: string) => void;
   discardHeld: (id: string) => void;
+  clockPunch: (pin: string, kind: PunchKind) => { ok: boolean; message: string };
+  correctPunch: (id: string, atIso: string, why: string) => { ok: boolean; message: string };
+  addPunch: (staffId: string, kind: PunchKind, atIso: string, why: string) => { ok: boolean; message: string };
+  voidPunch: (id: string, why: string) => { ok: boolean; message: string };
   checkout: (input: {
     method?: PaymentMethod;
     tendered?: number;
@@ -81,6 +91,7 @@ type PosState = BranchFields & {
   markKiosk: (id: string, status: "new" | "done") => void;
   upsertProduct: (product: Product) => void;
   addCategory: (name: string) => string | null;
+  addSupplier: (name: string) => string | null;
   updateSettings: (patch: Partial<Settings>) => void;
   saveMember: (member: ClubMember) => void;
   rememberBusinessSettings: (businessId: string, patch: Partial<Settings>) => void;
@@ -165,6 +176,9 @@ function toBranch(state: BranchFields & { activeStoreId: string }): Branch {
     drawerOpens: state.drawerOpens,
     cashMoves: state.cashMoves ?? [],
     members: state.members,
+    suppliers: state.suppliers ?? [],
+    punches: state.punches ?? [],
+    credits: state.credits ?? [],
   };
 }
 
@@ -185,6 +199,9 @@ function fromBranch(branch: Branch): BranchFields {
     drawerOpens: branch.drawerOpens,
     cashMoves: branch.cashMoves ?? [],
     members: branch.members,
+    suppliers: branch.suppliers ?? [],
+    punches: branch.punches ?? [],
+    credits: branch.credits ?? [],
   };
 }
 
@@ -201,11 +218,31 @@ function actorName(state: PosState): string {
   return state.staff.find((user) => user.id === state.sessionUserId)?.name ?? "";
 }
 
+function managerActor(state: PosState): { byId: string; byName: string } | null {
+  const user = state.staff.find((item) => item.id === state.sessionUserId);
+  if (!user || !can(user.role, "manage")) return null;
+  return { byId: user.id, byName: user.name };
+}
+
+function promoLinesOf(sales: Sale[]): { name: string; amount: number }[] {
+  const totals = new Map<string, number>();
+  for (const sale of sales) {
+    if (sale.voided || isCredit(sale)) continue;
+    for (const hit of sale.promoHits ?? []) {
+      if (!hit?.name || !(hit.amount > 0)) continue;
+      totals.set(hit.name, roundMoney((totals.get(hit.name) ?? 0) + hit.amount));
+    }
+  }
+  return [...totals].map(([name, amount]) => ({ name, amount }));
+}
+
 function normalizeProduct(product: Product): Product {
   const id = product.id;
   return {
     ...product,
-    image: product.image || demoPhoto(id),
+    image: usableImage(product.image) || demoPhoto(id),
+    cost: Number.isFinite(Number(product.cost)) && Number(product.cost) >= 0 ? roundMoney(Number(product.cost)) : 0,
+    supplierId: typeof product.supplierId === "string" ? product.supplierId.slice(0, 40) : "",
     trackStock: product.trackStock ?? false,
     stock: Number.isFinite(product.stock) ? product.stock : 0,
     lowStock: Number.isFinite(product.lowStock) ? product.lowStock : 5,
@@ -241,6 +278,9 @@ function normalizeBranch(branch: Branch): Branch {
     held: branch.held ?? [],
     categories: branch.categories ?? cloneCategories(),
     members: Array.isArray(branch.members) ? branch.members : branch.id === "store-main" ? demoMembers() : [],
+    suppliers: cleanSuppliers(branch.suppliers),
+    punches: cleanPunches(branch.punches),
+    credits: cleanCredits(branch.credits),
   };
 }
 
@@ -279,6 +319,7 @@ function stampCode(branch: Branch, used: Set<string>): Branch {
       ...settings,
       code,
       ...(Array.isArray(settings.promos) ? { promos: cleanPromos(settings.promos) } : {}),
+      ...(Array.isArray(settings.topShelf) ? { topShelf: cleanTopShelf(settings.topShelf) } : {}),
     }),
   };
 }
@@ -441,6 +482,72 @@ export const usePos = create<PosState>()(
 
         discardHeld: (id) => commit({ held: get().held.filter((item) => item.id !== id) }),
 
+        clockPunch: (pin, kind) => {
+          const state = get();
+          const stamp = registerStamp(state);
+          const result = clockByPin({
+            punches: state.punches ?? [],
+            staff: state.staff,
+            storeId: state.activeStoreId,
+            pin,
+            kind,
+            at: new Date().toISOString(),
+            registerNo: stamp?.registerNo ?? null,
+            registerName: stamp?.registerName ?? "",
+            id: newId,
+          });
+          if (result.ok) commit({ punches: result.punches });
+          return { ok: result.ok, message: result.message };
+        },
+
+        correctPunch: (id, atIso, why) => {
+          const state = get();
+          const editor = managerActor(state);
+          if (!editor) return { ok: false, message: "רק מנהל מתקן נוכחות" };
+          const punch = (state.punches ?? []).find((item) => item.id === id);
+          if (!punch) return { ok: false, message: "הרישום לא נמצא" };
+          const next = applyPunchEdit(punch, { atIso, why, ...editor, editedAt: new Date().toISOString() });
+          if (!next) return { ok: false, message: "צריך שעה תקינה וסיבה" };
+          commit({ punches: (state.punches ?? []).map((item) => (item.id === id ? next : item)) });
+          return { ok: true, message: "התיקון נשמר. השעה המקורית נשארת ביומן." };
+        },
+
+        addPunch: (staffId, kind, atIso, why) => {
+          const state = get();
+          const editor = managerActor(state);
+          if (!editor) return { ok: false, message: "רק מנהל מתקן נוכחות" };
+          const staff = state.staff.find((item) => item.id === staffId);
+          if (!staff) return { ok: false, message: "העובד לא נמצא" };
+          const stamp = registerStamp(state);
+          const punch = manualPunch({
+            staff,
+            kind,
+            atIso,
+            why,
+            ...editor,
+            editedAt: new Date().toISOString(),
+            registerNo: stamp?.registerNo ?? null,
+            registerName: stamp?.registerName ?? "",
+            storeId: state.activeStoreId,
+            id: newId(),
+          });
+          if (!punch) return { ok: false, message: "צריך שעה תקינה וסיבה" };
+          commit({ punches: [...(state.punches ?? []), punch] });
+          return { ok: true, message: "הרישום החסר נוסף, עם שם המנהל והסיבה." };
+        },
+
+        voidPunch: (id, why) => {
+          const state = get();
+          const editor = managerActor(state);
+          if (!editor) return { ok: false, message: "רק מנהל מתקן נוכחות" };
+          const punch = (state.punches ?? []).find((item) => item.id === id);
+          if (!punch) return { ok: false, message: "הרישום לא נמצא" };
+          const next = voidPunchRecord(punch, { why, ...editor, editedAt: new Date().toISOString() });
+          if (!next) return { ok: false, message: "צריך סיבה" };
+          commit({ punches: (state.punches ?? []).map((item) => (item.id === id ? next : item)) });
+          return { ok: true, message: "הרישום בוטל ונשאר ביומן." };
+        },
+
         checkout: (input) => {
           const state = get();
           const channel = input.channel ?? "register";
@@ -493,6 +600,7 @@ export const usePos = create<PosState>()(
             discountAmount: totals.discountAmount,
             promoAmount: totals.promoAmount,
             promoLabel: totals.promoLabel,
+            promoHits: totals.hits,
             total: totals.total,
             vatRate: state.settings.vatRate,
             vatAmount: totals.vat,
@@ -525,6 +633,13 @@ export const usePos = create<PosState>()(
               receiptFooter: state.settings.receiptFooter,
             },
           };
+          const redeemed = redeemCredits(
+            state.credits ?? [],
+            settled.tenders,
+            { at: sale.createdAt, saleId: sale.id, saleNumber: number, registerNo: sale.registerNo ?? null },
+            Date.parse(sale.createdAt),
+          );
+          if (!redeemed.ok) return null;
           const moves: StockMove[] = [];
           const products = state.products.map((product) => {
             let next = product;
@@ -554,6 +669,7 @@ export const usePos = create<PosState>()(
             products,
             stockMoves: [...moves, ...state.stockMoves].slice(0, 400),
             ...(input.lines ? {} : { cart: [], discount: null }),
+            ...(redeemed.credits === (state.credits ?? []) ? {} : { credits: redeemed.credits }),
           });
           return sale;
         },
@@ -609,11 +725,13 @@ export const usePos = create<PosState>()(
           const number = state.nextCredit ?? 1;
           const by = actorName(state);
           const now = new Date().toISOString();
-          const tenders = settled.tenders.map((line) =>
-            line.method === "voucher" && !line.voucherCode
-              ? { ...line, voucherCode: `Z${Math.floor(100000 + Math.random() * 900000)}` }
-              : line,
-          );
+          const usedCodes = (state.credits ?? []).map((credit) => credit.number);
+          const tenders = settled.tenders.map((line) => {
+            if (line.method !== "voucher" || line.voucherCode) return line;
+            const voucherCode = newCreditCode(usedCodes);
+            usedCodes.push(voucherCode);
+            return { ...line, voucherCode };
+          });
           const card = tenders.find((line) => line.method === "card" || line.method === "club");
           const note: Sale = {
             id: newId(),
@@ -669,11 +787,23 @@ export const usePos = create<PosState>()(
               return changed.product;
             });
           }
+          const issued = issueCreditsForTenders({
+            tenders,
+            at: now,
+            saleId: note.id,
+            saleNumber: number,
+            registerNo: note.registerNo ?? null,
+            registerName: note.registerName ?? "",
+            businessName: note.business.businessName,
+            token: newReceiptToken,
+            id: newId,
+          });
           commit({
             sales: [note, ...state.sales],
             nextCredit: number + 1,
             products,
             stockMoves: [...moves, ...state.stockMoves].slice(0, 400),
+            ...(issued.length ? { credits: [...(state.credits ?? []), ...issued] } : {}),
           });
           return note;
         },
@@ -738,6 +868,16 @@ export const usePos = create<PosState>()(
           return id;
         },
 
+        addSupplier: (name) => {
+          const trimmed = name.trim().slice(0, 40);
+          if (!trimmed) return null;
+          const existing = (get().suppliers ?? []).find((supplier) => supplier.name === trimmed);
+          if (existing) return existing.id;
+          const supplier = { id: newId(), name: trimmed };
+          commit({ suppliers: [...(get().suppliers ?? []), supplier] });
+          return supplier.id;
+        },
+
         updateSettings: (patch) => {
           const state = get();
           const next = { ...state.settings, ...patch };
@@ -753,6 +893,9 @@ export const usePos = create<PosState>()(
           next.androidTerminal = cleanEndpoint(next.androidTerminal, state.settings.androidTerminal ?? cloneSettings().androidTerminal);
           next.pinpad = cleanEndpoint(next.pinpad, state.settings.pinpad ?? cloneSettings().pinpad);
           if (patch.promos !== undefined) next.promos = cleanPromos(patch.promos);
+          if (patch.topShelf !== undefined) next.topShelf = cleanTopShelf(patch.topShelf);
+          if (patch.customerSlides !== undefined) next.customerSlides = cleanCustomerSlides(patch.customerSlides);
+          if (patch.customerScreen !== undefined) next.customerScreen = patch.customerScreen !== false;
           if (patch.logo !== undefined) {
             const logo = patch.logo;
             next.logo = logo && logo.startsWith("data:image/") && logo.length <= 150_000 ? logo : null;
@@ -853,6 +996,7 @@ export const usePos = create<PosState>()(
             promoTotal: roundMoney(
               open.filter((sale) => !sale.voided && !isCredit(sale)).reduce((sum, sale) => sum + (sale.promoAmount ?? 0), 0),
             ),
+            promoLines: promoLinesOf(open),
             openingFloat: state.settings.openingFloat,
             cashTaken,
             cashExpected: expected,

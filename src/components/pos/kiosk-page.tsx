@@ -127,7 +127,15 @@ export function KioskPage() {
         )}
       </div>
       <div className="safe-bottom shrink-0 border-t border-line bg-surface p-3">
-        {totals.promoAmount > 0 ? (
+        {totals.hits.length ? (
+          <div className="mb-2 space-y-1">
+            {totals.hits.map((hit) => (
+              <p key={hit.id} className="truncate text-center text-sm text-pine">
+                מבצע {hit.name} · {formatILS(hit.amount)}
+              </p>
+            ))}
+          </div>
+        ) : totals.promoAmount > 0 ? (
           <p className="mb-2 truncate text-center text-sm text-pine">מבצע {totals.promoLabel} · {formatILS(totals.promoAmount)}</p>
         ) : null}
         <button
@@ -208,7 +216,15 @@ export function KioskPage() {
               </div>
             </div>
           ) : null}
-          {totals.promoAmount > 0 ? (
+          {totals.hits.length ? (
+            <div className="mt-3 space-y-1">
+              {totals.hits.map((hit) => (
+                <p key={hit.id} className="text-sm text-pine">
+                  מבצע {hit.name} · {formatILS(hit.amount)}
+                </p>
+              ))}
+            </div>
+          ) : totals.promoAmount > 0 ? (
             <p className="mt-3 text-sm text-pine">מבצע {totals.promoLabel} · {formatILS(totals.promoAmount)}</p>
           ) : null}
           <button

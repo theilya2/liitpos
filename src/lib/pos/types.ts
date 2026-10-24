@@ -26,7 +26,7 @@ export type TerminalEndpoint = {
 
 export type Discount = { kind: "percent" | "amount"; value: number } | null;
 
-export type PromoKind = "bogo" | "bxgy" | "bundle" | "percent" | "amount";
+export type PromoKind = "bogo" | "bxgy" | "bundle" | "percent" | "amount" | "nth" | "combo" | "threshold";
 
 /** Automatic cart promotion. Missing fields on old registers are filled in on read. */
 export type Promo = {
@@ -43,6 +43,12 @@ export type Promo = {
   bundlePrice: number;
   percent: number;
   amount: number;
+  /** Percent off the reward units in buy-X-get-Y. 100 means those units are free. */
+  rewardPercent: number;
+  /** Products that make up a combo. Empty for every other kind. */
+  productIds: string[];
+  /** Spend that unlocks a cart-threshold deal. 0 for every other kind. */
+  minSpend: number;
   /** 0 is Sunday. Empty means every day. */
   days: number[];
   startTime: string;
@@ -95,10 +101,19 @@ export type ChosenModifier = {
 
 export type Shelf = "upper" | "lower" | "off";
 
+/** One slot on the top quick shelf. A category slot expands to that category's products. */
+export type ShelfRef = { kind: "product" | "category"; id: string };
+
+export type Supplier = { id: string; name: string };
+
 export type Product = {
   id: string;
   name: string;
   price: number;
+  /** What the shop paid. Missing on older products. */
+  cost?: number;
+  /** Supplier from the shared list. Empty when none is set. */
+  supplierId?: string;
   categoryId: string;
   sku: string;
   /** Extra scan code. Older products leave this empty and keep using `sku`. */
@@ -188,6 +203,8 @@ export type Sale = {
   /** Automatic promotion taken off before the manual discount. Missing on older sales. */
   promoAmount?: number;
   promoLabel?: string;
+  /** One row per promotion that applied. Missing on older sales, which keep the single label. */
+  promoHits?: { id: string; name: string; amount: number }[];
   total: number;
   vatRate: number;
   vatAmount: number;
@@ -248,6 +265,72 @@ export type Settings = BusinessSnapshot & {
   upsellRules?: UpsellRule[];
   /** Automatic promotions. Missing on registers that have not set any. */
   promos?: Promo[];
+  /** Ordered top shelf. Missing means products still use their own shelf flag. */
+  topShelf?: ShelfRef[];
+  /**
+   * How a finished sale asks for the receipt.
+   * Missing on older registers: they keep printing when autoPrint is on.
+   */
+  receiptDelivery?: ReceiptDelivery;
+  /** Customer-facing second screen. Missing means on, and it stays quiet without a second display. */
+  customerScreen?: boolean;
+  /** Idle slideshow for the customer screen. Configured in Back Office. */
+  customerSlides?: KioskSlide[];
+};
+
+export type ReceiptDelivery = "print" | "ask" | "digital";
+
+export type PunchKind = "in" | "out" | "break-start" | "break-end";
+
+export type PunchEdit = {
+  at: string;
+  byId: string;
+  byName: string;
+  why: string;
+  previousAt: string;
+};
+
+/** One clock event. Corrections keep `originalAt` and append `edits`. */
+export type TimePunch = {
+  id: string;
+  staffId: string;
+  staffName: string;
+  kind: PunchKind;
+  at: string;
+  originalAt: string;
+  registerNo: number | null;
+  registerName: string;
+  storeId: string;
+  voided: boolean;
+  edits: PunchEdit[];
+  /** Set when a manager added a punch that the employee never made. */
+  added?: { at: string; byId: string; byName: string; why: string };
+};
+
+export type StoreCreditRedemption = {
+  at: string;
+  amount: number;
+  saleId: string;
+  saleNumber: number;
+  registerNo: number | null;
+};
+
+/** Store credit issued from a voucher refund. The short `number` is what a scanner reads. */
+export type StoreCredit = {
+  id: string;
+  number: string;
+  token: string;
+  issuedAt: string;
+  expiresAt: string;
+  original: number;
+  balance: number;
+  saleId: string;
+  saleNumber: number;
+  voided: boolean;
+  redemptions: StoreCreditRedemption[];
+  registerNo: number | null;
+  registerName: string;
+  businessName: string;
 };
 
 export type KioskSlide = {
@@ -340,6 +423,8 @@ export type ZReport = {
   paidOut?: number;
   /** Promotions given on the sales in this report. Older reports omit it. */
   promoTotal?: number;
+  /** Same promotions, one line per name. Older reports omit it. */
+  promoLines?: { name: string; amount: number }[];
   leftInDrawer: number;
   drawerOpens: number;
 };
@@ -363,6 +448,12 @@ export type Branch = {
   /** Pay-ins and pay-outs. Older registers load this as an empty list. */
   cashMoves: CashMove[];
   members: ClubMember[];
+  /** Shared supplier list. Older registers load this as an empty list. */
+  suppliers: Supplier[];
+  /** Clock punches. Older registers load this as an empty list. */
+  punches: TimePunch[];
+  /** Store-credit notes. Older registers load this as an empty list. */
+  credits: StoreCredit[];
 };
 
 export type Role = "cashier" | "shift" | "manager";
