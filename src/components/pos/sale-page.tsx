@@ -774,7 +774,7 @@ function ShelfTile({ product, qty, onAdd }: { product: Product; qty: number; onA
         {product.image ? (
           <img src={product.image} alt="" className="h-full w-full object-cover" />
         ) : (
-          <span className="flex h-full items-center justify-center text-2xl font-semibold text-pine">{product.name.slice(0, 1)}</span>
+          <span className="flex h-full items-center justify-center text-base font-semibold text-pine">{product.name.slice(0, 1)}</span>
         )}
         {qty > 0 ? (
           <span className="absolute end-1.5 top-1.5 rounded-full bg-pine px-2 text-xs font-semibold text-pine-ink tabular-nums">{qty}</span>

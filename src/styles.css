@@ -1,4 +1,7 @@
 @import "tailwindcss";
+
+/* The register stays light. System dark mode must not restyle cards or the page. */
+@custom-variant dark (&:where(.force-dark, .force-dark *));
 @import "@fontsource/rubik/hebrew-400.css";
 @import "@fontsource/rubik/hebrew-500.css";
 @import "@fontsource/rubik/hebrew-600.css";
@@ -11,7 +14,7 @@
 @theme {
   --font-sans: "Rubik", "Arial Hebrew", "Noto Sans Hebrew", sans-serif;
 
-  --color-paper: #f4f0ff;
+  --color-paper: #fbf9ff;
   --color-surface: #ffffff;
   --color-ink: #161326;
   --color-muted: #5c5672;
@@ -28,7 +31,7 @@
 @layer base {
   html {
     direction: rtl;
-    color-scheme: light;
+    color-scheme: only light;
     /* 16px on a phone, up to 18px on a large terminal. Touch sizes stay in rem. */
     font-size: clamp(16px, 0.15vw + 15.4px, 18px);
     -webkit-font-smoothing: antialiased;
@@ -38,9 +41,9 @@
   body {
     margin: 0;
     background:
-      radial-gradient(900px 420px at 100% -8%, rgba(255, 61, 138, 0.22), transparent 58%),
-      radial-gradient(760px 460px at -12% 0%, rgba(91, 53, 245, 0.2), transparent 55%),
-      radial-gradient(680px 380px at 50% 120%, rgba(0, 186, 255, 0.16), transparent 50%),
+      radial-gradient(900px 420px at 100% -8%, rgba(255, 61, 138, 0.1), transparent 58%),
+      radial-gradient(760px 460px at -12% 0%, rgba(91, 53, 245, 0.08), transparent 55%),
+      radial-gradient(680px 380px at 50% 120%, rgba(0, 186, 255, 0.06), transparent 50%),
       var(--color-paper);
     color: var(--color-ink);
     font-family: var(--font-sans);
@@ -195,8 +198,13 @@
 }
 
 .product-card .product-photo {
-  aspect-ratio: 4 / 3;
-  max-height: 6.5rem;
+  aspect-ratio: 1;
+  width: 3.75rem;
+  height: 3.75rem;
+  margin-inline: auto;
+  margin-top: 0.4rem;
+  border-radius: 0.7rem;
+  flex: none;
 }
 
 .promo-strip {
@@ -228,7 +236,8 @@
 /* Short registers keep the same two zones and just tighten the cards. */
 @container register (max-height: 36rem) {
   .product-card .product-photo {
-    max-height: 4.25rem;
+    width: 2.75rem;
+    height: 2.75rem;
   }
   .promo-strip .promo-card {
     height: 4.5rem;
@@ -655,8 +664,8 @@ html[data-update-bar="1"] .safe-bottom {
 
 .lock-screen {
   background:
-    radial-gradient(520px 280px at 85% 0%, rgba(255, 61, 138, 0.28), transparent 70%),
-    radial-gradient(480px 320px at 0% 18%, rgba(91, 53, 245, 0.24), transparent 68%),
+    radial-gradient(520px 280px at 85% 0%, rgba(255, 61, 138, 0.12), transparent 70%),
+    radial-gradient(480px 320px at 0% 18%, rgba(91, 53, 245, 0.1), transparent 68%),
     var(--color-paper);
 }
 
@@ -834,21 +843,6 @@ html[data-update-bar="1"] .safe-bottom {
 @keyframes ken {
   from { transform: scale(1); }
   to { transform: scale(1.08); }
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    color-scheme: dark;
-    --color-paper: #12101c;
-    --color-surface: #1c1830;
-    --color-ink: #f6f3ff;
-    --color-muted: #b7b0cc;
-    --color-line: #322c4a;
-    --color-pine-soft: #2a2158;
-    --color-copper: #ff4d88;
-    --color-copper-soft: #3a1830;
-    --color-pine-ink: #ffffff;
-  }
 }
 
 @media (prefers-reduced-motion: reduce) {
