@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { ArrowLeftRight, Banknote, CreditCard, IdCard, Minus, Pause, Plus, Printer, Search, Smartphone, Ticket, Trash2, Wallet, X } from "lucide-react";
+import { ArrowLeftRight, Banknote, Calculator, CreditCard, IdCard, Minus, Pause, Plus, Printer, Search, Smartphone, Ticket, Trash2, Wallet, X } from "lucide-react";
 import { CashSheet } from "@/components/pos/cash-sheet";
 import { Numpad } from "@/components/pos/numpad";
 import { OptionSheet } from "@/components/pos/option-sheet";
@@ -10,6 +10,7 @@ import { setCustomerPhase } from "@/lib/pos/customer-display";
 import { receiptDeliveryOf, saleHasCash } from "@/lib/pos/printer";
 import { confirmReceipt, deliverPrint, pulseDrawer } from "@/lib/pos/receipt-io";
 import { formatILS, formatWhen, moneyFromPad, pushMoneyKey, roundCash, roundMoney } from "@/lib/pos/money";
+import { SyncIndicator } from "@/components/pos/cloud-bar";
 import { flyChip, LiveTotal, PayBurst } from "@/components/pos/motion";
 import { buildConfiguredLine, findByCode, mustChoose, needsPicker, shelfPrice } from "@/lib/pos/options";
 import { pricedOrPlain, promoHeadline, promoOpen, promoPlan, selectPromos, type PricedCart } from "@/lib/pos/promo";
@@ -767,9 +768,9 @@ function ShelfTile({ product, qty, onAdd }: { product: Product; qty: number; onA
         flyChip(event.currentTarget, product.name);
         onAdd();
       }}
-      className="flex min-w-0 flex-col overflow-hidden rounded-2xl bg-surface text-start ring-1 ring-line disabled:opacity-50"
+      className="product-card flex min-w-0 flex-col overflow-hidden rounded-2xl bg-surface text-start ring-1 ring-line disabled:opacity-50"
     >
-      <span className="relative block aspect-[5/4] max-h-40 w-full overflow-hidden bg-pine-soft">
+      <span className="product-photo relative block w-full overflow-hidden bg-pine-soft">
         {product.image ? (
           <img src={product.image} alt="" className="h-full w-full object-cover" />
         ) : (
@@ -820,7 +821,11 @@ export function SalePage() {
   const logo = usePos((state) => state.settings.logo);
   const markKiosk = usePos((state) => state.markKiosk);
   const [query, setQuery] = useState("");
+  const [shelfCat, setShelfCat] = useState("all");
   const [pad, setPad] = useState("");
+  const [qtyPad, setQtyPad] = useState("");
+  const [padMode, setPadMode] = useState<"price" | "qty">("price");
+  const [padOpen, setPadOpen] = useState(false);
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
   const [payOpen, setPayOpen] = useState(false);
   const [paySeed, setPaySeed] = useState<{ code: string } | null>(null);
@@ -842,6 +847,12 @@ export function SalePage() {
   }, [cart]);
 
   const upper = useMemo(() => expandTopShelf(products, topShelf.length ? topShelf : undefined, query), [products, query, topShelf]);
+  const shelfCategories = useMemo(() => {
+    const ids = new Set(upper.map((product) => product.categoryId));
+    return categories.filter((category) => ids.has(category.id));
+  }, [categories, upper]);
+  const activeCat = shelfCat !== "all" && shelfCategories.some((category) => category.id === shelfCat) ? shelfCat : "all";
+  const shelfProducts = activeCat === "all" ? upper : upper.filter((product) => product.categoryId === activeCat);
   const livePromos = promos.filter((promo) => promoOpen(promo, new Date()));
   const incoming = useMemo(
     () => sales.filter((sale) => sale.channel === "kiosk" && sale.kioskStatus === "new" && !sale.voided).slice(0, 3),
@@ -981,38 +992,81 @@ export function SalePage() {
     setSelectedKey(null);
   }
 
+  function lineForPad() {
+    return selectedKey && cart.some((line) => line.key === selectedKey) ? selectedKey : cart[cart.length - 1]?.key;
+  }
+
+  function pushQtyKey(key: string) {
+    setQtyPad((current) => {
+      if (key === "back") return current.slice(0, -1);
+      if (key === "." || !/^\d$/.test(key)) return current;
+      const next = `${current}${key}`.replace(/^0+(?=\d)/, "");
+      return next.length > 3 ? current : next;
+    });
+  }
+
+  function applyQty() {
+    const key = lineForPad();
+    if (!key) {
+      setNote("בוחרים שורה בחשבון, ואז מקלידים כמות.");
+      return;
+    }
+    const qty = Number(qtyPad);
+    if (!qtyPad || !Number.isInteger(qty) || qty < 0) {
+      setNote("מקלידים כמות.");
+      return;
+    }
+    setQty(key, qty);
+    setQtyPad("");
+    setPadOpen(false);
+  }
+
   return (
     <>
     <div className="register-frame">
     <div className="register">
-      <section aria-label="מדף עליון" className="register-panel register-upper bg-paper ring-1 ring-line">
+      <section aria-label="מוצרים" className="register-panel register-catalog bg-paper ring-1 ring-line">
         <div className="flex shrink-0 items-center gap-2 px-2 pt-2">
           {logo ? (
             <img src={logo} alt="" className="h-9 w-9 shrink-0 rounded-xl object-cover" />
           ) : (
             <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-pine text-sm font-bold text-pine-ink">₪</span>
           )}
-          <h2 className="min-w-0 flex-1 truncate text-sm font-semibold">מדף עליון</h2>
+          <div className="relative min-w-0 flex-1">
+            <Search className="pointer-events-none absolute start-3 top-1/2 size-4 -translate-y-1/2 text-muted" />
+            <input
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key !== "Enter") return;
+                event.preventDefault();
+                if (addByQuery(query)) setQuery("");
+              }}
+              placeholder="חיפוש או מק״ט"
+              aria-label="חיפוש מוצר או מק״ט"
+              autoComplete="off"
+              className="h-11 w-full rounded-xl bg-surface ps-9 pe-2 text-sm ring-1 ring-line"
+            />
+          </div>
         </div>
-        <div className="relative mx-2 mt-2 shrink-0">
-          <Search className="pointer-events-none absolute start-3 top-1/2 size-4 -translate-y-1/2 text-muted" />
-          <input
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-            onKeyDown={(event) => {
-              if (event.key !== "Enter") return;
-              event.preventDefault();
-              if (addByQuery(query)) setQuery("");
-            }}
-            placeholder="חיפוש או מק״ט"
-            aria-label="חיפוש מוצר או מק״ט"
-            autoComplete="off"
-            className="h-12 w-full rounded-xl bg-surface ps-9 pe-2 text-sm ring-1 ring-line"
-          />
+        <div className="chip-row flex shrink-0 gap-1.5 overflow-x-auto px-2 pt-2">
+          <button type="button" onClick={() => setShelfCat("all")} className={`h-9 shrink-0 rounded-full px-3 text-xs font-semibold ${activeCat === "all" ? "bg-pine text-pine-ink" : ""}`}>
+            הכל
+          </button>
+          {shelfCategories.map((category) => (
+            <button
+              key={category.id}
+              type="button"
+              onClick={() => setShelfCat(category.id)}
+              className={`h-9 shrink-0 rounded-full px-3 text-xs font-semibold ${activeCat === category.id ? "bg-pine text-pine-ink" : ""}`}
+            >
+              {category.name}
+            </button>
+          ))}
         </div>
         <ShelfGrid
-          products={upper}
-          empty="אין מוצרים במדף העליון. במוצרים בוחרים מדף עליון."
+          products={shelfProducts}
+          empty={query.trim() ? "אין מוצר בשם הזה במדף." : "אין מוצרים במדף. במוצרים בוחרים מדף עליון."}
           qtyByProduct={qtyByProduct}
           onAdd={(product) => {
             if (needsPicker(product)) {
@@ -1022,39 +1076,70 @@ export function SalePage() {
             if (!addProductToCart(product)) setNote(`${product.name} אזל מהמלאי.`);
           }}
         />
+        <div className="shrink-0 border-t border-line px-2 py-2">
+          <p className="mb-1.5 text-xs font-semibold">מבצעים</p>
+          {livePromos.length === 0 ? (
+            <p className="text-xs text-muted">אין מבצעים פעילים עכשיו.</p>
+          ) : (
+            <div className="promo-strip pb-0.5">
+              {livePromos.map((promo) => (
+                <button
+                  key={promo.id}
+                  type="button"
+                  onClick={() => setOffer(promo)}
+                  className="promo-card flex flex-col justify-between rounded-2xl p-2.5 text-start ring-1 ring-line"
+                >
+                  <span className="promo-badge relative z-[1]">מבצע</span>
+                  <span className="relative z-[1] line-clamp-1 min-w-0 text-sm font-semibold leading-tight text-pine">{promoHeadline(promo)}</span>
+                  <span className="relative z-[1] line-clamp-1 min-w-0 text-xs">{promo.name}</span>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
       </section>
 
       <section aria-label="חשבון נוכחי" className="register-panel register-ticket bg-surface ring-1 ring-line">
-        <header className="shrink-0 px-2 pt-2">
-          <h1 className="truncate text-base font-semibold">{businessName}</h1>
-          <p className="truncate text-xs text-muted">
-            {dateLabel}
-            {user ? ` · ${user.name}` : ""}
-            {registerLine ? ` · ${registerLine}` : ""}
-          </p>
+        <header className="flex shrink-0 items-center gap-2 px-2.5 pt-2">
+          <div className="min-w-0 flex-1">
+            <h1 className="truncate text-base font-semibold leading-tight">{businessName}</h1>
+            <p className="truncate text-xs text-muted">
+              {dateLabel}
+              {user ? ` · ${user.name}` : ""}
+              {registerLine ? ` · ${registerLine}` : ""}
+              {count > 0 ? ` · ${count}` : ""}
+            </p>
+          </div>
+          <SyncIndicator />
         </header>
-        <div className="grid shrink-0 grid-cols-2 gap-2 px-2 pt-2">
+        <div className="grid shrink-0 grid-cols-5 gap-1 px-2 pt-2">
           <button
             type="button"
             disabled={!cart.length || held.length >= 5}
+            aria-label={`הקפאה ${held.length} מתוך 5`}
             onClick={() => {
               if (!holdCart()) setNote(held.length >= 5 ? "אפשר להקפיא עד 5 חשבונות." : "אין מה להקפיא.");
             }}
-            className="flex min-h-12 items-center justify-center gap-1 rounded-xl bg-paper px-1 py-1 text-center text-xs font-medium leading-tight ring-1 ring-line disabled:opacity-40"
+            className="flex h-11 min-w-0 flex-col items-center justify-center gap-0.5 rounded-xl bg-paper px-0.5 text-[10px] font-medium leading-none ring-1 ring-line disabled:opacity-40"
           >
-            <Pause className="size-4 shrink-0" />
-            הקפאה {held.length}/5
+            <Pause className="size-3.5 shrink-0" />
+            {held.length}/5
           </button>
-          <button type="button" onClick={() => void drawer()} className="flex min-h-12 items-center justify-center gap-1 rounded-xl bg-paper px-1 py-1 text-center text-xs font-medium leading-tight ring-1 ring-line">
-            <Wallet className="size-4 shrink-0" />
+          <button type="button" onClick={() => void drawer()} className="flex h-11 min-w-0 flex-col items-center justify-center gap-0.5 rounded-xl bg-paper px-0.5 text-[10px] font-medium leading-none ring-1 ring-line">
+            <Wallet className="size-3.5 shrink-0" />
             מגירה
           </button>
-          <button type="button" onClick={() => setCashOpen(true)} className="flex min-h-12 items-center justify-center gap-1 rounded-xl bg-paper px-1 py-1 text-center text-xs font-medium leading-tight ring-1 ring-line">
-            הכנסה / הוצאה
+          <button type="button" aria-label="הכנסה / הוצאה" onClick={() => setCashOpen(true)} className="flex h-11 min-w-0 flex-col items-center justify-center gap-0.5 rounded-xl bg-paper px-0.5 text-[10px] font-medium leading-none ring-1 ring-line">
+            <Banknote className="size-3.5 shrink-0" />
+            קופה
           </button>
-          <button type="button" onClick={lastReceipt} className="flex min-h-12 items-center justify-center gap-1 rounded-xl bg-paper px-1 py-1 text-center text-xs font-medium leading-tight ring-1 ring-line">
-            <Printer className="size-4 shrink-0" />
+          <button type="button" onClick={lastReceipt} className="flex h-11 min-w-0 flex-col items-center justify-center gap-0.5 rounded-xl bg-paper px-0.5 text-[10px] font-medium leading-none ring-1 ring-line">
+            <Printer className="size-3.5 shrink-0" />
             קבלה
+          </button>
+          <button type="button" aria-label="כמות / מחיר" onClick={() => setPadOpen(true)} className="flex h-11 min-w-0 flex-col items-center justify-center gap-0.5 rounded-xl bg-pine-soft px-0.5 text-[10px] font-semibold leading-none text-pine">
+            <Calculator className="size-3.5 shrink-0" />
+            מחיר
           </button>
         </div>
         {note ? <p className="shrink-0 truncate px-2 pt-1 text-xs text-muted">{note}</p> : null}
@@ -1111,7 +1196,7 @@ export function SalePage() {
                         event.stopPropagation();
                         setQty(line.key, line.qty - 1);
                       }}
-                      className="flex h-12 w-12 items-center justify-center rounded-full bg-surface"
+                      className="flex h-10 w-10 items-center justify-center rounded-full bg-surface"
                     >
                       <Minus className="size-3.5" />
                     </button>
@@ -1123,7 +1208,7 @@ export function SalePage() {
                         event.stopPropagation();
                         setQty(line.key, line.qty + 1);
                       }}
-                      className="flex h-12 w-12 items-center justify-center rounded-full bg-surface"
+                      className="flex h-10 w-10 items-center justify-center rounded-full bg-surface"
                     >
                       <Plus className="size-3.5" />
                     </button>
@@ -1156,69 +1241,58 @@ export function SalePage() {
           ) : null}
           <div className="flex items-baseline justify-between">
             <span className="text-xs text-muted">לתשלום · מע״מ {vatRate}%</span>
-            <LiveTotal key={totals.total} value={totals.total} className="total-pop text-lg font-semibold tabular-nums text-copper" />
+            <LiveTotal key={totals.total} value={totals.total} className="total-pop text-2xl font-semibold tabular-nums text-copper" />
           </div>
+          <button
+            type="button"
+            onClick={() => setPayOpen(true)}
+            disabled={!cart.length || totals.total <= 0}
+            className="h-14 w-full rounded-2xl bg-pine text-lg font-semibold text-pine-ink disabled:opacity-40"
+          >
+            תשלום
+          </button>
         </div>
       </section>
-
-      <section aria-label="מדף תחתון" className="register-panel register-lower bg-paper ring-1 ring-line">
-        <h2 className="shrink-0 px-2 pt-2 text-sm font-semibold">מדף תחתון</h2>
-        <div className="scroll-pane min-h-0 flex-1 p-2">
-          {livePromos.length === 0 ? (
-            <p className="py-6 text-center text-xs text-muted">אין מבצעים פעילים עכשיו. מנהל מוסיף אותם בניהול.</p>
-          ) : (
-            <div className="shelf-grid">
-              {livePromos.map((promo) => (
-                <button
-                  key={promo.id}
-                  type="button"
-                  onClick={() => setOffer(promo)}
-                  className="promo-card flex min-h-24 flex-col justify-between rounded-2xl p-3 text-start ring-1 ring-line"
-                >
-                  <span className="promo-badge relative z-[1]">מבצע</span>
-                  <span className="relative z-[1] text-lg font-semibold leading-tight text-pine">{promoHeadline(promo)}</span>
-                  <span className="relative z-[1] mt-2 line-clamp-2 text-sm">{promo.name}</span>
-                </button>
-              ))}
-            </div>
-          )}
+    </div>
+    </div>
+    {padOpen ? (
+      <Overlay title={padMode === "qty" ? "כמות" : "מחיר ידני"} onClose={() => setPadOpen(false)}>
+        <div className="mb-3 grid grid-cols-2 gap-2">
+          <button type="button" onClick={() => setPadMode("price")} className={`h-10 rounded-xl text-sm font-semibold ${padMode === "price" ? "bg-pine text-pine-ink" : "bg-paper ring-1 ring-line"}`}>
+            מחיר
+          </button>
+          <button type="button" onClick={() => setPadMode("qty")} className={`h-10 rounded-xl text-sm font-semibold ${padMode === "qty" ? "bg-pine text-pine-ink" : "bg-paper ring-1 ring-line"}`}>
+            כמות
+          </button>
         </div>
-      </section>
-
-      <section aria-label="סכום עצמאי ותשלום" className="register-panel register-keypad bg-surface ring-1 ring-line">
-        <div className="keypad-fit">
-          <div className="keypad-stack">
-            <p className="shrink-0 text-center text-xl font-semibold leading-none tabular-nums" dir="ltr">
-              {pad === "" ? "0.00" : pad}
-            </p>
-            <Numpad fill onKey={(key) => setPad((current) => pushMoneyKey(current, key))} />
-            <div className="grid shrink-0 grid-cols-2 gap-2">
-              <button type="button" onClick={addAmount} className="min-h-12 rounded-xl bg-pine px-2 text-sm font-semibold text-pine-ink">
-                הוסף
-              </button>
-              <button
-                type="button"
-                onClick={deleteLine}
-                disabled={!cart.length}
-                className="flex min-h-12 items-center justify-center gap-1 rounded-xl bg-copper-soft px-2 text-sm font-semibold leading-tight text-copper disabled:opacity-40"
-              >
-                <Trash2 className="size-4 shrink-0" />
-                מחק שורה
-              </button>
-            </div>
-            <button
-              type="button"
-              onClick={() => setPayOpen(true)}
-              disabled={!cart.length || totals.total <= 0}
-              className="min-h-14 shrink-0 rounded-xl bg-pine text-sm font-semibold text-pine-ink disabled:opacity-40"
-            >
-              תשלום
+        <p className="text-center text-3xl font-semibold tabular-nums" dir="ltr">
+          {padMode === "qty" ? qtyPad || "0" : pad === "" ? "0.00" : pad}
+        </p>
+        <div className="mt-3">
+          <Numpad onKey={padMode === "qty" ? pushQtyKey : (key) => setPad((current) => pushMoneyKey(current, key))} />
+        </div>
+        <div className="mt-3 grid grid-cols-2 gap-2">
+          {padMode === "qty" ? (
+            <button type="button" onClick={applyQty} className="h-12 rounded-xl bg-pine text-sm font-semibold text-pine-ink">
+              עדכון כמות
             </button>
-          </div>
+          ) : (
+            <button type="button" onClick={addAmount} className="h-12 rounded-xl bg-pine text-sm font-semibold text-pine-ink">
+              הוסף
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={deleteLine}
+            disabled={!cart.length}
+            className="flex h-12 items-center justify-center gap-1 rounded-xl bg-copper-soft text-sm font-semibold text-copper disabled:opacity-40"
+          >
+            <Trash2 className="size-4 shrink-0" />
+            מחק שורה
+          </button>
         </div>
-      </section>
-    </div>
-    </div>
+      </Overlay>
+    ) : null}
     {payOpen ? (
       <PaySheet
         key={paySeed?.code ?? "pay"}
@@ -1292,7 +1366,7 @@ function ShelfGrid({
       {products.length === 0 ? (
         <p className="py-6 text-center text-xs text-muted">{empty}</p>
       ) : (
-        <div className="shelf-grid">
+        <div className="product-grid">
           {products.map((product) => (
             <ShelfTile key={product.id} product={product} qty={qtyByProduct.get(product.id) ?? 0} onAdd={() => onAdd(product)} />
           ))}

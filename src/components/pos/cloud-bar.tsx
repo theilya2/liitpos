@@ -57,14 +57,16 @@ export function SyncIndicator() {
   const label = phase === "revoked" ? "נותקה" : phase === "error" ? "שגיאה" : grey ? (phase === "local" ? "לא מחובר" : phase === "offline" ? "לא מקוון" : "בודקים") : pending > 0 ? `${pending} ממתינים` : phase === "syncing" ? "מסנכרן" : "מסונכרן";
 
   return (
-    <div className="no-print shrink-0 px-2 pt-2">
-      <button type="button" onClick={() => setOpen((value) => !value)} className={`inline-flex h-12 items-center gap-2 rounded-full px-3 text-sm font-semibold ${tone}`} aria-expanded={open}>
-        <span className={`h-2.5 w-2.5 rounded-full ${grey ? "bg-muted" : alert ? "bg-copper" : "bg-pine"}`} aria-hidden="true" />
+    <div className="no-print relative shrink-0">
+      <button type="button" onClick={() => setOpen((value) => !value)} className={`inline-flex h-7 items-center gap-1.5 rounded-full px-2.5 text-xs font-semibold ${tone}`} aria-expanded={open}>
+        <span className={`h-1.5 w-1.5 rounded-full ${grey ? "bg-muted" : alert ? "bg-copper" : "bg-pine"}`} aria-hidden="true" />
         {label}
       </button>
-      {phase === "revoked" ? <p className="mb-2 mt-2 max-w-md text-sm font-semibold text-pretty text-copper">{detail || REVOKED_DETAIL}</p> : null}
+      {phase === "revoked" ? (
+        <p className="absolute end-0 top-full z-30 mt-1 w-64 rounded-xl bg-surface px-3 py-2 text-xs font-semibold text-pretty text-copper shadow-lg ring-1 ring-line">{detail || REVOKED_DETAIL}</p>
+      ) : null}
       {open ? (
-        <div className="mb-2 mt-2 max-w-md rounded-2xl bg-surface px-3 py-2 text-sm text-ink ring-1 ring-line">
+        <div className="absolute end-0 top-full z-30 mt-1 w-64 rounded-xl bg-surface px-3 py-2 text-xs text-ink shadow-lg ring-1 ring-line">
           <p className="text-pretty">{detail || "אין פרטים נוספים."}</p>
           <p className="mt-1 text-pretty text-muted">{lastGoodSync ? `סונכרן לאחרונה ${formatWhen(lastGoodSync)}` : "עדיין לא היה סנכרון מהמכשיר הזה"}</p>
         </div>
@@ -82,5 +84,5 @@ export function RegisterMark() {
   const active = usePos((state) => state.activeStoreId);
   const caption = !revoked && businessId === active ? registerCaption(no, name) : "";
   if (!caption) return null;
-  return <p className="no-print px-2 pt-3 text-sm font-semibold">{caption}</p>;
+  return <p className="no-print min-w-0 truncate text-xs font-semibold">{caption}</p>;
 }

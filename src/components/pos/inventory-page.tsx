@@ -247,9 +247,9 @@ export function InventoryPage() {
 
 function Stat({ label, value, accent }: { label: string; value: string; accent?: boolean }) {
   return (
-    <div className="rounded-2xl bg-surface p-3 ring-1 ring-line">
+    <div className="min-w-0 rounded-2xl bg-surface p-3 ring-1 ring-line">
       <p className="text-xs text-muted">{label}</p>
-      <p className={`mt-1 text-sm font-semibold tabular-nums ${accent ? "text-copper" : ""}`}>{value}</p>
+      <p className={`mt-1 break-words text-sm font-semibold tabular-nums ${accent ? "text-copper" : ""}`}>{value}</p>
     </div>
   );
 }

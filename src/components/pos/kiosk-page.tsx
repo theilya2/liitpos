@@ -91,7 +91,7 @@ export function KioskPage() {
 
   return (
     <main className="kiosk-board relative flex min-h-0 flex-1 flex-col bg-paper text-ink" onPointerDown={bump}>
-      <header className="relative z-40 flex shrink-0 items-center gap-3 border-b border-line bg-surface px-4 py-3 pe-20">
+      <header className="relative z-40 flex shrink-0 items-center gap-3 border-b border-line bg-surface px-4 py-3 pe-28">
         <div className="min-w-0 flex-1">
           <h1 className="truncate text-xl font-semibold">{settings.businessName}</h1>
           <p className="text-sm text-muted">הזמנה עצמית · מחירים כוללים מע״מ</p>

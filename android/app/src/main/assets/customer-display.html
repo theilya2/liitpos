@@ -35,6 +35,15 @@
       @keyframes ken { from { transform: scale(1); } to { transform: scale(1.06); } }
       @keyframes rise { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
       @keyframes pop { from { opacity: 0; transform: scale(0.5); } to { opacity: 1; transform: scale(1); } }
+      @media (max-width: 720px) {
+        main { padding: 16px; }
+        .brand, .caption, .pay { font-size: 20px; }
+        li { font-size: 18px; }
+        .total { font-size: 28px; }
+        .thanks { font-size: 36px; }
+        .logo, .qr { width: min(160px, 46vw); height: min(160px, 46vw); }
+        .slide { max-height: 32vh; }
+      }
       @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; } }
     </style>
   </head>
