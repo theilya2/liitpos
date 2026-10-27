@@ -130,13 +130,13 @@ export function KioskPage() {
         {totals.hits.length ? (
           <div className="mb-2 space-y-1">
             {totals.hits.map((hit) => (
-              <p key={hit.id} className="truncate text-center text-sm text-pine">
+              <p key={hit.id} className="deal-in truncate text-center text-sm text-pine">
                 מבצע {hit.name} · {formatILS(hit.amount)}
               </p>
             ))}
           </div>
         ) : totals.promoAmount > 0 ? (
-          <p className="mb-2 truncate text-center text-sm text-pine">מבצע {totals.promoLabel} · {formatILS(totals.promoAmount)}</p>
+          <p className="deal-in mb-2 truncate text-center text-sm text-pine">מבצע {totals.promoLabel} · {formatILS(totals.promoAmount)}</p>
         ) : null}
         <button
           type="button"
@@ -155,12 +155,12 @@ export function KioskPage() {
             bump();
             setAttract(false);
           }}
-          className="absolute inset-0 z-30 flex flex-col items-center justify-center bg-ink text-pine-ink"
+          className="kiosk-attract absolute inset-0 z-30 flex flex-col items-center justify-center bg-ink text-pine-ink"
         >
           {slides[slide] ? <img src={slides[slide].image} alt="" className="absolute inset-0 h-full w-full object-cover opacity-80" /> : null}
           <span className="relative mt-auto w-full bg-ink/55 px-6 py-8 text-center">
             <span className="block text-3xl font-semibold text-balance">{slides[slide]?.caption || settings.businessName}</span>
-            <span className="mt-4 inline-flex min-h-14 items-center rounded-2xl bg-pine px-8 text-xl font-semibold">לחצו להזמנה</span>
+            <span className="kiosk-cta mt-4 inline-flex min-h-14 items-center rounded-2xl bg-pine px-8 text-xl font-semibold">לחצו להזמנה</span>
           </span>
         </button>
       ) : null}
