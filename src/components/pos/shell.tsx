@@ -203,10 +203,14 @@ export function PosFrame({ children }: { children: ReactNode }) {
           </button>
         </nav>
         <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
-          <div className="flex items-start justify-between gap-2">
-            <SyncIndicator />
-            <RegisterMark />
-          </div>
+          {pathname === "/" ? null : (
+            <div className="no-print flex h-9 shrink-0 items-center gap-2 px-3">
+              <RegisterMark />
+              <div className="ms-auto">
+                <SyncIndicator />
+              </div>
+            </div>
+          )}
           <div key={pathname} className="page-enter flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
             {allowed ? (
               children

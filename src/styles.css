@@ -120,8 +120,8 @@
   -webkit-overflow-scrolling: touch;
 }
 
-/* Register: two shelves on the start side, ticket and keypad on the end.
-   Rows have a floor so a short landscape phone scrolls instead of crushing them. */
+/* Register: products take the start side, one ticket on the end.
+   The keypad is a sheet, not a third column. */
 .register-frame {
   container: register / size;
   display: flex;
@@ -136,22 +136,26 @@
   flex: 1 1 auto;
   min-height: 0;
   min-width: 0;
-  gap: clamp(0.35rem, 0.6vw, 0.75rem);
-  padding: clamp(0.35rem, 0.6vw, 0.75rem);
-  overflow: auto;
-  overscroll-behavior: contain;
-  -webkit-overflow-scrolling: touch;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  grid-template-rows: minmax(15rem, 1fr) minmax(17.5rem, 1fr);
-  grid-template-areas:
-    "upper ticket"
-    "lower keypad";
+  gap: 0.5rem;
+  padding: 0.35rem 0.5rem 0.5rem;
+  overflow: hidden;
+  grid-template-columns: minmax(0, 1fr) minmax(18.5rem, 26rem);
+  grid-template-rows: minmax(0, 1fr);
+  grid-template-areas: "catalog ticket";
 }
 
-.register-upper { grid-area: upper; }
+.register-catalog { grid-area: catalog; }
 .register-ticket { grid-area: ticket; }
-.register-lower { grid-area: lower; }
-.register-keypad { grid-area: keypad; }
+
+@container register (max-width: 44rem) {
+  .register {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr) minmax(15.5rem, 46%);
+    grid-template-areas:
+      "catalog"
+      "ticket";
+  }
+}
 
 .register-panel {
   display: flex;
@@ -183,16 +187,29 @@
   padding: 0.5rem;
 }
 
-/* Wide terminals: products | ticket | keypad, with the keypad column capped
-   so keys don't stretch across a 24" monitor. */
-@container register (min-width: 60rem) and (min-height: 32rem) {
-  .register {
-    grid-template-columns: minmax(0, 1.6fr) minmax(18rem, 26rem) minmax(16rem, 22rem);
-    grid-template-rows: minmax(12rem, 1fr) minmax(12rem, 1fr);
-    grid-template-areas:
-      "upper ticket keypad"
-      "lower ticket keypad";
-  }
+.product-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 8.25rem), 1fr));
+  gap: 0.5rem;
+  align-content: start;
+}
+
+.product-card .product-photo {
+  aspect-ratio: 4 / 3;
+  max-height: 6.5rem;
+}
+
+.promo-strip {
+  display: flex;
+  gap: 0.5rem;
+  overflow-x: auto;
+  overscroll-behavior: contain;
+}
+
+.promo-strip .promo-card {
+  flex: 0 0 12.5rem;
+  height: 5.75rem;
+  min-height: 5.75rem;
 }
 
 .shelf-grid {
@@ -208,14 +225,15 @@
   }
 }
 
-/* 9" landscape and short portrait: keep both shelves usable without clipping keys. */
-@container register (max-height: 34rem) {
-  .register {
-    grid-template-rows: minmax(8.5rem, 1fr) minmax(8.5rem, 1fr);
+/* Short registers keep the same two zones and just tighten the cards. */
+@container register (max-height: 36rem) {
+  .product-card .product-photo {
+    max-height: 4.25rem;
   }
-  .shelf-grid {
-    grid-template-columns: repeat(auto-fill, minmax(min(100%, 7.25rem), 1fr));
-    gap: 0.35rem;
+  .promo-strip .promo-card {
+    height: 4.5rem;
+    min-height: 4.5rem;
+    flex-basis: 11rem;
   }
 }
 
@@ -435,6 +453,52 @@
   .pin-dot {
     width: clamp(1.35rem, 2vw, 2rem);
     height: clamp(1.35rem, 2vw, 2rem);
+  }
+}
+
+/* 1024×600 registers are wide but short. Keep the lock beside the keypad
+   and stop the wide-screen key size from clipping the bottom row. */
+@media (orientation: landscape) and (max-height: 40rem) {
+  .lock-screen {
+    padding-top: 0.35rem;
+  }
+
+  .lock-board {
+    width: 100%;
+    max-width: none;
+    flex-direction: row;
+    align-items: stretch;
+    gap: 0.75rem;
+    padding: 0.35rem 0.6rem;
+  }
+
+  .lock-identity,
+  .lock-keys {
+    display: flex;
+    flex: 1 1 0;
+    flex-direction: column;
+    justify-content: center;
+    min-height: 0;
+  }
+
+  .lock-keys {
+    padding-inline-end: 4.75rem;
+  }
+
+  .lock-pad {
+    height: 100%;
+    margin-top: 0;
+    grid-template-rows: repeat(4, minmax(2.35rem, 1fr));
+  }
+
+  .lock-key {
+    height: 100%;
+    min-height: 2.35rem;
+    font-size: 1.05rem;
+  }
+
+  .lock-cloud {
+    display: none;
   }
 }
 
