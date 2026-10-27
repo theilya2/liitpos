@@ -56,6 +56,7 @@ public class MainActivity extends BridgeActivity {
         webView.removeJavascriptInterface("LiitposNative");
         webView.addJavascriptInterface(new Bridge(), "LiitposNative");
         webView.getSettings().setMixedContentMode(android.webkit.WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE);
+        WebLight.apply(webView);
         if (lockWanted) {
             try {
                 startLockTask();

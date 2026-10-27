@@ -133,7 +133,7 @@ public class CustomerDisplayPlugin extends Plugin {
         protected void onCreate(Bundle savedInstanceState) {
             super.onCreate(savedInstanceState);
             web = new WebView(getContext());
-            web.setBackgroundColor(0xFF10241C);
+            WebLight.apply(web);
             web.getSettings().setJavaScriptEnabled(true);
             web.getSettings().setDomStorageEnabled(true);
             web.setWebViewClient(new WebViewClient() {

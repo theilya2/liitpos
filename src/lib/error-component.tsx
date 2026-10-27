@@ -15,20 +15,20 @@ export function AppErrorComponent({ error }: ErrorComponentProps) {
     <main
       className={
         "flex min-h-screen flex-col items-center justify-center gap-3 px-6 text-center " +
-        "bg-zinc-50 text-zinc-900 dark:bg-zinc-950 dark:text-zinc-50"
+        "bg-zinc-50 text-zinc-900"
       }
     >
       <span className="text-red-500" aria-hidden="true">
         <TriangleAlert className="size-10" strokeWidth={2} />
       </span>
       <h1 className="text-lg font-semibold">Something went wrong</h1>
-      <p className="max-w-md text-sm text-zinc-500 dark:text-zinc-400">
+      <p className="max-w-md text-sm text-zinc-500">
         המסך הזה הוא תקלה, לא הקופה. השורה הבאה היא הסיבה הטכנית.
       </p>
-      <p className="max-w-md text-sm break-words text-zinc-500 dark:text-zinc-400">{errorMessage(error)}</p>
+      <p className="max-w-md text-sm break-words text-zinc-500">{errorMessage(error)}</p>
       <button
         type="button"
-        className="mt-1 h-11 rounded-xl bg-zinc-900 px-4 text-sm font-semibold text-white dark:bg-zinc-100 dark:text-zinc-900"
+        className="mt-1 h-11 rounded-xl bg-zinc-900 px-4 text-sm font-semibold text-white"
         onClick={() => window.location.reload()}
       >
         טעינה מחדש

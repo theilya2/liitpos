@@ -12,6 +12,9 @@ import { confirmReceipt, deliverPrint, pulseDrawer } from "@/lib/pos/receipt-io"
 import { formatILS, formatWhen, moneyFromPad, pushMoneyKey, roundCash, roundMoney } from "@/lib/pos/money";
 import { SyncIndicator } from "@/components/pos/cloud-bar";
 import { flyChip, LiveTotal, PayBurst } from "@/components/pos/motion";
+import { PayRing } from "@/components/pos/pay-ring";
+import { pushToast } from "@/components/pos/toasts";
+import { optimisticApply, removeForUndo } from "@/lib/pos/motion-cart";
 import { buildConfiguredLine, findByCode, mustChoose, needsPicker, shelfPrice } from "@/lib/pos/options";
 import { pricedOrPlain, promoHeadline, promoOpen, promoPlan, selectPromos, type PricedCart } from "@/lib/pos/promo";
 import { expandTopShelf, selectTopShelf } from "@/lib/pos/shelves";
@@ -252,8 +255,9 @@ function PaySheet({ onClose, onDone, seed }: { onClose: () => void; onDone: (sal
   const seededOnce = useRef(false);
   const [payments, setPayments] = useState(1);
   const [device, setDevice] = useState<TerminalKind>("android");
-  const [phase, setPhase] = useState<"idle" | "wait" | "fail">("idle");
+  const [phase, setPhase] = useState<"idle" | "wait" | "ok" | "fail">("idle");
   const [message, setMessage] = useState("");
+  const [shake, setShake] = useState(0);
   const [inputs, setInputs] = useState<TenderInput[]>([]);
   const [manual, setManual] = useState("");
   const abortRef = useRef<AbortController | null>(null);
@@ -285,19 +289,22 @@ function PaySheet({ onClose, onDone, seed }: { onClose: () => void; onDone: (sal
   }, [seeded, totals.total]);
 
   useEffect(() => {
-    const status = phase === "wait" ? "ממתינים למסוף" : phase === "fail" ? message || "התשלום לא עבר" : METHOD_LABEL[method];
-    setCustomerPhase({ mode: "pay", status });
+    const ring = phase === "wait" ? "wait" : phase === "ok" ? "ok" : phase === "fail" ? "fail" : "";
+    const status = phase === "wait" ? "ממתינים למסוף" : phase === "ok" ? "אושר" : phase === "fail" ? message || "התשלום לא עבר" : METHOD_LABEL[method];
+    setCustomerPhase({ mode: "pay", status, ring });
   }, [message, method, phase]);
 
   function closeWith(next: TenderInput[]) {
     const block = creditBlocker(selectCredits(usePos.getState().credits), next, Date.now());
     if (block) {
       setMessage(block);
+      setShake((value) => value + 1);
       return;
     }
     const sale = checkout({ tenders: next });
     if (!sale) {
       setMessage("היתרה עוד לא כוסתה.");
+      setShake((value) => value + 1);
       return;
     }
     onDone(sale);
@@ -327,6 +334,7 @@ function PaySheet({ onClose, onDone, seed }: { onClose: () => void; onDone: (sal
     const next = foldTenders(totals.total, nextInputs);
     if (!next) {
       setMessage("הסכום גדול מהיתרה.");
+      setShake((value) => value + 1);
       return;
     }
     setInputs(nextInputs);
@@ -363,6 +371,9 @@ function PaySheet({ onClose, onDone, seed }: { onClose: () => void; onDone: (sal
       setMessage(result.message);
       return;
     }
+    setPhase("ok");
+    await new Promise((resolve) => window.setTimeout(resolve, 280));
+    if (controller.signal.aborted) return;
     pushDraft({
       tendered: slice,
       payments: plan.count,
@@ -388,7 +399,7 @@ function PaySheet({ onClose, onDone, seed }: { onClose: () => void; onDone: (sal
       }}
     >
       <p className="text-center text-sm text-muted">יתרה · כולל מע״מ {settings.vatRate}%</p>
-      <p className="mt-1 text-center text-4xl font-semibold tabular-nums text-copper">{formatILS(remaining)}</p>
+      <p key={shake} className={`mt-1 text-center text-4xl font-semibold tabular-nums text-copper ${shake ? "shake-flash rounded-2xl" : ""}`}>{formatILS(remaining)}</p>
       <p className="mt-1 text-center text-sm text-muted">סכום החשבון {formatILS(totals.total)}</p>
       {totals.hits.length ? (
         <div className="mt-1 space-y-1">
@@ -530,9 +541,12 @@ function PaySheet({ onClose, onDone, seed }: { onClose: () => void; onDone: (sal
           <p className="text-center text-xs text-muted">
             {deviceReady ? `נשלח אל ${endpoint.ip}:${endpoint.port}` : "המנהל מגדיר את כתובת המסוף בהגדרות. אותה כתובת צריכה להיות גם במכשיר עצמו."}
           </p>
-          {tooSmall ? <p className="text-center text-sm text-copper">כל תשלום צריך להיות לפחות שקל.</p> : null}
+          {tooSmall ? <p className="shake-flash rounded-xl text-center text-sm text-copper">כל תשלום צריך להיות לפחות שקל.</p> : null}
           {message ? <p className="text-center text-sm text-copper">{message}</p> : null}
-          {phase === "wait" ? (
+          {phase === "wait" || phase === "ok" || phase === "fail" ? <PayRing phase={phase === "ok" ? "ok" : phase === "fail" ? "fail" : "wait"} /> : null}
+          {phase === "ok" ? (
+            <p className="text-center text-sm font-semibold text-pine">אושר</p>
+          ) : phase === "wait" ? (
             <button
               type="button"
               onClick={() => abortRef.current?.abort()}
@@ -753,6 +767,48 @@ function PromoRows({ totals }: { totals: PricedCart }) {
   );
 }
 
+function SwipeLine({ selected, onSelect, onDelete, children }: { selected: boolean; onSelect: () => void; onDelete: () => void; children: ReactNode }) {
+  const origin = useRef<number | null>(null);
+  const [shift, setShift] = useState(0);
+  return (
+    <div className="relative mb-1 overflow-hidden rounded-xl">
+      <div className="absolute inset-0 flex items-center justify-end bg-[#e11d63] px-3 text-xs font-semibold text-white">מחיקה</div>
+      <div
+        role="button"
+        tabIndex={0}
+        style={{ transform: `translateX(${shift}px)` }}
+        onPointerDown={(event) => {
+          if ((event.target as HTMLElement).closest("button")) return;
+          origin.current = event.clientX;
+          event.currentTarget.setPointerCapture(event.pointerId);
+        }}
+        onPointerMove={(event) => {
+          if (origin.current === null) return;
+          setShift(Math.max(-110, Math.min(110, event.clientX - origin.current)));
+        }}
+        onPointerUp={(event) => {
+          if (origin.current === null) return;
+          const dx = event.clientX - origin.current;
+          origin.current = null;
+          setShift(0);
+          if (Math.abs(dx) > 72) onDelete();
+        }}
+        onPointerCancel={() => {
+          origin.current = null;
+          setShift(0);
+        }}
+        onClick={() => onSelect()}
+        onKeyDown={(event) => {
+          if (event.key === "Enter") onSelect();
+        }}
+        className={`relative flex w-full flex-wrap items-center gap-2 rounded-xl px-1.5 py-1 text-start ${selected ? "bg-pine-soft" : "bg-paper"}`}
+      >
+        {children}
+      </div>
+    </div>
+  );
+}
+
 function ShelfTile({ product, qty, onAdd }: { product: Product; qty: number; onAdd: () => void }) {
   const priced = shelfPrice(product);
   const onHand = product.variants?.filter((variant) => variant.active).length
@@ -768,21 +824,21 @@ function ShelfTile({ product, qty, onAdd }: { product: Product; qty: number; onA
         flyChip(event.currentTarget, product.name);
         onAdd();
       }}
-      className="product-card flex min-w-0 flex-col overflow-hidden rounded-2xl bg-surface text-start ring-1 ring-line disabled:opacity-50"
+      className="product-card flex min-h-12 min-w-0 flex-col overflow-hidden rounded-xl bg-surface text-center ring-1 ring-line disabled:opacity-50"
     >
       <span className="product-photo relative block w-full overflow-hidden bg-pine-soft">
         {product.image ? (
           <img src={product.image} alt="" className="h-full w-full object-cover" />
         ) : (
-          <span className="flex h-full items-center justify-center text-2xl font-semibold text-pine">{product.name.slice(0, 1)}</span>
+          <span className="flex h-full items-center justify-center text-base font-semibold text-pine">{product.name.slice(0, 1)}</span>
         )}
         {qty > 0 ? (
-          <span className="absolute end-1.5 top-1.5 rounded-full bg-pine px-2 text-xs font-semibold text-pine-ink tabular-nums">{qty}</span>
+          <span className="absolute end-1 top-1 rounded-full bg-pine px-1.5 text-xs font-semibold text-pine-ink tabular-nums">{qty}</span>
         ) : null}
       </span>
-      <span className="flex min-w-0 flex-col gap-0.5 px-2 py-2">
-        <span className="line-clamp-2 text-sm font-medium leading-snug">{product.name}</span>
-        <span className="text-sm font-semibold tabular-nums text-copper">{priced.from ? `מ־${formatILS(priced.amount)}` : formatILS(priced.amount)}</span>
+      <span className="flex min-h-12 w-full flex-col items-center justify-center gap-0.5 px-1.5 py-1.5">
+        <span className="line-clamp-2 min-h-[2.5em] w-full text-sm font-medium leading-tight">{product.name}</span>
+        <span className="text-sm font-semibold leading-none tabular-nums whitespace-nowrap text-copper">{priced.from ? `מ־${formatILS(priced.amount)}` : formatILS(priced.amount)}</span>
       </span>
     </button>
   );
@@ -813,6 +869,7 @@ export function SalePage() {
   const [offer, setOffer] = useState<Promo | null>(null);
   const addCustomItem = usePos((state) => state.addCustomItem);
   const removeLine = usePos((state) => state.removeLine);
+  const restoreLine = usePos((state) => state.restoreLine);
   const setQty = usePos((state) => state.setQty);
   const holdCart = usePos((state) => state.holdCart);
   const resumeHeld = usePos((state) => state.resumeHeld);
@@ -895,15 +952,11 @@ export function SalePage() {
           setConfig({ product: coded.product, variantId: null });
           return true;
         }
-        const ok = addProductToCart(coded.product);
-        if (!ok) setNote(`${coded.product.name} אזל מהמלאי.`);
-        return ok;
+        return tryAdd(coded.product);
       }
       const matches = active.filter((product) => product.name.includes(q));
       if (matches.length === 1) {
-        const ok = addProductToCart(matches[0]);
-        if (!ok) setNote(`${matches[0].name} אזל מהמלאי.`);
-        return ok;
+        return tryAdd(matches[0]);
       }
       return false;
     },
@@ -985,11 +1038,37 @@ export function SalePage() {
     setNote("");
   }
 
+  function dropLine(key: string) {
+    const result = removeForUndo(usePos.getState().cart, key);
+    if (!result.removed) return;
+    removeLine(key);
+    setSelectedKey(null);
+    const removed = result.removed;
+    const index = result.index;
+    pushToast("השורה הוסרה", {
+      ttl: 5000,
+      actionLabel: "ביטול",
+      onAction: () => restoreLine(removed, index),
+    });
+  }
+
   function deleteLine() {
     const key = selectedKey && cart.some((line) => line.key === selectedKey) ? selectedKey : cart[cart.length - 1]?.key;
     if (!key) return;
-    removeLine(key);
-    setSelectedKey(null);
+    dropLine(key);
+  }
+
+  function tryAdd(product: Product) {
+    const previous = usePos.getState().cart;
+    const ok = addProductToCart(product);
+    const outcome = optimisticApply(previous, ok ? { ok: true, next: usePos.getState().cart } : { ok: false, message: `${product.name} אזל מהמלאי.` });
+    if (outcome.rolledBack && outcome.toast) {
+      setNote(outcome.toast);
+      pushToast(outcome.toast);
+      return false;
+    }
+    pushToast("נוסף");
+    return true;
   }
 
   function lineForPad() {
@@ -1073,7 +1152,7 @@ export function SalePage() {
               setConfig({ product, variantId: null });
               return;
             }
-            if (!addProductToCart(product)) setNote(`${product.name} אזל מהמלאי.`);
+            tryAdd(product);
           }}
         />
         <div className="shrink-0 border-t border-line px-2 py-2">
@@ -1177,15 +1256,7 @@ export function SalePage() {
           ) : (
             cart.map((line) => (
               <li key={line.key} className="cart-pop">
-                <div
-                  role="button"
-                  tabIndex={0}
-                  onClick={() => setSelectedKey(line.key)}
-                  onKeyDown={(event) => {
-                    if (event.key === "Enter") setSelectedKey(line.key);
-                  }}
-                  className={`mb-1 flex w-full flex-wrap items-center gap-2 rounded-xl px-1.5 py-1 text-start ${selectedKey === line.key ? "bg-pine-soft" : "bg-paper"}`}
-                >
+                <SwipeLine selected={selectedKey === line.key} onSelect={() => setSelectedKey(line.key)} onDelete={() => dropLine(line.key)}>
                   <span className="min-w-0 flex-1 basis-24 truncate text-sm font-medium">{line.name}</span>
                   <span className="text-sm font-semibold tabular-nums">{formatILS(roundMoney(line.unitPrice * line.qty))}</span>
                   <span className="ms-auto flex items-center gap-2">
@@ -1213,7 +1284,7 @@ export function SalePage() {
                       <Plus className="size-3.5" />
                     </button>
                   </span>
-                </div>
+                </SwipeLine>
               </li>
             ))
           )}

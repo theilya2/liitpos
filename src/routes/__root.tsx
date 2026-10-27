@@ -2,6 +2,7 @@ import { createRootRoute, HeadContent, Outlet, Scripts } from "@tanstack/react-r
 import { AuthProvider } from "@/lib/auth/provider";
 import { PreviewHostBridge } from "@/components/preview-host-bridge";
 import { PosFrame } from "@/components/pos/shell";
+import { ToastHost } from "@/components/pos/toasts";
 import appCss from "../styles.css?url";
 
 const APP_NAME = "קופהקל";
@@ -14,7 +15,8 @@ export const Route = createRootRoute({
       { name: "viewport", content: "width=device-width, initial-scale=1, viewport-fit=cover" },
       { title: APP_NAME },
       { name: "description", content: "קופה רושמת בעברית לחנויות, קיוסקים ובתי קפה בישראל" },
-      { name: "theme-color", content: "#0e6b56" },
+      { name: "color-scheme", content: "light" },
+      { name: "theme-color", content: "#fbf9ff" },
       { name: "apple-mobile-web-app-title", content: APP_NAME },
     ],
     links: [
@@ -36,6 +38,7 @@ export const Route = createRootRoute({
             <Outlet />
           </PosFrame>
         </AuthProvider>
+        <ToastHost />
         <Scripts />
       </body>
     </html>

@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { BackOfficeExtras } from "@/components/pos/back-office-extras";
+import { pushToast } from "@/components/pos/toasts";
 import { PendingActivations } from "@/components/pos/pending-activations";
 import { LegacyTokens, RegistersAdmin } from "@/components/pos/registers-admin";
 import {
@@ -73,12 +74,16 @@ function LoginForm({ onSuccess }: { onSuccess: () => void }) {
               if (!response.ok) {
                 const body = (await response.json().catch(() => null)) as { error?: string } | null;
                 setError(body?.error || "הכניסה נדחתה.");
+                pushToast(body?.error || "הכניסה נדחתה.");
                 return;
               }
               setPassword("");
               onSuccess();
             })
-            .catch(() => setError("הכניסה נדחתה."))
+            .catch(() => {
+              setError("הכניסה נדחתה.");
+              pushToast("הכניסה נדחתה.");
+            })
             .finally(() => setBusy(false));
         }}
       >
@@ -172,7 +177,10 @@ function Panel({ onLogout }: { onLogout: () => void }) {
         setSelectedId(data.businesses[0]?.id ?? null);
       })
       .catch((reason: unknown) => {
-        if (live) setError(messageOf(reason));
+        if (live) {
+          setError(messageOf(reason));
+          pushToast(messageOf(reason));
+        }
       });
     return () => {
       live = false;
@@ -190,6 +198,7 @@ function Panel({ onLogout }: { onLogout: () => void }) {
       await syncNow();
     } catch (reason) {
       setError(messageOf(reason));
+      pushToast(messageOf(reason));
     } finally {
       setBusy(false);
     }
@@ -648,7 +657,10 @@ function DataBrowser({ businessId }: { businessId: string }) {
         if (live) setRows(data);
       })
       .catch((reason: unknown) => {
-        if (live) setError(messageOf(reason));
+        if (live) {
+          setError(messageOf(reason));
+          pushToast(messageOf(reason));
+        }
       });
     return () => {
       live = false;

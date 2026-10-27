@@ -65,6 +65,7 @@ type PosState = BranchFields & {
   addCustomItem: (name: string, price: number) => void;
   setQty: (key: string, qty: number) => void;
   removeLine: (key: string) => void;
+  restoreLine: (line: CartLine, index: number) => void;
   clearCart: () => void;
   setDiscount: (discount: Discount) => void;
   holdCart: () => boolean;
@@ -448,6 +449,15 @@ export const usePos = create<PosState>()(
         },
 
         removeLine: (key) => commit({ cart: get().cart.filter((line) => line.key !== key) }),
+
+        restoreLine: (line, index) => {
+          const cart = get().cart;
+          if (cart.some((item) => item.key === line.key)) return;
+          const at = Math.max(0, Math.min(index, cart.length));
+          const next = cart.slice();
+          next.splice(at, 0, line);
+          commit({ cart: next });
+        },
 
         clearCart: () => commit({ cart: [], discount: null }),
 

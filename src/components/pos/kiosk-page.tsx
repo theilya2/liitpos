@@ -2,6 +2,8 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { X } from "lucide-react";
 import { OptionSheet } from "@/components/pos/option-sheet";
+import { PayRing } from "@/components/pos/pay-ring";
+import { pushToast } from "@/components/pos/toasts";
 import { canSeeStore } from "@/lib/pos/access";
 import { KioskExitMark } from "@/components/pos/kiosk-exit";
 import { attractImages, kioskTiming, upsellSuggestions } from "@/lib/pos/kiosk";
@@ -9,6 +11,7 @@ import { formatILS, roundCash, roundMoney } from "@/lib/pos/money";
 import { setKioskLock } from "@/lib/pos/native";
 import { hasEnough, needsPicker, shelfPrice } from "@/lib/pos/options";
 import { pricedOrPlain } from "@/lib/pos/promo";
+import { setCustomerPhase } from "@/lib/pos/customer-display";
 import { confirmReceipt } from "@/lib/pos/receipt-io";
 import { usePos } from "@/lib/pos/store";
 import { chargeTerminal, deviceLabel, paymentPlan, terminalOrigin } from "@/lib/pos/terminal";
@@ -29,6 +32,7 @@ export function KioskPage() {
   const [done, setDone] = useState<number | null>(null);
   const [exitOpen, setExitOpen] = useState(false);
   const [attract, setAttract] = useState(true);
+  const [attractLeave, setAttractLeave] = useState(false);
   const [review, setReview] = useState(false);
   const [warnLeft, setWarnLeft] = useState<number | null>(null);
   const sales = usePos((state) => state.sales);
@@ -45,6 +49,14 @@ export function KioskPage() {
   function bump() {
     idleAt.current = Date.now();
     setWarnLeft(null);
+  }
+
+  function closeAttract() {
+    setAttractLeave(true);
+    window.setTimeout(() => {
+      setAttract(false);
+      setAttractLeave(false);
+    }, 280);
   }
 
   useEffect(() => {
@@ -153,9 +165,9 @@ export function KioskPage() {
           type="button"
           onClick={() => {
             bump();
-            setAttract(false);
+            closeAttract();
           }}
-          className="kiosk-attract absolute inset-0 z-30 flex flex-col items-center justify-center bg-ink text-pine-ink"
+          className={`kiosk-attract absolute inset-0 z-30 flex flex-col items-center justify-center bg-ink text-pine-ink ${attractLeave ? "is-leaving" : ""}`}
         >
           {slides[slide] ? <img src={slides[slide].image} alt="" className="absolute inset-0 h-full w-full object-cover opacity-80" /> : null}
           <span className="relative mt-auto w-full bg-ink/55 px-6 py-8 text-center">
@@ -260,19 +272,20 @@ export function KioskPage() {
           onPaid={(number) => {
             setCart([]);
             setPay(false);
+            setReview(false);
             setDone(number);
           }}
           checkout={checkout}
         />
       ) : null}
       {done !== null ? (
-        <Sheet title="ההזמנה בדרך" onClose={() => setDone(null)}>
-          <p className="text-lg">מספר {done} נשלח לקופה ונכנס לדוחות.</p>
-          <p className="mt-2 text-sm text-muted">אם שילמתם במזומן, משלמים בדלפק. אפשר להתחיל הזמנה חדשה.</p>
-          <button type="button" onClick={() => setDone(null)} className="mt-4 h-14 w-full rounded-2xl bg-pine text-lg font-semibold text-pine-ink">
-            הזמנה חדשה
-          </button>
-        </Sheet>
+        <ThanksScreen
+          number={done}
+          onDone={() => {
+            setDone(null);
+            setAttract(true);
+          }}
+        />
       ) : null}
       <KioskExitMark
         logo={settings.logo}
@@ -317,6 +330,23 @@ function Sheet({ title, onClose, children }: { title: string; onClose: () => voi
   );
 }
 
+function ThanksScreen({ number, onDone }: { number: number; onDone: () => void }) {
+  const done = useRef(onDone);
+  done.current = onDone;
+  useEffect(() => {
+    const timer = window.setTimeout(() => done.current(), 4000);
+    return () => window.clearTimeout(timer);
+  }, []);
+  return (
+    <button type="button" onClick={onDone} className="kiosk-thanks absolute inset-0 z-40 flex flex-col items-center justify-center bg-paper text-center">
+      <span className="flex h-20 w-20 items-center justify-center rounded-full bg-[#12b886] text-4xl text-white">✓</span>
+      <h2 className="mt-4 text-4xl font-semibold">תודה</h2>
+      <p className="mt-2 text-lg">הזמנה {number}</p>
+      <p className="mt-2 text-sm text-muted">חוזרים למסך הפתיחה</p>
+    </button>
+  );
+}
+
 function KioskPay({
   total,
   lines,
@@ -336,9 +366,16 @@ function KioskPay({
   const [method, setMethod] = useState<TenderMethod | null>(null);
   const [payments, setPayments] = useState(1);
   const [terminal, setTerminal] = useState<TerminalKind>("android");
-  const [phase, setPhase] = useState<"idle" | "wait" | "fail">("idle");
+  const [phase, setPhase] = useState<"idle" | "wait" | "ok" | "fail">("idle");
+  const [shake, setShake] = useState(0);
   const [message, setMessage] = useState("");
   const due = method === "cash" ? roundCash(total) : total;
+  useEffect(() => {
+    if (phase === "idle") return;
+    const ring = phase === "wait" ? "wait" : phase === "ok" ? "ok" : "fail";
+    const status = phase === "wait" ? "ממתינים למסוף" : phase === "ok" ? "אושר" : message || "התשלום לא עבר";
+    setCustomerPhase({ mode: "pay", status, ring });
+  }, [message, phase]);
   const plan = paymentPlan(due, payments);
   const endpoint = terminal === "android" ? settings.androidTerminal : settings.pinpad;
   const ready = Boolean(terminalOrigin(endpoint));
@@ -362,8 +399,12 @@ function KioskPay({
     if (!result.ok) {
       setPhase("fail");
       setMessage(result.message);
+      pushToast(result.message);
       return;
     }
+    setPhase("ok");
+    setCustomerPhase({ mode: "pay", status: "אושר", ring: "ok" });
+    await new Promise((resolve) => window.setTimeout(resolve, 280));
     const sale = checkout({
       method,
       tendered: due,
@@ -381,12 +422,13 @@ function KioskPay({
       return;
     }
     void confirmReceipt(sale);
+    setCustomerPhase({ mode: "thanks", saleId: sale.id });
     onPaid(sale.number);
   }
 
   return (
     <Sheet title="תשלום" onClose={onClose}>
-      <p className="text-center text-3xl font-semibold tabular-nums">{formatILS(due)}</p>
+      <p key={shake} className={`text-center text-3xl font-semibold tabular-nums ${shake ? "shake-flash rounded-2xl" : ""}`}>{formatILS(due)}</p>
       <div className="mt-4 grid grid-cols-3 gap-2">
         {(
           [
@@ -407,9 +449,12 @@ function KioskPay({
             const sale = checkout({ method: "cash", tendered: due, lines, channel: "kiosk" });
             if (!sale) {
               setMessage("אי אפשר לסגור את ההזמנה. בדקו מלאי או נעילת שבוע.");
+              setShake((value) => value + 1);
+              pushToast("אי אפשר לסגור את ההזמנה.");
               return;
             }
             void confirmReceipt(sale);
+            setCustomerPhase({ mode: "thanks", saleId: sale.id });
             onPaid(sale.number);
           }}
           className="mt-4 h-14 w-full rounded-2xl bg-pine text-lg font-semibold text-pine-ink"
@@ -435,8 +480,9 @@ function KioskPay({
             </span>
           </div>
           {plan.count > 1 ? <p className="text-xs text-muted">ראשון {formatILS(plan.first)} ואז {formatILS(plan.rest)}</p> : null}
-          <button type="button" disabled={!ready || phase === "wait"} onClick={() => void send()} className="h-14 w-full rounded-2xl bg-pine text-lg font-semibold text-pine-ink disabled:opacity-40">
-            {phase === "wait" ? "ממתינים למסוף…" : ready ? "שליחה למסוף" : "המסוף לא הוגדר"}
+          {phase === "wait" || phase === "ok" || phase === "fail" ? <PayRing phase={phase === "ok" ? "ok" : phase === "fail" ? "fail" : "wait"} /> : null}
+          <button type="button" disabled={!ready || phase === "wait" || phase === "ok"} onClick={() => void send()} className="h-14 w-full rounded-2xl bg-pine text-lg font-semibold text-pine-ink disabled:opacity-40">
+            {phase === "wait" ? "ממתינים למסוף…" : phase === "ok" ? "אושר" : ready ? "שליחה למסוף" : "המסוף לא הוגדר"}
           </button>
         </div>
       ) : null}
@@ -459,6 +505,7 @@ function ExitGate({
   const length = lock ? 4 : 6;
   const [typed, setTyped] = useState("");
   const [error, setError] = useState("");
+  const [shake, setShake] = useState(0);
   function push(digit: string) {
     const next = (typed + digit).slice(0, length);
     setTyped(next);
@@ -467,7 +514,9 @@ function ExitGate({
       if (accept(next)) onLeave();
       else {
         setTyped("");
+        setShake((value) => value + 1);
         setError(lock ? "קוד המנהל לא מתאים." : "המזהה לא מתאים לעסק הזה.");
+        pushToast(lock ? "קוד המנהל לא מתאים." : "המזהה לא מתאים.");
       }
     }
   }
@@ -476,7 +525,7 @@ function ExitGate({
       <p className="text-sm text-muted">
         {lock ? "נעילת הקיוסק פעילה. רק קוד מנהל משחרר אותה." : "מקלידים את מזהה העסק. לקוחות לא יוצאים מכאן לניהול."}
       </p>
-      <p className="mt-3 text-center text-2xl font-semibold tracking-[0.3em] tabular-nums" dir="ltr">{typed.padEnd(length, "·")}</p>
+      <p key={shake} className={`mt-3 text-center text-2xl font-semibold tracking-[0.3em] tabular-nums ${shake ? "shake-flash rounded-2xl" : ""}`} dir="ltr">{typed.padEnd(length, "·")}</p>
       {error ? <p className="mt-2 text-center text-sm text-copper">{error}</p> : null}
       <div className="mt-3 grid grid-cols-3 gap-2" dir="ltr">
         {["1", "2", "3", "4", "5", "6", "7", "8", "9", "מחק", "0"].map((key) => (

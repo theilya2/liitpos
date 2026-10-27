@@ -1,4 +1,5 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { pushToast } from "@/components/pos/toasts";
 import { formatWhen } from "@/lib/pos/money";
 import { readSessionToken } from "@/lib/pos/native";
 import { usePos } from "@/lib/pos/store";
@@ -51,15 +52,24 @@ export function SyncIndicator() {
   const pending = usePos((state) => state.outbox.length);
   const lastGoodSync = usePos((state) => state.lastGoodSync);
   const [open, setOpen] = useState(false);
-  const grey = phase === "offline" || phase === "local" || phase === "checking";
-  const alert = phase === "error" || phase === "revoked" || pending > 0 || phase === "syncing";
-  const tone = grey ? "bg-line text-muted" : alert ? "bg-copper-soft text-copper" : "bg-pine-soft text-pine";
-  const label = phase === "revoked" ? "נותקה" : phase === "error" ? "שגיאה" : grey ? (phase === "local" ? "לא מחובר" : phase === "offline" ? "לא מקוון" : "בודקים") : pending > 0 ? `${pending} ממתינים` : phase === "syncing" ? "מסנכרן" : "מסונכרן";
+  const offline = phase === "offline" || phase === "local" || phase === "error" || phase === "revoked";
+  const syncing = phase === "syncing" || phase === "checking" || pending > 0;
+  const dot = offline ? "bg-[#e11d63]" : syncing ? "bg-[#f59e0b]" : "bg-[#12b886]";
+  const tone = offline ? "bg-copper-soft text-copper" : syncing ? "bg-[#fff4d6] text-[#92400e]" : "bg-[#e7fbe9] text-[#166534]";
+  const label = phase === "revoked" ? "נותקה" : phase === "error" ? "שגיאה" : phase === "local" ? "לא מחובר" : phase === "offline" ? "לא מקוון" : phase === "checking" ? "בודקים" : pending > 0 ? `${pending} ממתינים` : phase === "syncing" ? "מסנכרן" : "מסונכרן";
+  const seen = useRef(phase);
+  useEffect(() => {
+    if (seen.current === phase) return;
+    seen.current = phase;
+    if (phase === "synced") pushToast("סונכרן");
+    else if (phase === "offline" || phase === "local") pushToast("אין חיבור");
+    else if (phase === "error" || phase === "revoked") pushToast(detail || "שגיאה");
+  }, [detail, phase]);
 
   return (
     <div className="no-print relative shrink-0">
       <button type="button" onClick={() => setOpen((value) => !value)} className={`inline-flex h-7 items-center gap-1.5 rounded-full px-2.5 text-xs font-semibold ${tone}`} aria-expanded={open}>
-        <span className={`h-1.5 w-1.5 rounded-full ${grey ? "bg-muted" : alert ? "bg-copper" : "bg-pine"}`} aria-hidden="true" />
+        <span className={`sync-dot ${dot} ${phase === "syncing" ? "is-sync text-[#f59e0b]" : ""}`} aria-hidden="true" />
         {label}
       </button>
       {phase === "revoked" ? (
