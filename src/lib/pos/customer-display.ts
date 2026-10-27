@@ -6,10 +6,11 @@ export type CustomerPayload = {
   business: string;
   logo: string;
   slides: { image: string; caption: string }[];
-  lines: { name: string; qty: number; total: string }[];
+  lines: { key: string; name: string; qty: number; total: string }[];
   discounts: { name: string; amount: string }[];
   total: string;
   pay: string;
+  ring: "" | "wait" | "ok" | "fail";
   thanks: string;
   qr: string;
 };
@@ -32,7 +33,7 @@ const plugin = registerPlugin<CustomerDisplayPlugin>("CustomerDisplay", {
   web: () => new CustomerDisplayWeb(),
 });
 
-export type CustomerPhase = { mode: "selling" } | { mode: "pay"; status: string } | { mode: "thanks"; saleId: string };
+export type CustomerPhase = { mode: "selling" } | { mode: "pay"; status: string; ring?: "" | "wait" | "ok" | "fail" } | { mode: "thanks"; saleId: string };
 
 let phase: CustomerPhase = { mode: "selling" };
 const listeners = new Set<() => void>();

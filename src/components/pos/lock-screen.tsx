@@ -33,6 +33,7 @@ export function LockScreen() {
   const [pin, setPin] = useState("");
   const [code, setCode] = useState("");
   const [error, setError] = useState("");
+  const [shake, setShake] = useState(0);
   const [clocking, setClocking] = useState(false);
 
   useEffect(() => {
@@ -111,6 +112,7 @@ export function LockScreen() {
       const ok = login(selected, next);
       if (!ok) {
         setPin("");
+        setShake((value) => value + 1);
         setError("הקוד לא מתאים למשתמש הזה בעסק שנבחר");
       }
     }
@@ -217,7 +219,11 @@ export function LockScreen() {
                   שעון נוכחות
                 </button>
               ) : null}
-              {emptyStaff ? null : <PinDots filled={pin.length} total={4} />}
+              {emptyStaff ? null : (
+                <div key={shake} className={shake ? "shake-flash rounded-3xl" : ""}>
+                  <PinDots filled={pin.length} total={4} />
+                </div>
+              )}
               {emptyStaff ? null : error ? <p className="mt-2 text-center text-sm text-pretty text-copper">{error}</p> : <p className="mt-2 text-center text-sm text-muted">קוד בן 4 ספרות</p>}
               {demo && !emptyStaff ? <p className="mt-2 text-center text-xs text-pretty text-muted">במכולת: מנהל 1111 · אחראי 2222 · קופאי 3333. בקיוסק נכנסת המנהלת.</p> : null}
             </>

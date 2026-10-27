@@ -2,6 +2,7 @@ import { createRootRoute, HeadContent, Outlet, Scripts } from "@tanstack/react-r
 import { AuthProvider } from "@/lib/auth/provider";
 import { PreviewHostBridge } from "@/components/preview-host-bridge";
 import { PosFrame } from "@/components/pos/shell";
+import { ToastHost } from "@/components/pos/toasts";
 import appCss from "../styles.css?url";
 
 const APP_NAME = "קופהקל";
@@ -37,6 +38,7 @@ export const Route = createRootRoute({
             <Outlet />
           </PosFrame>
         </AuthProvider>
+        <ToastHost />
         <Scripts />
       </body>
     </html>

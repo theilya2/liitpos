@@ -203,7 +203,7 @@ export function PosFrame({ children }: { children: ReactNode }) {
           </button>
         </nav>
         <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
-          {pathname === "/" ? null : (
+          {pathname === "/" || pathname === "/manage" ? null : (
             <div className="no-print flex h-9 shrink-0 items-center gap-2 px-3">
               <RegisterMark />
               <div className="ms-auto">

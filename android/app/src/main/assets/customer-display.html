@@ -31,6 +31,23 @@
       .total { margin-top: 18px; display: flex; justify-content: space-between; align-items: baseline; font-size: 42px; font-weight: 700; color: #e11d63; }
       .pay { margin-top: 12px; font-size: 28px; color: #5b35f5; }
       .thanks { font-size: 56px; font-weight: 700; }
+      .stage { transition: opacity 280ms ease, transform 280ms ease; }
+      .stage.is-swap { opacity: 0; transform: translateY(8px); }
+      .line-new { animation: line-in 280ms ease both; }
+      .line-out { animation: line-out 280ms ease forwards; }
+      .strike { display: inline-block; height: 2px; background: #e11d63; transform: scaleX(0); transform-origin: 100% 50%; animation: strike 280ms ease forwards; position: absolute; inset-inline: 0; top: 50%; }
+      .qty-pop, .total-pop { display: inline-block; animation: pop 280ms ease; }
+      .pay-ring { margin-top: 18px; display: flex; align-items: center; gap: 16px; font-size: 28px; font-weight: 700; }
+      .disc { width: 72px; height: 72px; border-radius: 999px; border: 6px solid #efe8ff; border-top-color: #5b35f5; display: grid; place-items: center; }
+      .disc.wait { animation: spin 280ms linear infinite; }
+      .disc.ok { border-color: #12b886; animation: pop 280ms ease; color: #12b886; }
+      .disc.fail { border-color: #e11d63; animation: pop 280ms ease; color: #e11d63; }
+      li { position: relative; }
+      @keyframes line-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+      @keyframes line-out { to { opacity: 0; transform: translateY(-6px); } }
+      @keyframes strike { to { transform: scaleX(1); } }
+      @keyframes pop { from { opacity: 0.4; transform: scale(0.86); } to { opacity: 1; transform: scale(1); } }
+      @keyframes spin { to { transform: rotate(360deg); } }
       .check { width: 88px; height: 88px; margin-bottom: 12px; border-radius: 999px; display: grid; place-items: center; font-size: 48px; background: linear-gradient(135deg, #12b886, #5b35f5); animation: pop 420ms ease both; }
       .qr { width: 220px; height: 220px; background: white; border-radius: 20px; margin-top: 20px; }
       @keyframes ken { from { transform: scale(1); } to { transform: scale(1.06); } }
@@ -45,7 +62,7 @@
         .logo, .qr { width: min(160px, 46vw); height: min(160px, 46vw); }
         .slide { max-height: 32vh; }
       }
-      @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; } }
+      @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }
     </style>
   </head>
   <body>
@@ -57,25 +74,61 @@
       var slideIndex = 0;
       var slideTimer = 0;
       var lastSlides = "";
+      var lastMode = "";
+      var seen = {};
+      var dropTimer = 0;
       function money(value) { return value || ""; }
+      function ringHtml(ring) {
+        if (!ring) return "";
+        var mark = ring === "ok" ? "✓" : ring === "fail" ? "✕" : "";
+        var label = ring === "ok" ? "אושר" : ring === "fail" ? "נכשל" : "ממתינים…";
+        return "<div class='pay-ring'><span class='disc " + ring + "'>" + mark + "</span><span>" + label + "</span></div>";
+      }
       function render(payload) {
         payload = payload || { mode: "idle" };
         document.getElementById("brand").textContent = payload.business || "קופהקל";
         var stage = document.getElementById("stage");
-        if (payload.mode === "cart" || payload.mode === "pay") {
+        var mode = payload.mode || "idle";
+        function swap(paint) {
+          if (mode === lastMode) { paint(); return; }
+          stage.classList.add("is-swap");
+          window.setTimeout(function () { paint(); stage.classList.remove("is-swap"); }, 280);
+          lastMode = mode;
+        }
+        if (mode === "cart" || mode === "pay") {
           window.clearInterval(slideTimer);
-          var lines = (payload.lines || []).map(function (line) {
-            return "<li><span>" + escapeHtml(line.name) + "<span class='qty'>×" + line.qty + "</span></span><span>" + escapeHtml(line.total) + "</span></li>";
+          var lines = payload.lines || [];
+          var nextSeen = {};
+          var html = lines.map(function (line) {
+            var key = line.key || line.name;
+            nextSeen[key] = line;
+            var fresh = !seen[key];
+            var qtyChanged = seen[key] && seen[key].qty !== line.qty;
+            return "<li class='" + (fresh ? "line-new" : "") + "'><span>" + escapeHtml(line.name) + "<span class='qty" + (qtyChanged ? " qty-pop" : "") + "'>×" + line.qty + "</span></span><span>" + escapeHtml(line.total) + "</span></li>";
+          }).join("");
+          var gone = Object.keys(seen).filter(function (key) { return key !== "__total" && seen[key] && seen[key].name && !nextSeen[key]; }).map(function (key) {
+            var line = seen[key];
+            return "<li class='line-out'><span class='strike'></span><span>" + escapeHtml(line.name) + "<span class='qty'>×" + line.qty + "</span></span><span>" + escapeHtml(line.total) + "</span></li>";
           }).join("");
           var discounts = (payload.discounts || []).map(function (row) {
             return "<li class='discount'><span>" + escapeHtml(row.name) + "</span><span>−" + escapeHtml(row.amount) + "</span></li>";
           }).join("");
-          stage.innerHTML = "<ul>" + lines + discounts + "</ul><div class='total'><span>לתשלום</span><span>" + escapeHtml(payload.total || "") + "</span></div>" + (payload.mode === "pay" ? "<div class='pay'>" + escapeHtml(payload.pay || "") + "</div>" : "");
+          var totalClass = seen.__total && seen.__total !== payload.total ? " total-pop" : "";
+          seen = nextSeen;
+          seen.__total = payload.total;
+          swap(function () {
+            stage.innerHTML = "<ul>" + gone + html + discounts + "</ul><div class='total'><span>לתשלום</span><span class='" + totalClass.trim() + "'>" + escapeHtml(payload.total || "") + "</span></div>" + (mode === "pay" ? "<div class='pay'>" + escapeHtml(payload.pay || "") + "</div>" : "") + ringHtml(payload.ring);
+          });
+          window.clearTimeout(dropTimer);
+          if (gone) dropTimer = window.setTimeout(function () { render(payload); }, 280);
           return;
         }
-        if (payload.mode === "thanks") {
+        seen = {};
+        if (mode === "thanks") {
           window.clearInterval(slideTimer);
-          stage.innerHTML = "<div class='check'>✓</div><div class='thanks'>" + escapeHtml(payload.thanks || "תודה") + "</div><div class='total'><span></span><span>" + escapeHtml(payload.total || "") + "</span></div>" + (payload.qr ? "<img class='qr' alt='' src='" + payload.qr + "' />" : "");
+          swap(function () {
+            stage.innerHTML = "<div class='check'>✓</div><div class='thanks'>" + escapeHtml(payload.thanks || "תודה") + "</div><div class='total'><span></span><span>" + escapeHtml(payload.total || "") + "</span></div>" + (payload.qr ? "<img class='qr' alt='' src='" + payload.qr + "' />" : "");
+          });
           return;
         }
         var slides = payload.slides || [];
@@ -88,7 +141,7 @@
           var caption = slide && slide.caption ? "<div class='caption'>" + escapeHtml(slide.caption) + "</div>" : "";
           stage.innerHTML = "<div>" + logo + image + caption + "</div>";
         }
-        paint();
+        swap(paint);
         window.clearInterval(slideTimer);
         if (slides.length > 1) {
           slideTimer = window.setInterval(function () {

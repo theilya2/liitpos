@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { pushCustomerDisplay, useCustomerPhase, type CustomerPayload } from "@/lib/pos/customer-display";
 import { selectCustomerSlides } from "@/lib/pos/customer-screen";
 import { formatILS } from "@/lib/pos/money";
@@ -16,6 +16,7 @@ const empty: CustomerPayload = {
   discounts: [],
   total: "",
   pay: "",
+  ring: "",
   thanks: "",
   qr: "",
 };
@@ -32,10 +33,20 @@ export function CustomerMirror() {
   const vatRate = usePos((state) => state.settings.vatRate);
   const sales = usePos((state) => state.sales);
   const phase = useCustomerPhase();
+  const [releaseThanks, setReleaseThanks] = useState(false);
+
+  useEffect(() => {
+    if (phase.mode !== "thanks") {
+      setReleaseThanks(false);
+      return;
+    }
+    const timer = window.setTimeout(() => setReleaseThanks(true), 4000);
+    return () => window.clearTimeout(timer);
+  }, [phase]);
 
   const payload = useMemo(() => {
     const base = { ...empty, business };
-    if (phase.mode === "thanks") {
+    if (phase.mode === "thanks" && !releaseThanks) {
       const sale = sales.find((item) => item.id === phase.saleId);
       const url = sale?.publicToken ? receiptUrl(sale.publicToken) : "";
       return {
@@ -52,17 +63,18 @@ export function CustomerMirror() {
       return {
         ...base,
         mode: phase.mode === "pay" ? ("pay" as const) : ("cart" as const),
-        lines: cart.map((line) => ({ name: line.name, qty: line.qty, total: formatILS(line.unitPrice * line.qty) })),
+        lines: cart.map((line) => ({ key: line.key, name: line.name, qty: line.qty, total: formatILS(line.unitPrice * line.qty) })),
         discounts: [
           ...totals.hits.map((hit) => ({ name: hit.name, amount: formatILS(hit.amount) })),
           ...(totals.discountAmount > 0 ? [{ name: "הנחה", amount: formatILS(totals.discountAmount) }] : []),
         ],
         total: formatILS(totals.total),
         pay: phase.mode === "pay" ? phase.status : "",
+        ring: (phase.mode === "pay" ? phase.ring || "" : "") as "" | "wait" | "ok" | "fail",
       };
     }
     return { ...base, mode: "idle" as const, logo: logo || "", slides: slides.map((slide) => ({ image: slide.image, caption: slide.caption })) };
-  }, [business, cart, discount, logo, phase, products, promos, sales, slides, vatRate]);
+  }, [business, cart, discount, logo, phase, products, promos, releaseThanks, sales, slides, vatRate]);
 
   useEffect(() => {
     void pushCustomerDisplay(payload, enabled);

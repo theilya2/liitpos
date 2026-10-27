@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { Plus } from "lucide-react";
 import { ProductFormDialog, draftFromProduct, emptyProductDraft, productFromDraft, type ProductDraft } from "@/components/pos/product-form";
+import { pushToast } from "@/components/pos/toasts";
 import { PageHeader } from "@/components/pos/shell";
 import { formatILS } from "@/lib/pos/money";
 import { placeOnShelf, selectTopShelf } from "@/lib/pos/shelves";
@@ -42,6 +43,7 @@ export function ProductsPage() {
     const result = productFromDraft(draft, categories[0]?.id ?? "hot");
     if ("error" in result) {
       setError(result.error);
+      pushToast(result.error);
       return;
     }
     upsertProduct(result.product);

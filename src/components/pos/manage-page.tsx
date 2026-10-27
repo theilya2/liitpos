@@ -3,6 +3,7 @@ import { Link } from "@tanstack/react-router";
 import { KioskAdmin } from "@/components/pos/kiosk-admin";
 import { PromoAdmin } from "@/components/pos/promo-admin";
 import { ShelfAdmin } from "@/components/pos/shelf-admin";
+import { SyncIndicator } from "@/components/pos/cloud-bar";
 import { PageHeader } from "@/components/pos/shell";
 import { usePos } from "@/lib/pos/store";
 import { ROLE_LABEL, type Role, type StaffUser } from "@/lib/pos/types";
@@ -24,7 +25,12 @@ export function ManagePage() {
 
   return (
     <div className="scroll-pane page-sheet min-h-0 flex-1">
-      <PageHeader title="ניהול" subtitle="חנויות, צוות, מדף והגדרות העסק. המסך הזה למנהל." />
+      <div className="flex items-start justify-between gap-3 pe-3">
+        <PageHeader title="ניהול" subtitle="חנויות, צוות, מדף והגדרות העסק. המסך הזה למנהל." />
+        <div className="pt-4">
+          <SyncIndicator />
+        </div>
+      </div>
       <div className="space-y-3 px-3 pb-8">
         <section className="rounded-2xl bg-surface p-4 ring-1 ring-line">
           <h2 className="text-base font-semibold">חנויות</h2>
