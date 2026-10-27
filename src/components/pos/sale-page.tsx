@@ -824,7 +824,7 @@ function ShelfTile({ product, qty, onAdd }: { product: Product; qty: number; onA
         flyChip(event.currentTarget, product.name);
         onAdd();
       }}
-      className="product-card flex min-w-0 flex-col overflow-hidden rounded-2xl bg-surface text-start ring-1 ring-line disabled:opacity-50"
+      className="product-card flex min-h-12 min-w-0 flex-col overflow-hidden rounded-xl bg-surface text-center ring-1 ring-line disabled:opacity-50"
     >
       <span className="product-photo relative block w-full overflow-hidden bg-pine-soft">
         {product.image ? (
@@ -833,12 +833,12 @@ function ShelfTile({ product, qty, onAdd }: { product: Product; qty: number; onA
           <span className="flex h-full items-center justify-center text-base font-semibold text-pine">{product.name.slice(0, 1)}</span>
         )}
         {qty > 0 ? (
-          <span className="absolute end-1.5 top-1.5 rounded-full bg-pine px-2 text-xs font-semibold text-pine-ink tabular-nums">{qty}</span>
+          <span className="absolute end-1 top-1 rounded-full bg-pine px-1.5 text-xs font-semibold text-pine-ink tabular-nums">{qty}</span>
         ) : null}
       </span>
-      <span className="flex min-w-0 flex-col gap-0.5 px-2 py-2">
-        <span className="line-clamp-2 text-sm font-medium leading-snug">{product.name}</span>
-        <span className="text-sm font-semibold tabular-nums text-copper">{priced.from ? `מ־${formatILS(priced.amount)}` : formatILS(priced.amount)}</span>
+      <span className="flex min-h-12 w-full flex-col items-center justify-center gap-0.5 px-1.5 py-1.5">
+        <span className="line-clamp-2 min-h-[2.5em] w-full text-sm font-medium leading-tight">{product.name}</span>
+        <span className="text-sm font-semibold leading-none tabular-nums whitespace-nowrap text-copper">{priced.from ? `מ־${formatILS(priced.amount)}` : formatILS(priced.amount)}</span>
       </span>
     </button>
   );

@@ -192,18 +192,23 @@
 
 .product-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(min(100%, 8.25rem), 1fr));
-  gap: 0.5rem;
+  /* ~6 columns on a 1280 register, ~4 on 1024. Cards stay near this width on larger screens. */
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 100px), 1fr));
+  gap: 6px;
   align-content: start;
+  align-items: stretch;
+}
+
+.product-card {
+  min-width: 0;
 }
 
 .product-card .product-photo {
   aspect-ratio: 1;
-  width: 3.75rem;
-  height: 3.75rem;
-  margin-inline: auto;
-  margin-top: 0.4rem;
-  border-radius: 0.7rem;
+  width: 100%;
+  height: auto;
+  margin: 0;
+  border-radius: 0;
   flex: none;
 }
 
@@ -233,12 +238,8 @@
   }
 }
 
-/* Short registers keep the same two zones and just tighten the cards. */
+/* Short registers keep the same two zones and just tighten the promo strip. */
 @container register (max-height: 36rem) {
-  .product-card .product-photo {
-    width: 2.75rem;
-    height: 2.75rem;
-  }
   .promo-strip .promo-card {
     height: 4.5rem;
     min-height: 4.5rem;
