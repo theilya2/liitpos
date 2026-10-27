@@ -207,7 +207,7 @@ export function PosFrame({ children }: { children: ReactNode }) {
             <SyncIndicator />
             <RegisterMark />
           </div>
-          <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+          <div key={pathname} className="page-enter flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
             {allowed ? (
               children
             ) : (

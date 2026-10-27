@@ -10,6 +10,7 @@ import { setCustomerPhase } from "@/lib/pos/customer-display";
 import { receiptDeliveryOf, saleHasCash } from "@/lib/pos/printer";
 import { confirmReceipt, deliverPrint, pulseDrawer } from "@/lib/pos/receipt-io";
 import { formatILS, formatWhen, moneyFromPad, pushMoneyKey, roundCash, roundMoney } from "@/lib/pos/money";
+import { flyChip, LiveTotal, PayBurst } from "@/components/pos/motion";
 import { buildConfiguredLine, findByCode, mustChoose, needsPicker, shelfPrice } from "@/lib/pos/options";
 import { pricedOrPlain, promoHeadline, promoOpen, promoPlan, selectPromos, type PricedCart } from "@/lib/pos/promo";
 import { expandTopShelf, selectTopShelf } from "@/lib/pos/shelves";
@@ -613,6 +614,8 @@ function DoneSheet({ sale, onClose }: { sale: Sale; onClose: () => void }) {
 
   return (
     <Overlay title={`קבלה ${sale.number}`} onClose={onClose}>
+      <PayBurst />
+      <p className="mb-3 text-center text-lg font-semibold text-pine">התשלום נקלט</p>
       <ReceiptView sale={sale} />
       {delivery === "ask" && !choice ? (
         <div className="mt-4">
@@ -734,7 +737,7 @@ function HeldSheet({ onClose }: { onClose: () => void }) {
 function PromoRows({ totals }: { totals: PricedCart }) {
   if (totals.hits.length) {
     return totals.hits.map((hit) => (
-      <div key={hit.id} className="flex justify-between gap-3 text-pine">
+      <div key={hit.id} className="deal-in flex justify-between gap-3 text-pine">
         <span className="min-w-0 truncate">מבצע · {hit.name}</span>
         <span className="shrink-0 tabular-nums">{formatILS(hit.amount)}</span>
       </div>
@@ -742,7 +745,7 @@ function PromoRows({ totals }: { totals: PricedCart }) {
   }
   if (totals.promoAmount <= 0) return null;
   return (
-    <div className="flex justify-between gap-3 text-pine">
+    <div className="deal-in flex justify-between gap-3 text-pine">
       <span className="min-w-0 truncate">מבצע{totals.promoLabel ? ` · ${totals.promoLabel}` : ""}</span>
       <span className="shrink-0 tabular-nums">{formatILS(totals.promoAmount)}</span>
     </div>
@@ -760,8 +763,11 @@ function ShelfTile({ product, qty, onAdd }: { product: Product; qty: number; onA
     <button
       type="button"
       disabled={out}
-      onClick={onAdd}
-      className="flex min-w-0 flex-col overflow-hidden rounded-2xl bg-surface text-start ring-1 ring-line transition-transform duration-150 active:scale-95 disabled:opacity-50"
+      onClick={(event) => {
+        flyChip(event.currentTarget, product.name);
+        onAdd();
+      }}
+      className="flex min-w-0 flex-col overflow-hidden rounded-2xl bg-surface text-start ring-1 ring-line disabled:opacity-50"
     >
       <span className="relative block aspect-[5/4] max-h-40 w-full overflow-hidden bg-pine-soft">
         {product.image ? (
@@ -1085,7 +1091,7 @@ export function SalePage() {
             <li className="py-4 text-center text-xs text-muted">החשבון ריק. בוחרים מהמדף, או מוסיפים מוצר כללי בסכום.</li>
           ) : (
             cart.map((line) => (
-              <li key={line.key}>
+              <li key={line.key} className="cart-pop">
                 <div
                   role="button"
                   tabIndex={0}
@@ -1144,13 +1150,13 @@ export function SalePage() {
             })}
           </div>
           {totals.promoAmount > 0 ? (
-            <div className="space-y-0.5 text-xs">
+            <div className="deal-in space-y-0.5 text-xs">
               <PromoRows totals={totals} />
             </div>
           ) : null}
           <div className="flex items-baseline justify-between">
             <span className="text-xs text-muted">לתשלום · מע״מ {vatRate}%</span>
-            <span className="text-lg font-semibold tabular-nums text-copper">{formatILS(totals.total)}</span>
+            <LiveTotal key={totals.total} value={totals.total} className="total-pop text-lg font-semibold tabular-nums text-copper" />
           </div>
         </div>
       </section>
@@ -1167,10 +1173,11 @@ export function SalePage() {
                   key={promo.id}
                   type="button"
                   onClick={() => setOffer(promo)}
-                  className="flex min-h-24 flex-col justify-between rounded-2xl bg-pine-soft p-3 text-start ring-1 ring-line transition-transform duration-150 active:scale-95"
+                  className="promo-card flex min-h-24 flex-col justify-between rounded-2xl p-3 text-start ring-1 ring-line"
                 >
-                  <span className="text-lg font-semibold leading-tight text-pine">{promoHeadline(promo)}</span>
-                  <span className="mt-2 line-clamp-2 text-sm">{promo.name}</span>
+                  <span className="promo-badge relative z-[1]">מבצע</span>
+                  <span className="relative z-[1] text-lg font-semibold leading-tight text-pine">{promoHeadline(promo)}</span>
+                  <span className="relative z-[1] mt-2 line-clamp-2 text-sm">{promo.name}</span>
                 </button>
               ))}
             </div>

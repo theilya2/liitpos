@@ -71,7 +71,7 @@ export function ProductsPage() {
           aria-label="חיפוש מוצר"
           className="h-12 w-full rounded-2xl bg-surface px-3 ring-1 ring-line"
         />
-        <div className="flex gap-2 overflow-x-auto">
+        <div className="chip-row flex gap-2 overflow-x-auto">
           <button
             type="button"
             onClick={() => setCategoryId("all")}
