@@ -66,6 +66,10 @@ jobs:
             fi
           else
             code=$((1000 + ${{ github.run_number }}))
+            props="$(sed -n 's/^VERSION_CODE=//p' android/version.properties | head -n 1)"
+            if [[ "$props" =~ ^[0-9]+$ ]] && (( props > code )); then
+              code="$props"
+            fi
             name="1.0.${code}"
           fi
           echo "LIITPOS_VERSION_CODE=$code" >> "$GITHUB_ENV"
