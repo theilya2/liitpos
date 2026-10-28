@@ -609,6 +609,35 @@ html[data-update-bar="1"] .safe-bottom {
   color: var(--color-ink);
 }
 
+.update-install:disabled {
+  opacity: 0.7;
+}
+
+.update-progress {
+  height: 0.4rem;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.28);
+}
+
+.update-progress > span {
+  display: block;
+  height: 100%;
+  width: 100%;
+  background: #fff;
+  transform-origin: 100% 50%;
+}
+
+.update-progress > span.is-wait {
+  width: 35%;
+  animation: update-slide 900ms ease-in-out infinite;
+}
+
+@keyframes update-slide {
+  from { transform: translateX(120%); }
+  to { transform: translateX(-220%); }
+}
+
 .update-dismiss {
   background: transparent;
   color: var(--color-pine-ink);

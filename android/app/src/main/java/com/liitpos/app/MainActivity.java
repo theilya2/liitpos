@@ -29,12 +29,17 @@ import org.json.JSONObject;
 public class MainActivity extends BridgeActivity {
     private static final String PREFS = "liitpos";
     private UsbPrinters usbPrinters;
+    private UpdateInstaller updater;
     private boolean lockWanted;
+    private String lastUpdateDetail = "";
 
     @Override
     public void onCreate(android.os.Bundle savedInstanceState) {
         registerPlugin(CustomerDisplayPlugin.class);
         super.onCreate(savedInstanceState);
+        lockWanted = prefs().getBoolean("lockWanted", false);
+        updater = new UpdateInstaller(this);
+        updater.register();
         usbPrinters = new UsbPrinters(this, (event, detail) -> {
             WebView webView = getBridge().getWebView();
             String script = "window.dispatchEvent(new CustomEvent(" + JSONObject.quote(event) + ",{detail:" + detail + "}))";
@@ -45,6 +50,7 @@ public class MainActivity extends BridgeActivity {
 
     @Override
     public void onDestroy() {
+        if (updater != null) updater.unregister();
         if (usbPrinters != null) usbPrinters.unregister();
         super.onDestroy();
     }
@@ -57,20 +63,15 @@ public class MainActivity extends BridgeActivity {
         webView.addJavascriptInterface(new Bridge(), "LiitposNative");
         webView.getSettings().setMixedContentMode(android.webkit.WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE);
         WebLight.apply(webView);
-        if (lockWanted) {
-            try {
-                startLockTask();
-            } catch (Exception ignored) {
-                // Pinning can fail until the device-owner step in ANDROID.md.
-            }
-        }
+        if (updater != null) updater.onHostResume();
+        else ensureLockTask();
     }
 
-    private SharedPreferences prefs() {
+    SharedPreferences prefs() {
         return getSharedPreferences(PREFS, MODE_PRIVATE);
     }
 
-    private boolean deviceOwner() {
+    boolean deviceOwner() {
         DevicePolicyManager manager = (DevicePolicyManager) getSystemService(DEVICE_POLICY_SERVICE);
         return manager != null && manager.isDeviceOwnerApp(getPackageName());
     }
@@ -98,8 +99,10 @@ public class MainActivity extends BridgeActivity {
         return androidId.replace("\n", "").replace("\r", "").trim();
     }
 
-    private void applyLockTask(boolean enabled) {
+    void applyLockTask(boolean enabled) {
         lockWanted = enabled;
+        prefs().edit().putBoolean("lockWanted", enabled).apply();
+        if (enabled && updater != null && updater.holdsLockOpen()) return;
         try {
             if (!enabled) {
                 stopLockTask();
@@ -282,43 +285,83 @@ public class MainActivity extends BridgeActivity {
 
         @JavascriptInterface
         public void downloadAndInstall(String url, String token) {
-            new Thread(() -> {
-                try {
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O
-                            && !getPackageManager().canRequestPackageInstalls()) {
-                        runOnUiThread(() -> startActivity(new Intent(
-                                Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
-                                Uri.parse("package:" + getPackageName()))));
-                        return;
-                    }
-                    HttpURLConnection connection = open(url, token);
-                    int hops = 0;
-                    while (hops < 5) {
-                        int status = connection.getResponseCode();
-                        if (status != 301 && status != 302 && status != 303 && status != 307 && status != 308) break;
-                        String location = connection.getHeaderField("Location");
-                        connection.disconnect();
-                        if (location == null || !location.startsWith("https://")) return;
-                        connection = open(location, "");
-                        hops++;
-                    }
-                    File out = new File(getCacheDir(), "liitpos-update.apk");
-                    try (InputStream in = connection.getInputStream();
-                            FileOutputStream fos = new FileOutputStream(out)) {
-                        byte[] buffer = new byte[8192];
-                        int read;
-                        while ((read = in.read(buffer)) >= 0) fos.write(buffer, 0, read);
-                    }
-                    Uri uri = FileProvider.getUriForFile(
-                            MainActivity.this, getPackageName() + ".fileprovider", out);
-                    Intent install = new Intent(Intent.ACTION_VIEW);
-                    install.setDataAndType(uri, "application/vnd.android.package-archive");
-                    install.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_ACTIVITY_NEW_TASK);
-                    runOnUiThread(() -> startActivity(install));
-                } catch (Exception error) {
-                    android.util.Log.e("Liitpos", "update install failed", error);
-                }
-            }).start();
+            if (updater == null) {
+                emitUpdate("error", -1, UpdateFlow.GENERIC);
+                return;
+            }
+            updater.start(url, token);
+        }
+
+        @JavascriptInterface
+        public String lastUpdateEvent() {
+            return lastUpdateDetail == null ? "" : lastUpdateDetail;
+        }
+    }
+
+    boolean canInstallUnknownApps() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return true;
+        return getPackageManager().canRequestPackageInstalls();
+    }
+
+    void ensureLockTask() {
+        if (!lockWanted || (updater != null && updater.holdsLockOpen())) return;
+        try {
+            startLockTask();
+        } catch (Exception ignored) {
+            // Pinning can fail until the device-owner step in ANDROID.md.
+        }
+    }
+
+    void pauseLockForUpdate() {
+        if (updater != null) updater.markHold(true);
+        allowUpdateUiInLockTask();
+        try {
+            stopLockTask();
+        } catch (Exception ignored) {
+            // Lock task was not running. The installer screen can still open.
+        }
+    }
+
+    void restoreLockAfterUpdate() {
+        if (updater != null) updater.markHold(false);
+        if (lockWanted) applyLockTask(true);
+    }
+
+    /** Lets the system installer and the unknown-sources screen show while this app is device owner. */
+    private void allowUpdateUiInLockTask() {
+        if (!deviceOwner()) return;
+        try {
+            DevicePolicyManager manager = (DevicePolicyManager) getSystemService(DEVICE_POLICY_SERVICE);
+            if (manager == null) return;
+            ComponentName admin = new ComponentName(this, LiitposAdmin.class);
+            manager.setLockTaskPackages(admin, new String[] {
+                getPackageName(),
+                "com.android.packageinstaller",
+                "com.google.android.packageinstaller",
+                "com.samsung.android.packageinstaller",
+                "com.miui.packageinstaller",
+                "com.android.permissioncontroller",
+                "com.google.android.permissioncontroller",
+                "com.android.settings"
+            });
+        } catch (Exception ignored) {
+            // Not the device owner, or the admin component is not active.
+        }
+    }
+
+    void emitUpdate(String phase, int percent, String message) {
+        if (getBridge() == null || getBridge().getWebView() == null) return;
+        WebView webView = getBridge().getWebView();
+        try {
+            org.json.JSONObject detail = new org.json.JSONObject();
+            detail.put("phase", phase);
+            if (percent >= 0) detail.put("percent", percent);
+            detail.put("message", message == null ? "" : message);
+            lastUpdateDetail = detail.toString();
+            String script = "window.dispatchEvent(new CustomEvent('liitpos-update',{detail:" + lastUpdateDetail + "}))";
+            webView.post(() -> webView.evaluateJavascript(script, null));
+        } catch (Exception error) {
+            android.util.Log.e("Liitpos", "update event failed", error);
         }
     }
 
@@ -345,7 +388,7 @@ public class MainActivity extends BridgeActivity {
         }
     }
 
-    private HttpURLConnection open(String url, String token) throws Exception {
+    HttpURLConnection open(String url, String token) throws Exception {
         HttpURLConnection connection = (HttpURLConnection) new URL(url).openConnection();
         connection.setInstanceFollowRedirects(false);
         connection.setConnectTimeout(20000);

@@ -10,6 +10,7 @@ import {
   type ReportedIdentity,
 } from "@/lib/pos/activation";
 import { DEFAULT_CLOUD_ORIGIN } from "@/lib/pos/register";
+import { readUpdateEvent, UPDATE_EVENT, type UpdateNotice } from "@/lib/pos/update-event";
 
 const CLOUD_KEY = "liitpos-cloud-url";
 const TOKEN_KEY = "grok-auth.bearer-token";
@@ -50,6 +51,7 @@ type NativeBridge = {
   sendSms?: (number: string, body: string) => void;
   setLockTask?: (enabled: boolean) => void;
   downloadAndInstall?: (url: string, token: string) => void;
+  lastUpdateEvent?: () => string;
   checkUpdate?: (cloudUrl: string) => string;
 };
 
@@ -339,7 +341,31 @@ export function setKioskLock(enabled: boolean) {
 }
 
 export function installUpdate(update: AppUpdate) {
-  bridge()?.downloadAndInstall?.(update.apkUrl, "");
+  try {
+    const native = bridge();
+    if (!native?.downloadAndInstall) {
+      dispatchUpdate({ phase: "error", percent: null, message: "העדכון לא זמין במכשיר הזה." });
+      return;
+    }
+    native.downloadAndInstall(update.apkUrl, "");
+  } catch {
+    dispatchUpdate({ phase: "error", percent: null, message: "העדכון נכשל. נסו שוב." });
+  }
+}
+
+export function dispatchUpdate(notice: UpdateNotice) {
+  if (typeof window === "undefined") return;
+  window.dispatchEvent(new CustomEvent(UPDATE_EVENT, { detail: notice }));
+}
+
+export function readNativeUpdateEvent(): UpdateNotice | null {
+  const raw = bridge()?.lastUpdateEvent?.() ?? "";
+  if (!raw) return null;
+  try {
+    return readUpdateEvent(JSON.parse(raw) as unknown);
+  } catch {
+    return null;
+  }
 }
 
 export function prepareNative(): void {
