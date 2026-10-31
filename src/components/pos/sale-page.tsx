@@ -9,6 +9,7 @@ import { creditBlocker, findCredit, lookupCredit, normalizeCreditCode, selectCre
 import { setCustomerPhase } from "@/lib/pos/customer-display";
 import { receiptDeliveryOf, saleHasCash } from "@/lib/pos/printer";
 import { confirmReceipt, deliverPrint, pulseDrawer } from "@/lib/pos/receipt-io";
+import { formatDiscountAmount, manualDiscountRow } from "@/lib/pos/discount-line";
 import { formatILS, formatWhen, moneyFromPad, pushMoneyKey, roundCash, roundMoney } from "@/lib/pos/money";
 import { SyncIndicator } from "@/components/pos/cloud-bar";
 import { flyChip, LiveTotal, PayBurst } from "@/components/pos/motion";
@@ -22,7 +23,7 @@ import { registerCaption } from "@/lib/pos/register";
 import { foldTenders, previewTender, remainingExact, type TenderInput } from "@/lib/pos/tender";
 import { currentUser, isWeekLocked, usePos } from "@/lib/pos/store";
 import { chargeTerminal, deviceLabel, isSafeIpv4, MAX_PAYMENTS, paymentPlan } from "@/lib/pos/terminal";
-import { METHOD_LABEL, PAYMENT_METHODS, type Category, type PaymentMethod, type Product, type Promo, type Sale, type TerminalKind } from "@/lib/pos/types";
+import { METHOD_LABEL, PAYMENT_METHODS, type Category, type Discount, type PaymentMethod, type Product, type Promo, type Sale, type TerminalKind } from "@/lib/pos/types";
 
 const METHOD_ICON = {
   cash: Banknote,
@@ -188,12 +189,7 @@ function CartPanel({
         </div>
         <div className="space-y-1 text-sm">
           <PromoRows totals={totals} />
-          {totals.discountAmount > 0 ? (
-            <div className="flex justify-between text-muted">
-              <span>הנחה</span>
-              <span className="tabular-nums">{formatILS(totals.discountAmount)}</span>
-            </div>
-          ) : null}
+          <ManualDiscount discount={discount} amount={totals.discountAmount} />
           <div className="flex justify-between text-muted">
             <span>מתוכם מע״מ {vatRate}%</span>
             <span className="tabular-nums">{formatILS(totals.vat)}</span>
@@ -412,6 +408,7 @@ function PaySheet({ onClose, onDone, seed }: { onClose: () => void; onDone: (sal
       ) : totals.promoAmount > 0 ? (
         <p className="mt-1 text-center text-sm text-pine">מבצע {totals.promoLabel} · {formatILS(totals.promoAmount)}</p>
       ) : null}
+      <ManualDiscount discount={discount} amount={totals.discountAmount} />
       {taken.length ? (
         <ul className="mt-3 space-y-2">
           {taken.map((line, index) => (
@@ -748,6 +745,17 @@ function HeldSheet({ onClose }: { onClose: () => void }) {
   );
 }
 
+
+function ManualDiscount({ discount, amount }: { discount: Discount; amount: number }) {
+  const row = manualDiscountRow(discount, amount);
+  if (!row) return null;
+  return (
+    <div className="flex justify-between gap-3 text-copper">
+      <span className="min-w-0 truncate">{row.name}</span>
+      <span className="shrink-0 tabular-nums">{formatDiscountAmount(row.amount)}</span>
+    </div>
+  );
+}
 
 function PromoRows({ totals }: { totals: PricedCart }) {
   if (totals.hits.length) {
@@ -1305,9 +1313,14 @@ export function SalePage() {
               );
             })}
           </div>
-          {totals.promoAmount > 0 ? (
-            <div className="deal-in space-y-0.5 text-xs">
-              <PromoRows totals={totals} />
+          {totals.promoAmount > 0 || totals.discountAmount > 0 ? (
+            <div className="space-y-0.5 text-xs">
+              {totals.promoAmount > 0 ? (
+                <div className="deal-in">
+                  <PromoRows totals={totals} />
+                </div>
+              ) : null}
+              <ManualDiscount discount={discount} amount={totals.discountAmount} />
             </div>
           ) : null}
           <div className="flex items-baseline justify-between">

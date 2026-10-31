@@ -1,3 +1,4 @@
+import { formatDiscountAmount, savedDiscountLine } from "@/lib/pos/discount-line";
 import { formatILS, formatWhen } from "@/lib/pos/money";
 import { isPaymentMethod, tendersOf } from "@/lib/pos/tender";
 import { registerCaption } from "@/lib/pos/register";
@@ -47,6 +48,10 @@ export function receiptSmsBody(sale: Sale, url: string | null): string {
     formatWhen(sale.createdAt),
     credit ? `תעודת זיכוי ${sale.number}` : `קבלה ${sale.number}`,
     registerCaption(sale.registerNo, sale.registerName),
+    (() => {
+      const manual = savedDiscountLine(sale);
+      return manual ? `${manual.name} ${formatDiscountAmount(manual.amount)}` : "";
+    })(),
     `${credit ? "זיכוי" : "סה״כ"} ${formatILS(sale.total)}`,
     methodsOf(sale),
   ];
@@ -116,6 +121,7 @@ export function toPublicSale(doc: unknown): Sale | null {
     createdAt: text(raw.createdAt, 40),
     lines,
     discountAmount: Number(raw.discountAmount) || 0,
+    discountLabel: typeof raw.discountLabel === "string" && raw.discountLabel.trim() ? raw.discountLabel.trim().slice(0, 40) : undefined,
     promoAmount: Number(raw.promoAmount) > 0 ? Number(raw.promoAmount) : undefined,
     promoLabel: typeof raw.promoLabel === "string" && raw.promoLabel.trim() ? raw.promoLabel.trim().slice(0, 80) : undefined,
     total: Number(raw.total) || 0,

@@ -1,3 +1,4 @@
+import { formatDiscountAmount, savedDiscountLine } from "@/lib/pos/discount-line";
 import { formatILS, formatWhen } from "@/lib/pos/money";
 import { promoRows } from "@/lib/pos/promo";
 import { tendersOf } from "@/lib/pos/tender";
@@ -34,7 +35,10 @@ export function receiptPlainText(sale: Sale): string {
     ...sale.lines.map((line) => `${line.name}  x${line.qty}  ${formatILS(line.lineTotal)}`),
     "",
     ...promoRows(sale).map((row) => `מבצע  ${row.name}  ${formatILS(row.amount)}`),
-    sale.discountAmount > 0 ? `הנחה  ${formatILS(sale.discountAmount)}` : "",
+    (() => {
+      const manual = savedDiscountLine(sale);
+      return manual ? `${manual.name}  ${formatDiscountAmount(manual.amount)}` : "";
+    })(),
     `${credit ? "זיכוי" : "לתשלום"}  ${formatILS(sale.total)}`,
     `מתוכם מע״מ ${sale.vatRate}%  ${formatILS(sale.vatAmount)}`,
     sale.rounding !== 0 ? `עיגול מזומן  ${formatILS(sale.rounding)}` : "",
@@ -60,6 +64,7 @@ function Row({ label, value, strong }: { label: string; value: string; strong?: 
 export function ReceiptView({ sale }: { sale: Sale }) {
   const credit = sale.kind === "credit";
   const tenders = tendersOf(sale);
+  const manual = savedDiscountLine(sale);
   return (
     <article className="receipt-sheet mx-auto w-full max-w-sm bg-surface px-4 py-6 text-ink sm:px-5">
       <header className="text-center">
@@ -97,7 +102,7 @@ export function ReceiptView({ sale }: { sale: Sale }) {
         {promoRows(sale).map((row, index) => (
           <Row key={`${row.name}-${index}`} label={`מבצע · ${row.name}`} value={formatILS(row.amount)} />
         ))}
-        {sale.discountAmount > 0 ? <Row label="הנחה" value={formatILS(sale.discountAmount)} /> : null}
+        {manual ? <Row label={manual.name} value={formatDiscountAmount(manual.amount)} /> : null}
         <Row label={credit ? "זיכוי" : "לתשלום"} value={formatILS(sale.total)} strong />
         <Row label={`מתוכם מע״מ ${sale.vatRate}%`} value={formatILS(sale.vatAmount)} />
         <Row label="לפני מע״מ" value={formatILS(sale.net)} />

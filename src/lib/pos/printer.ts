@@ -1,3 +1,4 @@
+import { formatDiscountAmount, savedDiscountLine } from "@/lib/pos/discount-line";
 import { formatILS, formatWhen } from "@/lib/pos/money";
 import { promoRows } from "@/lib/pos/promo";
 import { tendersOf } from "@/lib/pos/tender";
@@ -139,7 +140,8 @@ export function receiptPrintLines(sale: Sale): PrintLine[] {
   }
   lines.push({ text: "", align: "center", size: "sm" });
   for (const row of promoRows(sale)) lines.push({ text: `מבצע ${row.name}\t${formatILS(row.amount)}`, align: "split" });
-  if (sale.discountAmount > 0) lines.push({ text: `הנחה\t${formatILS(sale.discountAmount)}`, align: "split" });
+  const manual = savedDiscountLine(sale);
+  if (manual) lines.push({ text: `${manual.name}\t${formatDiscountAmount(manual.amount)}`, align: "split" });
   lines.push({
     text: `${credit ? "זיכוי" : "לתשלום"}\t${formatILS(sale.total)}`,
     align: "split",

@@ -4,6 +4,7 @@ import { can, canSeeStore } from "@/lib/pos/access";
 import { cleanCredits, issueCreditsForTenders, newCreditCode, redeemCredits } from "@/lib/pos/credits";
 import { cleanCustomerSlides } from "@/lib/pos/customer-screen";
 import { drawerExpected, drawerVariance, paidIn, paidOut } from "@/lib/pos/cash";
+import { discountLabel, discountLinesOf } from "@/lib/pos/discount-line";
 import { outboxWithoutDropped, pruneDemoSeed } from "@/lib/pos/baseline";
 import { applyDocs, catalogDoc, changesToDocs, deviceDoc, mergeOutbox, settingsDoc, snapshotDocs, staffDoc, type CloudDoc } from "@/lib/pos/docs";
 import { normalizeKioskSettings } from "@/lib/pos/kiosk";
@@ -608,6 +609,7 @@ export const usePos = create<PosState>()(
               modifiers: line.modifiers ?? [],
             })),
             discountAmount: totals.discountAmount,
+            discountLabel: totals.discountAmount > 0 ? discountLabel(discount) : undefined,
             promoAmount: totals.promoAmount,
             promoLabel: totals.promoLabel,
             promoHits: totals.hits,
@@ -749,6 +751,7 @@ export const usePos = create<PosState>()(
             createdAt: now,
             lines: quote.lines,
             discountAmount: quote.discountAmount,
+            discountLabel: quote.discountAmount > 0 ? sale.discountLabel : undefined,
             total: quote.total,
             vatRate: quote.vatRate,
             vatAmount: quote.vat,
@@ -984,6 +987,7 @@ export const usePos = create<PosState>()(
           const counted = roundMoney(Math.max(0, cashCounted));
           const left = roundMoney(Math.max(0, leftInDrawer));
           const times = open.map((sale) => new Date(sale.createdAt).getTime());
+          const manualDiscounts = discountLinesOf(open);
           const report: ZReport = {
             id: newId(),
             number: state.nextZ,
@@ -1007,6 +1011,8 @@ export const usePos = create<PosState>()(
               open.filter((sale) => !sale.voided && !isCredit(sale)).reduce((sum, sale) => sum + (sale.promoAmount ?? 0), 0),
             ),
             promoLines: promoLinesOf(open),
+            discountLines: manualDiscounts,
+            discountTotal: roundMoney(manualDiscounts.reduce((sum, line) => sum + line.amount, 0)),
             openingFloat: state.settings.openingFloat,
             cashTaken,
             cashExpected: expected,

@@ -4,6 +4,7 @@ import { CashSheet } from "@/components/pos/cash-sheet";
 import { PageHeader } from "@/components/pos/shell";
 import { can } from "@/lib/pos/access";
 import { drawerExpected, drawerVariance, openCashMoves, paidIn, paidOut } from "@/lib/pos/cash";
+import { discountLinesOf, formatDiscountAmount } from "@/lib/pos/discount-line";
 import { formatILS, formatWhen, roundMoney } from "@/lib/pos/money";
 import { soldItems, stockRows } from "@/lib/pos/options";
 import { registerCaption } from "@/lib/pos/register";
@@ -77,6 +78,7 @@ export function ReportsPage() {
   const figures = useMemo(() => zFigures(pool), [pool]);
   const liveSales = pool.filter((sale) => !sale.voided && !isCredit(sale));
   const promoGiven = roundMoney(liveSales.reduce((sum, sale) => sum + (sale.promoAmount ?? 0), 0));
+  const manualDiscounts = discountLinesOf(liveSales);
   const kioskCount = liveSales.filter((sale) => sale.channel === "kiosk").length;
   const kioskTurnover = roundMoney(liveSales.filter((sale) => sale.channel === "kiosk").reduce((sum, sale) => sum + sale.amountDue, 0));
   const maxMethod = Math.max(...figures.byMethod.map((row) => Math.abs(row.total)), 1);
@@ -158,6 +160,11 @@ export function ReportsPage() {
         </section>
         {promoGiven > 0 ? (
           <p className="text-sm text-muted">הנחות מבצע בטווח: {formatILS(promoGiven)}. המחזור למעלה כבר אחרי המבצעים.</p>
+        ) : null}
+        {manualDiscounts.length ? (
+          <p className="text-sm text-muted">
+            הנחות ידניות: {manualDiscounts.map((line) => `${line.name} ${formatDiscountAmount(line.amount)}`).join(" · ")}
+          </p>
         ) : null}
         {kioskCount > 0 ? (
           <p className="text-sm text-muted">

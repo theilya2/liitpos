@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { pushCustomerDisplay, useCustomerPhase, type CustomerPayload } from "@/lib/pos/customer-display";
 import { selectCustomerSlides } from "@/lib/pos/customer-screen";
+import { manualDiscountRow } from "@/lib/pos/discount-line";
 import { formatILS } from "@/lib/pos/money";
 import { pricedOrPlain, selectPromos } from "@/lib/pos/promo";
 import { qrSvg } from "@/lib/pos/qr";
@@ -66,7 +67,10 @@ export function CustomerMirror() {
         lines: cart.map((line) => ({ key: line.key, name: line.name, qty: line.qty, total: formatILS(line.unitPrice * line.qty) })),
         discounts: [
           ...totals.hits.map((hit) => ({ name: hit.name, amount: formatILS(hit.amount) })),
-          ...(totals.discountAmount > 0 ? [{ name: "הנחה", amount: formatILS(totals.discountAmount) }] : []),
+          ...(() => {
+            const manual = manualDiscountRow(discount, totals.discountAmount);
+            return manual ? [{ name: manual.name, amount: formatILS(manual.amount) }] : [];
+          })(),
         ],
         total: formatILS(totals.total),
         pay: phase.mode === "pay" ? phase.status : "",
