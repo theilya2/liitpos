@@ -141,27 +141,25 @@ export function OptionSheet({
         ) : null}
         {last ? (
           <div className="mt-4 flex items-center justify-center gap-4">
-            <button type="button" aria-label="הפחתה" onClick={() => setQty((value) => Math.max(1, value - 1))} className="flex h-12 w-12 items-center justify-center rounded-full bg-paper ring-1 ring-line">
-              <Minus />
+            <button type="button" aria-label="הקטנת כמות" onClick={() => setQty((value) => Math.max(1, value - 1))} className="flex h-12 w-12 items-center justify-center rounded-full bg-paper ring-1 ring-line">
+              <Minus aria-hidden="true" />
             </button>
             <span className="w-8 text-center text-xl font-semibold tabular-nums">{qty}</span>
-            <button type="button" aria-label="הוספה" onClick={() => setQty((value) => Math.min(cap || 1, value + 1))} className="flex h-12 w-12 items-center justify-center rounded-full bg-paper ring-1 ring-line">
-              <Plus />
+            <button type="button" aria-label="הגדלת כמות" onClick={() => setQty((value) => Math.min(cap || 1, value + 1))} className="flex h-12 w-12 items-center justify-center rounded-full bg-paper ring-1 ring-line">
+              <Plus aria-hidden="true" />
             </button>
           </div>
         ) : null}
         {error ? <p className="mt-3 text-sm text-copper">{error}</p> : null}
-        <div className="mt-4 grid grid-cols-2 gap-2">
+        <div className={`mt-4 grid gap-2 ${step > 0 ? "grid-cols-2" : "grid-cols-1"}`}>
           {step > 0 ? (
             <button type="button" onClick={() => setStep((value) => value - 1)} className="min-h-12 rounded-2xl bg-paper text-sm font-medium ring-1 ring-line">
               חזרה
             </button>
-          ) : (
-            <span />
-          )}
+          ) : null}
           {last ? (
             <button type="button" disabled={!stepReady()} onClick={add} className="min-h-14 rounded-2xl bg-pine text-lg font-semibold text-pine-ink disabled:opacity-40">
-              הוספה
+              הוסף לעגלה
             </button>
           ) : (
             <button type="button" disabled={!stepReady()} onClick={() => setStep((value) => value + 1)} className="min-h-14 rounded-2xl bg-pine text-lg font-semibold text-pine-ink disabled:opacity-40">

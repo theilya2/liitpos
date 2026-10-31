@@ -200,6 +200,8 @@ export type Sale = {
   createdAt: string;
   lines: SaleLine[];
   discountAmount: number;
+  /** "הנחה 10%" or "הנחה ₪5". Missing on sales from before the labeled line. */
+  discountLabel?: string;
   /** Automatic promotion taken off before the manual discount. Missing on older sales. */
   promoAmount?: number;
   promoLabel?: string;
@@ -425,6 +427,9 @@ export type ZReport = {
   promoTotal?: number;
   /** Same promotions, one line per name. Older reports omit it. */
   promoLines?: { name: string; amount: number }[];
+  /** Manual percent and shekel discounts, one line per label. Older reports omit it. */
+  discountTotal?: number;
+  discountLines?: { name: string; amount: number }[];
   leftInDrawer: number;
   drawerOpens: number;
 };

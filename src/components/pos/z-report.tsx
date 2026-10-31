@@ -1,3 +1,4 @@
+import { formatDiscountAmount } from "@/lib/pos/discount-line";
 import { formatDay, formatILS } from "@/lib/pos/money";
 import { currentUser, usePos } from "@/lib/pos/store";
 import { registerCaption } from "@/lib/pos/register";
@@ -38,6 +39,11 @@ export function ZReportView({ report }: { report: ZReport }) {
         ))}
         {typeof report.promoTotal === "number" && report.promoTotal > 0 && !(report.promoLines ?? []).length ? <Row label="מבצעים" value={formatILS(report.promoTotal)} /> : null}
         {typeof report.promoTotal === "number" && (report.promoLines ?? []).length > 1 ? <Row label="סה״כ מבצעים" value={formatILS(report.promoTotal)} /> : null}
+        {(report.discountLines ?? []).map((line) => (
+          <Row key={line.name} label={line.name} value={formatDiscountAmount(line.amount)} />
+        ))}
+        {typeof report.discountTotal === "number" && report.discountTotal > 0 && !(report.discountLines ?? []).length ? <Row label="הנחות" value={formatDiscountAmount(report.discountTotal)} /> : null}
+        {(report.discountLines ?? []).length > 1 ? <Row label="סה״כ הנחות" value={formatDiscountAmount(report.discountTotal ?? 0)} /> : null}
         <Row label="מע״מ" value={formatILS(report.vat)} />
         <Row label="לפני מע״מ" value={formatILS(report.net)} />
       </div>
