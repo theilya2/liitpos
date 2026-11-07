@@ -7,7 +7,9 @@ COPY . .
 ARG VITE_PUBLIC_ORIGIN=https://liitpos.185-250-36-27.sslip.io
 ENV VITE_PUBLIC_ORIGIN=$VITE_PUBLIC_ORIGIN
 ENV LIITPOS_STANDALONE=1
-RUN node scripts/with-app-env.mjs vite build
+# `npm run` is required here: it puts node_modules/.bin on PATH. Invoking
+# `node scripts/with-app-env.mjs vite build` directly exits 127 in this image.
+RUN npm run build:standalone
 
 FROM node:22-bookworm-slim AS run
 WORKDIR /app

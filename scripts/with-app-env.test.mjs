@@ -2,11 +2,12 @@ import assert from "node:assert/strict";
 import { execFile } from "node:child_process";
 import { mkdirSync, mkdtempSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { test } from "node:test";
 import { promisify } from "node:util";
 import {
   APP_ENV_REL_PATH,
+  envWithLocalBin,
   mergeAppEnv,
   parseAppEnv,
   projectRoot,
@@ -110,6 +111,31 @@ test("a signal-killed command is never reported as success", async () => {
       "process.kill(process.pid, 'SIGTERM');setTimeout(() => {}, 1000);",
     ]),
     (err) => err.signal === "SIGTERM" || err.code !== 0,
+  );
+});
+
+test("a Docker-like PATH still finds the local vite bin", async () => {
+  const merged = envWithLocalBin({ PATH: "/usr/local/sbin:/usr/bin:/bin" }, projectRoot());
+  assert.equal(
+    merged.PATH.split(":")[0],
+    join(projectRoot(), "node_modules", ".bin"),
+  );
+  // Node itself is on PATH, as in the official image. node_modules/.bin is not,
+  // which is what made `vite` exit 127 in a Docker RUN.
+  const path = `${dirname(process.execPath)}:/usr/bin:/bin`;
+  assert.equal(path.includes(`${join("node_modules", ".bin")}`), false);
+  const { stdout } = await execFileAsync(process.execPath, [WRAPPER, "vite", "--version"], {
+    env: { ...process.env, PATH: path },
+  });
+  assert.match(stdout, /vite/i);
+});
+
+test("a missing command still exits 127", async () => {
+  await assert.rejects(
+    execFileAsync(process.execPath, [WRAPPER, "liitpos-not-a-command"], {
+      env: { ...process.env, PATH: "/usr/bin:/bin" },
+    }),
+    (err) => err.code === 127,
   );
 });
 

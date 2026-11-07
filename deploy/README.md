@@ -17,6 +17,7 @@ From a checkout of this repo (the operator's machine, not this one):
 ```bash
 umask 077
 mkdir -p deploy/secrets
+chmod 0750 deploy/secrets
 printf '%s' 'the-username-you-choose' > deploy/secrets/admin_username
 # type a new password; it is not echoed and it is not read from Vercel
 read -r -s ADMIN_PASSWORD
@@ -26,15 +27,58 @@ unset ADMIN_PASSWORD
 openssl rand -base64 32 | tr -d '\n' > deploy/secrets/db_password
 printf '%s' 'liitpos' > deploy/secrets/db_user
 printf '%s\n' 'LIITPOS_PROXY_NETWORK=the-caddy-network-name' > deploy/.env
+chmod 0600 deploy/.env
 ```
 
-`liitpos` above is only the database role name. The password is the random file. To use a hash instead of `ADMIN_PASSWORD`, choose a password of at least 12 characters first (the server cannot check the strength of a hash), run this on the VPS, put the single `scrypt:` line in `deploy/secrets/admin_password_hash`, then empty the password file:
+`liitpos` above is only the database role name. The password is the random file. To use a hash instead of `ADMIN_PASSWORD`, choose a password of at least 12 characters first (the server cannot check the strength of a hash). Do this before the `chown` below, while the creating account can still read the file. Put the single `scrypt:` line in `deploy/secrets/admin_password_hash`, then empty the password file:
 
 ```bash
 node --input-type=module -e 'import { randomBytes, scryptSync } from "node:crypto"; const salt = randomBytes(16).toString("hex"); const key = scryptSync(process.argv[1], salt, 32).toString("hex"); console.log(`scrypt:${salt}:${key}`)' "$(cat deploy/secrets/admin_password)"
 ```
 
+Then lock the files. This does not change their contents:
+
+```bash
+sudo chown 1000 deploy/secrets/admin_username \
+  deploy/secrets/admin_password \
+  deploy/secrets/admin_password_hash \
+  deploy/secrets/db_user \
+  deploy/secrets/db_password
+sudo chmod 0400 deploy/secrets/admin_username \
+  deploy/secrets/admin_password \
+  deploy/secrets/admin_password_hash \
+  deploy/secrets/db_user \
+  deploy/secrets/db_password
+```
+
 `LIITPOS_PROXY_NETWORK` is the Docker network the existing Caddy container already uses. Look it up on the VPS. `deploy/env.example` lists that name only. Do not put passwords in `deploy/.env`.
+
+## Secret file permissions
+
+Compose bind-mounts these files into the containers. `uid`, `gid`, and `mode` on a file secret are ignored, so the host owner and mode are what the container sees. Do not chmod the secrets to `0444` or `0644`.
+
+Every secret file must be mode `0400` and owned by numeric uid **1000**. That is the `node` user in the app image, and the app is not root, so a root-owned `0400` file is unreadable to it. Mode `0400` does not grant group read. Leave the directory at `0750` (or tighter). Do not add access for other users, and do not change permissions outside `deploy/secrets` and `deploy/.env`.
+
+The Postgres image starts as root, reads `POSTGRES_USER_FILE` and `POSTGRES_PASSWORD_FILE`, then drops to the `postgres` user. The database user does not need other-read on those files. `0444` was only a way to bridge two uids; it is broader than this image needs, including inside the app container.
+
+Files that already exist should not be rewritten. This only changes owner and mode:
+
+```bash
+sudo chown 1000 deploy/secrets/admin_username \
+  deploy/secrets/admin_password \
+  deploy/secrets/admin_password_hash \
+  deploy/secrets/db_user \
+  deploy/secrets/db_password
+sudo chmod 0400 deploy/secrets/admin_username \
+  deploy/secrets/admin_password \
+  deploy/secrets/admin_password_hash \
+  deploy/secrets/db_user \
+  deploy/secrets/db_password
+sudo chmod 0750 deploy/secrets
+stat -c '%a %u %g %n' deploy/secrets deploy/secrets/*
+```
+
+`stat` prints mode and ids, not the secret bytes. Expected: directory `750`, each file `400` and uid `1000`. The group may stay `liitpos`. Do not `cat` the files.
 
 ## Start
 
@@ -113,4 +157,4 @@ git checkout <commit>
 docker compose --env-file deploy/.env -f deploy/compose.yaml up -d --build
 ```
 
-`npm run build` is still the Vercel build. `npm run build:standalone` is the Node server, used by the Dockerfile.
+`npm run build` is still the Vercel build. The image runs `npm run build:standalone`, which is the Node server. That `npm run` puts `node_modules/.bin` on `PATH`; a bare `vite` in a Docker `RUN` is not found and exits 127.
