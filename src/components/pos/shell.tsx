@@ -4,8 +4,9 @@ import { BarChart3, Boxes, LockKeyhole, Receipt, Settings2, ShoppingCart } from 
 import { AppUpdateBanner } from "@/components/pos/app-update";
 import { CloudSync, RegisterMark, SyncIndicator } from "@/components/pos/cloud-bar";
 import { areaForPath, can } from "@/lib/pos/access";
+import { HELD_OUTBOX_KEY, HISTORY_HOLD_KEY, MOVED_TO_KEY, planServerMove } from "@/lib/pos/cloud-origin";
 import { canUseBusiness } from "@/lib/pos/demo";
-import { prepareNative } from "@/lib/pos/native";
+import { clearSessionToken, isNativeApp, prepareNative, readSessionToken, readStoredCloudOrigin, writeCloudUrl } from "@/lib/pos/native";
 import { CustomerMirror } from "@/components/pos/customer-mirror";
 import { LockScreen } from "@/components/pos/lock-screen";
 import { ReceiptView } from "@/components/pos/receipt";
@@ -20,6 +21,50 @@ const NAV: { to: "/" | "/receipts" | "/inventory" | "/reports" | "/manage"; labe
   { to: "/reports", label: "דוח", icon: BarChart3, area: "reports" },
   { to: "/manage", label: "ניהול", icon: Settings2, area: "manage" },
 ];
+
+function storedFlag(key: string): string {
+  try {
+    return window.localStorage.getItem(key) ?? "";
+  } catch {
+    return "";
+  }
+}
+
+/** Point a phone that still has the old host at the new server, without touching local sales. */
+function commitServerMove() {
+  if (!isNativeApp()) return;
+  const state = usePos.getState();
+  const plan = planServerMove({
+    native: true,
+    savedOrigin: readStoredCloudOrigin(),
+    movedTo: storedFlag(MOVED_TO_KEY),
+    token: readSessionToken(),
+    outbox: state.outbox,
+    sales: state.stores.flatMap((store) => store.sales.map((sale) => ({ id: sale.id }))),
+  });
+  if (!plan.moved) return;
+  try {
+    if (!window.localStorage.getItem(HELD_OUTBOX_KEY)) {
+      window.localStorage.setItem(HELD_OUTBOX_KEY, JSON.stringify(plan.held));
+    }
+    window.localStorage.setItem(HISTORY_HOLD_KEY, "1");
+    window.localStorage.setItem(MOVED_TO_KEY, plan.origin);
+  } catch {
+    /* private mode */
+  }
+  writeCloudUrl(plan.origin);
+  clearSessionToken();
+  if (plan.clearCursor || plan.clearRegister) {
+    usePos.setState({
+      outbox: [],
+      cloudCursor: null,
+      registerNo: null,
+      registerName: "",
+      registerBusinessId: "",
+      registerRevoked: false,
+    });
+  }
+}
 
 function WeekLock() {
   const lock = usePos((state) => state.lock);
@@ -98,6 +143,7 @@ export function PosFrame({ children }: { children: ReactNode }) {
         // Keep the in-memory catalog if storage is unavailable.
       }
       ensureReady();
+      commitServerMove();
       if (live) setReady(true);
     })();
     prepareNative();

@@ -1,0 +1,9 @@
+node_modules
+.output
+.vercel
+.git
+android
+screenshots
+dist
+deploy/secrets
+*.apk

@@ -1,4 +1,5 @@
 import { formatActivationCode, isActivationSource, isDeviceHash, type ActivationSource } from "@/lib/pos/activation";
+import { posUrl } from "@/lib/pos/cloud-origin";
 import { deviceModel, isNativeApp, nativeVersion, readCloudUrl, type ActivationIdentity } from "@/lib/pos/native";
 
 export type ActivationPoll =
@@ -12,7 +13,7 @@ export type ActivationPoll =
 
 function endpoint(path: string): string {
   const cloud = readCloudUrl();
-  if (cloud) return `${cloud}${path}`;
+  if (cloud) return posUrl(path, cloud);
   if (isNativeApp()) return "";
   return path;
 }

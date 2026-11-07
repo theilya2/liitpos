@@ -1,3 +1,4 @@
+import { receiptOrigin } from "@/lib/pos/receipt-link";
 import { roundMoney } from "@/lib/pos/money";
 import type { StoreCredit, StoreCreditRedemption } from "@/lib/pos/types";
 
@@ -22,7 +23,7 @@ export function newCreditCode(existing: string[]): string {
 }
 
 export function creditUrl(token: string): string {
-  return `https://liitpos.vercel.app/c/${token}`;
+  return `${receiptOrigin()}/c/${token}`;
 }
 
 export function creditCloudId(businessId: string, creditId: string): string {

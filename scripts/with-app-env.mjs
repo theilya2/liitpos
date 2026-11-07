@@ -22,7 +22,7 @@
 import { spawn } from "node:child_process";
 import { readFileSync, realpathSync } from "node:fs";
 import { constants as osConstants } from "node:os";
-import { dirname, join } from "node:path";
+import { delimiter, dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 export const APP_ENV_REL_PATH = ".grok/app-env.json";
@@ -88,6 +88,22 @@ export function projectRoot() {
 }
 
 /**
+ * `npm run` puts `node_modules/.bin` on PATH. A direct
+ * `node scripts/with-app-env.mjs vite …` does not, and Docker's default PATH
+ * then makes `spawn("vite")` exit 127. Prepend the local bin directory so the
+ * same command works in both places. An explicit `PATH` entry is kept after it.
+ * @param {NodeJS.ProcessEnv} env
+ * @param {string} root
+ */
+export function envWithLocalBin(env, root) {
+  const bin = join(root, "node_modules", ".bin");
+  const key = process.platform === "win32" ? "Path" : "PATH";
+  const current = env[key] ?? "";
+  const parts = current.split(delimiter).filter((part) => part.length > 0 && part !== bin);
+  return { ...env, [key]: [bin, ...parts].join(delimiter) };
+}
+
+/**
  * Whether `moduleUrl` is the script node was asked to run.
  *
  * Both sides are resolved through symlinks: node realpaths `import.meta.url`
@@ -110,7 +126,7 @@ function main(argv) {
     console.error("usage: node scripts/with-app-env.mjs <command> [args…]");
     process.exit(2);
   }
-  const env = mergeAppEnv(readAppEnv(projectRoot()), process.env);
+  const env = envWithLocalBin(mergeAppEnv(readAppEnv(projectRoot()), process.env), projectRoot());
   const child = spawn(command, args, { stdio: "inherit", env });
   // The dev server is long-running and is stopped by signalling this wrapper.
   for (const signal of ["SIGINT", "SIGTERM", "SIGHUP"]) {

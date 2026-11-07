@@ -81,6 +81,20 @@ export function cleanCloudUrl(value: string): string {
   }
 }
 
+/** Saved address only. An empty result means the native default has not been written yet. */
+export function readStoredCloudOrigin(): string {
+  const fromBridge = cleanCloudUrl(bridge()?.getCloudUrl?.() ?? "");
+  if (fromBridge) return fromBridge;
+  if (typeof window !== "undefined") {
+    try {
+      return cleanCloudUrl(window.localStorage.getItem(CLOUD_KEY) ?? "");
+    } catch {
+      return "";
+    }
+  }
+  return "";
+}
+
 export function readCloudUrl(): string {
   const fromBridge = cleanCloudUrl(bridge()?.getCloudUrl?.() ?? "");
   if (fromBridge) return fromBridge;

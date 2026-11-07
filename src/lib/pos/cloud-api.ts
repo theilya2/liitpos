@@ -1,3 +1,4 @@
+import { posUrl } from "@/lib/pos/cloud-origin";
 import type { CloudDoc } from "@/lib/pos/docs";
 import { isNativeApp, readCloudUrl, readSessionToken } from "@/lib/pos/native";
 import { readRegisterClaim, type RegisterClaim } from "@/lib/pos/register";
@@ -20,7 +21,7 @@ function syncFailure(message: string, status: number, reason: SyncFailureReason)
 
 function syncEndpoint(): string {
   const cloud = readCloudUrl();
-  if (cloud) return `${cloud}/api/pos/sync`;
+  if (cloud) return posUrl("/api/pos/sync", cloud);
   if (isNativeApp()) return "";
   return "/api/pos/sync";
 }

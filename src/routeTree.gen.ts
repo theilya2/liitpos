@@ -18,6 +18,7 @@ import { Route as ProductsRouteImport } from './routes/products'
 import { Route as ReceiptsRouteImport } from './routes/receipts'
 import { Route as ReportsRouteImport } from './routes/reports'
 import { Route as SettingsRouteImport } from './routes/settings'
+import { Route as ApiHealthRouteImport } from './routes/api/health'
 import { Route as CTokenRouteImport } from './routes/c/$token'
 import { Route as RTokenRouteImport } from './routes/r/$token'
 import { Route as ApiAdminLoginRouteImport } from './routes/api/admin/login'
@@ -71,6 +72,11 @@ const ReportsRoute = ReportsRouteImport.update({
 const SettingsRoute = SettingsRouteImport.update({
   id: '/settings',
   path: '/settings',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiHealthRoute = ApiHealthRouteImport.update({
+  id: '/api/health',
+  path: '/api/health',
   getParentRoute: () => rootRouteImport,
 } as any)
 const CTokenRoute = CTokenRouteImport.update({
@@ -129,6 +135,7 @@ export interface FileRoutesByFullPath {
   '/receipts': typeof ReceiptsRoute
   '/reports': typeof ReportsRoute
   '/settings': typeof SettingsRoute
+  '/api/health': typeof ApiHealthRoute
   '/c/$token': typeof CTokenRoute
   '/r/$token': typeof RTokenRoute
   '/api/admin/login': typeof ApiAdminLoginRoute
@@ -149,6 +156,7 @@ export interface FileRoutesByTo {
   '/receipts': typeof ReceiptsRoute
   '/reports': typeof ReportsRoute
   '/settings': typeof SettingsRoute
+  '/api/health': typeof ApiHealthRoute
   '/c/$token': typeof CTokenRoute
   '/r/$token': typeof RTokenRoute
   '/api/admin/login': typeof ApiAdminLoginRoute
@@ -170,6 +178,7 @@ export interface FileRoutesById {
   '/receipts': typeof ReceiptsRoute
   '/reports': typeof ReportsRoute
   '/settings': typeof SettingsRoute
+  '/api/health': typeof ApiHealthRoute
   '/c/$token': typeof CTokenRoute
   '/r/$token': typeof RTokenRoute
   '/api/admin/login': typeof ApiAdminLoginRoute
@@ -192,6 +201,7 @@ export interface FileRouteTypes {
     | '/receipts'
     | '/reports'
     | '/settings'
+    | '/api/health'
     | '/c/$token'
     | '/r/$token'
     | '/api/admin/login'
@@ -212,6 +222,7 @@ export interface FileRouteTypes {
     | '/receipts'
     | '/reports'
     | '/settings'
+    | '/api/health'
     | '/c/$token'
     | '/r/$token'
     | '/api/admin/login'
@@ -232,6 +243,7 @@ export interface FileRouteTypes {
     | '/receipts'
     | '/reports'
     | '/settings'
+    | '/api/health'
     | '/c/$token'
     | '/r/$token'
     | '/api/admin/login'
@@ -253,6 +265,7 @@ export interface RootRouteChildren {
   ReceiptsRoute: typeof ReceiptsRoute
   ReportsRoute: typeof ReportsRoute
   SettingsRoute: typeof SettingsRoute
+  ApiHealthRoute: typeof ApiHealthRoute
   CTokenRoute: typeof CTokenRoute
   RTokenRoute: typeof RTokenRoute
   ApiAdminLoginRoute: typeof ApiAdminLoginRoute
@@ -327,6 +340,13 @@ declare module '@tanstack/react-router' {
       path: '/settings'
       fullPath: '/settings'
       preLoaderRoute: typeof SettingsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/health': {
+      id: '/api/health'
+      path: '/api/health'
+      fullPath: '/api/health'
+      preLoaderRoute: typeof ApiHealthRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/c/$token': {
@@ -405,6 +425,7 @@ const rootRouteChildren: RootRouteChildren = {
   ReceiptsRoute: ReceiptsRoute,
   ReportsRoute: ReportsRoute,
   SettingsRoute: SettingsRoute,
+  ApiHealthRoute: ApiHealthRoute,
   CTokenRoute: CTokenRoute,
   RTokenRoute: RTokenRoute,
   ApiAdminLoginRoute: ApiAdminLoginRoute,
