@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { pollActivation, requestActivationCode } from "@/lib/pos/activation-client";
+import { historyHeld } from "@/lib/pos/cloud-origin";
 import { readActivationIdentity, readSessionToken, rememberActivationChoice, writeSessionToken, type ActivationIdentity } from "@/lib/pos/native";
 import { REVOKED_DETAIL } from "@/lib/pos/register";
 
@@ -80,6 +81,11 @@ export function ActivationWait({ disconnected }: { disconnected: boolean }) {
           </p>
           <p className="mt-3 text-lg font-semibold text-pretty">ממתין לאישור המנהל</p>
           <p className="mt-2 text-sm text-pretty text-muted">הקוד קבוע למכשיר הזה ונשאר גם אחרי התקנה מחדש. בלוח הבקרה מאשרים אותו תחת «קופות ממתינות לאישור».</p>
+          {historyHeld() ? (
+            <p className="mt-2 text-sm text-pretty text-muted">
+              המכירות והמוצרים שנשמרו במכשיר נשארים במכשיר. הם לא נמחקים, והאפליקציה לא שולחת את ההיסטוריה הזו לשרת החדש. צריך לאשר את הקוד מחדש בלוח של השרת החדש.
+            </p>
+          ) : null}
           {offline ? <p className="mt-2 text-sm text-pretty text-copper">אין רשת כרגע. הבדיקה תימשך כשהחיבור יחזור.</p> : null}
           {notice ? <p className="mt-2 text-sm text-pretty text-copper">{notice}</p> : null}
         </>

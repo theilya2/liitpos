@@ -1,5 +1,7 @@
-/** Cloud host baked into the Android app. */
-export const DEFAULT_CLOUD_ORIGIN = "https://liitpos.vercel.app";
+import { PRODUCTION_CLOUD_ORIGIN } from "@/lib/pos/cloud-origin";
+
+/** Cloud host baked into the Android app. The website bundle still calls its own origin. */
+export const DEFAULT_CLOUD_ORIGIN = PRODUCTION_CLOUD_ORIGIN;
 
 export const REVOKED_DETAIL = 'הקופה נותקה ע"י המנהל';
 

@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { pairedBaselineUpload } from "@/lib/pos/baseline";
+import { historyHeld } from "@/lib/pos/cloud-origin";
 import { probeCloud, pullCloud, pushCloud, type SyncClient, type SyncFailureReason } from "@/lib/pos/cloud-api";
 import { isDemoMode } from "@/lib/pos/demo";
 import { catalogDoc, mergeOutbox, snapshotDocs, type CloudDoc } from "@/lib/pos/docs";
@@ -188,19 +189,23 @@ async function runSync() {
       const now = new Date().toISOString();
       if (!isDemoMode()) {
         state.applyRemote(probe.docs);
-        const claimId = probe.register?.businessId ?? "";
-        usePos.getState().takePairedBaseline(probe.docs, claimId);
-        if (probe.register) {
-          const fresh = usePos.getState();
-          const extra = pairedBaselineUpload(fresh.stores, fresh.staff, known, probe.register.businessId, now);
-          if (extra.length) fresh.replaceOutbox(mergeOutbox(fresh.outbox, extra));
+        // A phone that left the previous server keeps its local sales. It does not
+        // upload that history, and it does not drop the local shop to match an empty server.
+        if (!historyHeld()) {
+          const claimId = probe.register?.businessId ?? "";
+          usePos.getState().takePairedBaseline(probe.docs, claimId);
+          if (probe.register) {
+            const fresh = usePos.getState();
+            const extra = pairedBaselineUpload(fresh.stores, fresh.staff, known, probe.register.businessId, now);
+            if (extra.length) fresh.replaceOutbox(mergeOutbox(fresh.outbox, extra));
+          }
         }
       } else {
         const missing = snapshotDocs(state.stores, state.staff, now).filter((doc) => !known.has(doc.id));
         if (missing.length) state.replaceOutbox(mergeOutbox(state.outbox, missing));
         state.applyRemote(probe.docs);
       }
-      requeueCatalogDrift(probe.docs);
+      if (!historyHeld()) requeueCatalogDrift(probe.docs);
       usePos.getState().setCloudCursor(probe.serverTime);
       rememberRegister(probe.register);
     }
@@ -209,7 +214,7 @@ async function runSync() {
     rememberRegister(pulled.register);
     releaseAt = releaseStamp(pulled.docs) ?? releaseAt;
     usePos.getState().applyRemote(pulled.docs);
-    requeueCatalogDrift(pulled.docs);
+    if (!historyHeld()) requeueCatalogDrift(pulled.docs);
     usePos.getState().setCloudCursor(pulled.serverTime);
     usePos.getState().acceptCloudClock(pulled.serverTime, releaseAt);
     await flushOutbox();

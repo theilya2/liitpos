@@ -158,3 +158,5 @@ docker compose --env-file deploy/.env -f deploy/compose.yaml up -d --build
 ```
 
 `npm run build` is still the Vercel build. The image runs `npm run build:standalone`, which is the Node server. That `npm run` puts `node_modules/.bin` on `PATH`; a bare `vite` in a Docker `RUN` is not found and exits 127.
+
+The Android app from version 1.0.1025 calls this host for activation, sync, and receipt links. GitHub remains the APK source. No server rebuild is required for that client switch when this host is already serving the same API.

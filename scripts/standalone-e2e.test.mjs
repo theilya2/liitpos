@@ -135,6 +135,38 @@ test("standalone server keeps data across restart and rejects anonymous admin ca
       body: "{}",
     });
     assert.equal(sync.status, 401);
+    const oldToken = await fetch(`http://127.0.0.1:${port}/api/pos/sync`, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        origin: "https://localhost",
+        authorization: "Bearer old-vercel-device-token",
+      },
+      body: JSON.stringify({ op: "pull", since: null }),
+    });
+    assert.equal(oldToken.status, 401);
+    const deviceId = "ab".repeat(32);
+    const activation = await fetch(`http://127.0.0.1:${port}/api/pos/activation/request`, {
+      method: "POST",
+      headers: { "content-type": "application/json", origin: "https://localhost" },
+      body: JSON.stringify({
+        deviceId,
+        sources: [{ source: "random", deviceId }],
+        model: "isolated",
+        appVersion: "1.0.1025",
+      }),
+    });
+    const activationBody = await activation.json();
+    assert.equal(activation.status, 200, activationBody.error ?? "activation failed");
+    assert.equal(typeof activationBody.code, "string");
+    assert.ok((activationBody.code ?? "").length >= 6);
+    const sales = spawnSync(
+      psql,
+      ["-h", "127.0.0.1", "-p", String(pgPort), "-U", "liitpos_app", "-d", "liitpos", "-tAc", "select count(*) from pos_docs where kind = 'sale'"],
+      { encoding: "utf8", env: { ...env, PGPASSWORD: password } },
+    );
+    assert.equal(sales.status, 0, redact(sales.stderr || sales.stdout || "sale count failed"));
+    assert.equal(sales.stdout.trim(), "0");
     const wrong = await fetch(`http://127.0.0.1:${port}/api/admin/login`, {
       method: "POST",
       headers: { "content-type": "application/json" },

@@ -9,7 +9,7 @@ The first install is a file you copy onto the phone (an APK). Google Play can wa
 - A computer with Node.js 22.
 - [Android Studio](https://developer.android.com/studio) (includes the Android SDK). You only need it to open the project or to use an emulator. The command below can build the APK without clicking through Studio.
 - The signing key that belongs to this app. It is **not** in git. If you lose it, phones that already have Liitpos cannot install a newer build over the old one. Sales stored on those phones stay only on those phones.
-- For cloud sync: the public address of the website (the Vercel URL). This repository does not contain that address. You type it once in the app, under settings, or on the lock screen.
+- For cloud sync: the Android build talks to `https://liitpos.185-250-36-27.sslip.io`. Card terminals stay on the local IP in settings. GitHub remains the release source.
 
 ## Application id
 
@@ -70,10 +70,18 @@ Updating later uses the same steps. Android replaces the app when the new APK is
 
 The register on the phone does not have an account button. Pairing is done from the back office, which is not linked from the register.
 
-1. On Vercel, set `ADMIN_USERNAME` and `ADMIN_PASSWORD` (or `ADMIN_PASSWORD_HASH`). `BETTER_AUTH_URL` must be `https://liitpos.vercel.app` with no slash at the end. `DATABASE_URL` is already the Neon database. If the username is missing, or both the password and the hash are missing, the back office refuses every login.
-2. Open `https://liitpos.vercel.app/admin` in a browser and sign in with that username and password. There is no sign-up. Five wrong tries from the same network, or against the same username, lock login for 15 minutes.
-3. Open the register. It shows an activation code. In the back office, under **קופות ממתינות לאישור**, choose the business and approve that code. The register stores its license and opens the staff screen.
-4. Sales made offline upload on their own after that. Disconnect the register from the same screen. It returns to a new activation code. A register that was already licensed keeps that license.
+The app's server is `https://liitpos.185-250-36-27.sslip.io`. Open `https://liitpos.185-250-36-27.sslip.io/admin` and sign in with the username and password created for that server. There is no sign-up. Five wrong tries from the same network, or against the same username, lock login for 15 minutes. Do not copy the Vercel admin username or password. The Vercel site and its Neon database are a different system and stay as they are.
+
+1. Open the register. It shows an activation code. In the back office, under **קופות ממתינות לאישור**, choose the business and approve that code. The register stores its license and opens the staff screen.
+2. Sales made after that upload on their own. Disconnect the register from the same screen. It returns to a new activation code. A register that was already licensed on this server keeps that license.
+
+## Phones that were activated on Vercel
+
+Those phones have a device token for the old server. The new database is empty, so that token is not a login there and the app does not send it. Installing `1.0.1025` (version code 1025) over the existing app, signed with the same key and the same id `com.liitpos.app`, keeps the sales, products, and staff stored on the phone.
+
+The phone shows an activation code again. Approve it on the new server's back office. The old receipts stay on the phone and are not uploaded. This build does not copy that history. Copying it later would be a separate choice, because it would write the old sales into the empty database. New sales after the new approval do upload.
+
+A phone that was given some other https address in its saved server setting keeps that address. GitHub release checks stay on GitHub. The update check still asks this server first, then GitHub.
 
 `ADMIN_PASSWORD_HASH`, if you prefer not to store the password itself, is a `scrypt:` line. Generate it on your computer (do not commit it):
 

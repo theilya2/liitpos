@@ -36,3 +36,5 @@ node --input-type=module -e 'import { randomBytes, scryptSync } from "node:crypt
 
 פריסת Vercel ו-Neon לא משתנות. שרת Node עצמאי, עם Postgres מקומי ריק, מתואר ב-[deploy/README.md](deploy/README.md). אין שם שם משתמש או סיסמה מוכנים: את `ADMIN_USERNAME` חייבים לבחור בעצמכם.
 
+אפליקציית האנדרואיד בגרסה 1.0.1025 פונה לשרת הזה. מכשיר שאושר בעבר ב-Vercel צריך אישור מחדש. המכירות שנשמרו בטלפון נשארות בטלפון ולא נשלחות אוטומטית.
+
