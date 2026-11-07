@@ -1,0 +1,7 @@
+# Copy to /srv/proxy/sites/liitpos.caddy on the VPS.
+# Do not edit the existing wildcard *.185-250-36-27.sslip.io site.
+# Caddy prefers this exact host over the wildcard.
+liitpos.185-250-36-27.sslip.io {
+	encode gzip
+	reverse_proxy liitpos-app:3000
+}

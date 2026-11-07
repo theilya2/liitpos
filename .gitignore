@@ -4,6 +4,8 @@ screenshots
 artifacts
 .vercel
 .output
+deploy/secrets/
+deploy/.env
 dist
 .env
 .env.*

@@ -1,6 +1,7 @@
 import { pendingMigrations } from "../../scripts/migration-plan.mjs";
 
 /** Which database backend is active. */
+/** "neon" means node-postgres via DATABASE_URL (Neon on Vercel, any Postgres when self-hosted). */
 export type DbSource = "neon" | "pglite";
 
 // An empty/whitespace DATABASE_URL (an easy misconfig in deploy UIs) must mean
@@ -11,10 +12,8 @@ const databaseUrl =
   rawDatabaseUrl && rawDatabaseUrl.trim() ? rawDatabaseUrl : undefined;
 
 /**
- * Active backend: real **Neon** when `DATABASE_URL` is set (deployed / configured
- * sandbox), otherwise a local embedded **PGLite** (Postgres compiled to WASM) so
- * the app has a working database even with nothing configured — the live preview
- * included. Swap in Neon later by just setting `DATABASE_URL`; no code changes.
+ * Active backend: node-postgres when `DATABASE_URL` is set (Neon on Vercel, or
+ * the private Postgres on a standalone host), otherwise embedded PGLite.
  */
 export const dbSource: DbSource = databaseUrl ? "neon" : "pglite";
 

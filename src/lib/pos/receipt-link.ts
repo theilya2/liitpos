@@ -4,8 +4,32 @@ import { isPaymentMethod, tendersOf } from "@/lib/pos/tender";
 import { registerCaption } from "@/lib/pos/register";
 import { METHOD_LABEL, type PaymentMethod, type Sale, type SaleLine, type TenderLine } from "@/lib/pos/types";
 
+const VERCEL_ORIGIN = "https://liitpos.vercel.app";
+
+function cleanOrigin(value: string | undefined): string | null {
+  if (!value?.trim()) return null;
+  try {
+    const url = new URL(value.trim());
+    if (url.protocol !== "https:" || url.username || url.password) return null;
+    if (url.pathname && url.pathname !== "/") return null;
+    return url.origin;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Public https origin for receipt links. The Vercel host stays the default.
+ * A standalone image sets VITE_PUBLIC_ORIGIN at build time. The server can
+ * also use BETTER_AUTH_URL when the page is rendered on the server.
+ */
+export function receiptOrigin(): string {
+  const vite = (import.meta as ImportMeta & { env?: { VITE_PUBLIC_ORIGIN?: string } }).env?.VITE_PUBLIC_ORIGIN;
+  return cleanOrigin(vite) ?? cleanOrigin(typeof process !== "undefined" ? process.env.BETTER_AUTH_URL : undefined) ?? VERCEL_ORIGIN;
+}
+
 /** Public host for customer receipt links. The register itself may be offline. */
-export const RECEIPT_ORIGIN = "https://liitpos.vercel.app";
+export const RECEIPT_ORIGIN = receiptOrigin();
 
 const TOKEN = /^[A-Za-z0-9_-]{22,64}$/;
 
